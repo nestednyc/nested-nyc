@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
+import { authService, getErrorMessage } from '../lib/supabase'
 
 /**
  * VerifyScreen - Code Verification Screen
@@ -19,8 +20,12 @@ import { useNavigate } from 'react-router-dom'
 
 function VerifyScreen() {
   const navigate = useNavigate()
+  const location = useLocation()
   const [code, setCode] = useState(['', '', '', ''])
   const [timer, setTimer] = useState(42)
+  const [isVerifying, setIsVerifying] = useState(false)
+  const [error, setError] = useState('')
+  const [email, setEmail] = useState(location.state?.email || '')
   
   // Timer countdown
   useEffect(() => {
@@ -32,16 +37,70 @@ function VerifyScreen() {
   
   // Handle number pad press
   const handleNumberPress = (num) => {
+    if (isVerifying) return
+    
     const newCode = [...code]
     const emptyIndex = newCode.findIndex(c => c === '')
     if (emptyIndex !== -1) {
       newCode[emptyIndex] = num.toString()
       setCode(newCode)
       
-      // Auto-navigate when complete
+      // Auto-verify when complete
       if (emptyIndex === 3) {
-        setTimeout(() => navigate('/profile'), 500)
+        verifyCode(newCode.join(''))
       }
+    }
+  }
+  
+  // Verify OTP code with Supabase
+  const verifyCode = async (otpCode) => {
+    if (!email) {
+      setError('Email not found. Please go back and try again.')
+      return
+    }
+    
+    setIsVerifying(true)
+    setError('')
+    
+    try {
+      const { data, error: verifyError } = await authService.verifyOtp(email, otpCode)
+      
+      if (verifyError) {
+        setError(getErrorMessage(verifyError))
+        // Clear code on error
+        setCode(['', '', '', ''])
+        setIsVerifying(false)
+        return
+      }
+      
+      // Success - navigate to profile
+      navigate('/profile')
+    } catch (err) {
+      setError('An unexpected error occurred. Please try again.')
+      setCode(['', '', '', ''])
+      setIsVerifying(false)
+      }
+  }
+  
+  // Resend verification code
+  const handleResend = async () => {
+    if (!email) {
+      setError('Email not found. Please go back and try again.')
+      return
+    }
+    
+    setError('')
+    setCode(['', '', '', ''])
+    setTimer(42)
+    
+    try {
+      const { error: resendError } = await authService.sendMagicLink(email)
+      
+      if (resendError) {
+        setError(getErrorMessage(resendError))
+      }
+    } catch (err) {
+      setError('Failed to resend code. Please try again.')
     }
   }
   
@@ -149,13 +208,52 @@ function VerifyScreen() {
         we've sent you
       </p>
       
+      {/* Error Message */}
+      {error && (
+        <div 
+          style={{
+            marginTop: '20px',
+            padding: '12px 16px',
+            backgroundColor: '#FFF5F5',
+            borderRadius: '12px',
+            border: '1px solid #FFE5E5',
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: '10px'
+          }}
+        >
+          <svg 
+            width="20" 
+            height="20" 
+            viewBox="0 0 24 24" 
+            fill="none" 
+            style={{ flexShrink: 0, marginTop: '2px' }}
+          >
+            <circle cx="12" cy="12" r="10" stroke="#E5385A" strokeWidth="2" fill="none"/>
+            <path d="M12 8v4M12 16h.01" stroke="#E5385A" strokeWidth="2" strokeLinecap="round"/>
+          </svg>
+          <p 
+            style={{
+              margin: 0,
+              fontSize: '13px',
+              lineHeight: 1.5,
+              color: '#E5385A',
+              flex: 1
+            }}
+          >
+            {error}
+          </p>
+        </div>
+      )}
+      
       {/* Code Input Boxes */}
       <div 
         style={{ 
           marginTop: '40px',
           display: 'flex',
           justifyContent: 'center',
-          gap: '12px'
+          gap: '12px',
+          opacity: isVerifying ? 0.6 : 1
         }}
       >
         {code.map((digit, index) => {
@@ -172,10 +270,26 @@ function VerifyScreen() {
                 justifyContent: 'center',
                 fontSize: '24px',
                 fontWeight: 700,
+                transition: 'all 0.2s ease',
                 ...boxStyle
               }}
             >
-              {digit || '0'}
+              {isVerifying && index === 3 ? (
+                <svg 
+                  width="20" 
+                  height="20" 
+                  viewBox="0 0 24 24" 
+                  fill="none"
+                  style={{ animation: 'spin 1s linear infinite' }}
+                >
+                  <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" strokeDasharray="32" strokeDashoffset="32">
+                    <animate attributeName="stroke-dasharray" dur="2s" values="0 32;16 16;0 32;0 32" repeatCount="indefinite"/>
+                    <animate attributeName="stroke-dashoffset" dur="2s" values="0;-16;-32;-32" repeatCount="indefinite"/>
+                  </circle>
+                </svg>
+              ) : (
+                digit || '0'
+              )}
             </div>
           )
         })}
@@ -260,18 +374,20 @@ function VerifyScreen() {
       
       {/* Send Again Link */}
       <button 
-        onClick={() => setTimer(42)}
+        onClick={handleResend}
+        disabled={timer > 0 || isVerifying}
         style={{
           marginTop: '32px',
           fontSize: '16px',
           fontWeight: 700,
           backgroundColor: 'transparent',
           border: 'none',
-          cursor: 'pointer',
-          color: '#E5385A'
+          cursor: (timer > 0 || isVerifying) ? 'not-allowed' : 'pointer',
+          color: (timer > 0 || isVerifying) ? '#ADAFBB' : '#E5385A',
+          opacity: (timer > 0 || isVerifying) ? 0.5 : 1
         }}
       >
-        Send again
+        {timer > 0 ? `Send again (${formatTime(timer)})` : 'Send again'}
       </button>
       
       {/* Spacer */}

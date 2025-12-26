@@ -28,6 +28,7 @@ function BottomNav() {
 
   return (
     <div 
+      className="bottom-nav"
       style={{
         position: 'absolute',
         bottom: 0,

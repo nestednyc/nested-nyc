@@ -1,228 +1,1452 @@
-/* Import similar font to SK-Modernist - must be first */
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&display=swap');
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* 
- * NESTED App - Global Styles
- * Font: DM Sans (similar to SK-Modernist)
- */
-
-/* Base styles */
-* {
+/* ============================================
+   ROOT & BASE STYLES
+   ============================================ */
+html, body, #root {
   margin: 0;
   padding: 0;
-  box-sizing: border-box;
-}
-
-html, body, #root {
   height: 100%;
   width: 100%;
 }
 
-body {
-  font-family: 'DM Sans', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  background-color: #1a1a2e;
-}
+/* ============================================
+   MOBILE-FIRST STYLES (Default < 1024px)
+   ============================================ */
 
-/* Desktop preview container - centers the mobile frame */
+/* Desktop preview wrapper - Shows phone frame on tablet/desktop preview */
 .desktop-preview {
-  min-height: 100vh;
+  width: 100%;
+  height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 20px;
-  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  background-color: #f5f5f5;
 }
 
-/* Mobile frame wrapper - matches Figma exactly */
+/* Mobile frame for desktop preview (phone simulator) */
 .mobile-frame {
-  width: 375px;
-  height: 812px;
-  background-color: #ffffff;
-  border-radius: 44px;
+  width: 390px;
+  height: 844px;
+  background-color: white;
+  border-radius: 30px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
   overflow: hidden;
-  box-shadow: 
-    0 50px 100px -20px rgba(0, 0, 0, 0.5),
-    0 0 0 1px rgba(255, 255, 255, 0.1),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.05);
   position: relative;
 }
 
-/* Phone frame bezel effect */
-.mobile-frame::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  border-radius: 44px;
-  border: 8px solid #e8e8e8;
-  pointer-events: none;
-  z-index: 100;
-}
-
-/* Inner content area */
+/* Mobile content area */
 .mobile-content {
   width: 100%;
   height: 100%;
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow: hidden;
   position: relative;
-  background-color: #ffffff;
 }
 
-/* Hide scrollbar but keep functionality */
-.mobile-content::-webkit-scrollbar {
-  display: none;
+/* On actual mobile devices, make it full screen */
+@media (max-width: 480px) {
+  .desktop-preview {
+    padding: 0;
+    background-color: white;
+  }
+  
+  .mobile-frame {
+    width: 100vw;
+    height: 100vh;
+    border-radius: 0;
+    box-shadow: none;
+  }
 }
 
-.mobile-content {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
+/* ============================================
+   RESPONSIVE LAYOUT - Desktop Styles (≥1024px)
+   Hide mobile preview, show full desktop layout
+   ============================================ */
+@media (min-width: 1024px) {
+  /* Hide mobile frame wrapper on desktop when responsive layout is active */
+  .responsive-layout .desktop-preview,
+  .responsive-layout .mobile-frame {
+    display: none;
+  }
+
+  /* Responsive Layout Container */
+  .responsive-layout {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    background-color: #FAFAFA;
+  }
+
+  /* ==========================================
+     DESKTOP NAVIGATION (Top Bar)
+     ========================================== */
+  .desktop-nav {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 64px;
+    background-color: white;
+    border-bottom: 1px solid #E8E6EA;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 32px;
+    z-index: 1000;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  }
+
+  .desktop-nav-logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    transition: opacity 0.2s ease;
+  }
+
+  .desktop-nav-logo:hover {
+    opacity: 0.8;
+  }
+
+  .desktop-nav-logo-text {
+    font-size: 22px;
+    font-weight: 700;
+    color: #E5385A;
+    letter-spacing: -0.5px;
+  }
+
+  .desktop-nav-links {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .desktop-nav-link {
+    padding: 10px 20px;
+    background-color: transparent;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    color: #666;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .desktop-nav-link:hover {
+    background-color: #F5F5F5;
+    color: #231429;
+  }
+
+  .desktop-nav-link.active {
+    background-color: rgba(229, 56, 90, 0.1);
+    color: #E5385A;
+    font-weight: 600;
+  }
+
+  .desktop-nav-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .desktop-nav-icon-btn {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: transparent;
+    border: none;
+    border-radius: 10px;
+    color: #666;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .desktop-nav-icon-btn:hover {
+    background-color: #F5F5F5;
+    color: #E5385A;
+  }
+
+  .desktop-nav-avatar {
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    background-color: transparent;
+    border: 2px solid #E8E6EA;
+    border-radius: 12px;
+    cursor: pointer;
+    overflow: hidden;
+    transition: border-color 0.2s ease;
+  }
+
+  .desktop-nav-avatar:hover {
+    border-color: #E5385A;
+  }
+
+  .desktop-nav-avatar-img {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #F5F5F5;
+  }
+
+  .desktop-nav-avatar-img img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  /* ==========================================
+     DESKTOP MAIN CONTAINER
+     ========================================== */
+  .desktop-main-container {
+    margin-top: 64px; /* Account for fixed nav */
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    padding: 32px;
+    min-height: calc(100vh - 64px);
+  }
+
+  .desktop-content-wrapper {
+    width: 100%;
+    max-width: 800px;
+    display: flex;
+    gap: 32px;
+  }
+
+  .desktop-content-wrapper.with-sidebar {
+    max-width: 1280px;
+  }
+
+  /* ==========================================
+     DESKTOP MAIN CONTENT
+     ========================================== */
+  .desktop-main-content {
+    flex: 1;
+    min-width: 0;
+    background-color: white;
+    border-radius: 16px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+    overflow: hidden;
+  }
+
+  /* Override mobile-specific styles in desktop content */
+  .desktop-main-content .flex.flex-col.h-full {
+    height: auto;
+    min-height: 600px;
+    padding-bottom: 24px;
+  }
+
+  /* Hide mobile bottom nav on desktop */
+  .desktop-main-content > div > div:last-child[style*="position: absolute"][style*="bottom: 0"] {
+    display: none !important;
+  }
+
+  /* ==========================================
+     DESKTOP SIDEBAR
+     ========================================== */
+  .desktop-sidebar {
+    width: 340px;
+    flex-shrink: 0;
+  }
+
+  .sidebar-content {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    position: sticky;
+    top: 96px;
+  }
+
+  .sidebar-card {
+    background-color: white;
+    border-radius: 16px;
+    padding: 20px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  }
+
+  .sidebar-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+  }
+
+  .sidebar-card-header h3 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 700;
+    color: #231429;
+  }
+
+  .sidebar-see-all {
+    background: none;
+    border: none;
+    font-size: 13px;
+    font-weight: 600;
+    color: #E5385A;
+    cursor: pointer;
+    transition: opacity 0.2s ease;
+  }
+
+  .sidebar-see-all:hover {
+    opacity: 0.8;
+  }
+
+  /* Sidebar Events */
+  .sidebar-events-list {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .sidebar-event-item {
+    display: flex;
+    gap: 12px;
+    padding: 10px;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+  }
+
+  .sidebar-event-item:hover {
+    background-color: #FAFAFA;
+  }
+
+  .sidebar-event-image {
+    width: 48px;
+    height: 48px;
+    border-radius: 10px;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+
+  .sidebar-event-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .sidebar-event-info {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .sidebar-event-title {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 600;
+    color: #231429;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .sidebar-event-meta {
+    margin: 2px 0 0;
+    font-size: 12px;
+    color: #ADAFBB;
+  }
+
+  .sidebar-event-attendees {
+    margin: 4px 0 0;
+    font-size: 11px;
+    color: #E5385A;
+    font-weight: 500;
+  }
+
+  /* Sidebar People */
+  .sidebar-people-list {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .sidebar-person-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px;
+    border-radius: 10px;
+    transition: background-color 0.2s ease;
+  }
+
+  .sidebar-person-item:hover {
+    background-color: #FAFAFA;
+  }
+
+  .sidebar-person-avatar {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+
+  .sidebar-person-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .sidebar-person-info {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .sidebar-person-name {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 600;
+    color: #231429;
+  }
+
+  .sidebar-person-school {
+    margin: 2px 0 0;
+    font-size: 11px;
+    color: #ADAFBB;
+  }
+
+  .sidebar-person-skills {
+    display: flex;
+    gap: 4px;
+    margin-top: 6px;
+    flex-wrap: wrap;
+  }
+
+  .sidebar-skill-tag {
+    font-size: 10px;
+    color: #E5385A;
+    background-color: rgba(229, 56, 90, 0.1);
+    padding: 2px 6px;
+    border-radius: 6px;
+    font-weight: 500;
+  }
+
+  .sidebar-connect-btn {
+    padding: 6px 14px;
+    background-color: #E5385A;
+    color: white;
+    font-size: 12px;
+    font-weight: 600;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+  }
+
+  .sidebar-connect-btn:hover {
+    background-color: #d12d4e;
+    transform: translateY(-1px);
+  }
+
+  /* Sidebar Stats */
+  .sidebar-stats {
+    display: flex;
+    justify-content: space-around;
+  }
+
+  .sidebar-stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .sidebar-stat-number {
+    font-size: 22px;
+    font-weight: 700;
+    color: #E5385A;
+  }
+
+  .sidebar-stat-label {
+    font-size: 11px;
+    color: #ADAFBB;
+    text-align: center;
+  }
+
+  /* Sidebar Footer */
+  .sidebar-footer {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 16px 0;
+    font-size: 11px;
+    color: #ADAFBB;
+  }
+
+  .sidebar-footer a {
+    color: #ADAFBB;
+    text-decoration: none;
+    transition: color 0.2s ease;
+  }
+
+  .sidebar-footer a:hover {
+    color: #E5385A;
+  }
+
+  /* ==========================================
+     DESKTOP PAGE OVERRIDES
+     ========================================== */
+  
+  /* Hide mobile bottom navigation on desktop */
+  .desktop-main-content .bottom-nav {
+    display: none !important;
+  }
+  
+  /* Remove excessive top padding on desktop */
+  .desktop-main-content [style*="padding-top: 50px"],
+  .desktop-main-content [style*="paddingTop: 50px"] {
+    padding-top: 24px !important;
+  }
+
+  /* Adjust header styles for desktop */
+  .desktop-main-content h1 {
+    font-size: 28px !important;
+  }
+
+  /* Better grid layouts on desktop */
+  .desktop-main-content [style*="grid-template-columns: repeat(2"] {
+    grid-template-columns: repeat(3, 1fr) !important;
+  }
+
+  /* Remove extra padding bottom for mobile nav on desktop */
+  .desktop-main-content [style*="paddingBottom: 100px"],
+  .desktop-main-content [style*="padding-bottom: 100px"] {
+    padding-bottom: 24px !important;
+  }
 }
 
-/* =========================
-   DESIGN SYSTEM UTILITIES
-   ========================= */
-
-/* Colors */
-.text-primary { color: #E5385A; }
-.bg-primary { background-color: #E5385A; }
-.border-primary { border-color: #E5385A; }
-
-.text-dark { color: #231429; }
-.bg-dark { background-color: #231429; }
-
-.text-gray-description { color: #ADAFBB; }
-.text-gray-secondary { color: #323755; }
-
-.bg-gray-light { background-color: #F3F3F3; }
-.border-gray { border-color: #E8E6EA; }
-
-/* Typography */
-.font-bold-title {
-  font-weight: 700;
-  letter-spacing: -0.02em;
+/* ============================================
+   HIDE DESKTOP ELEMENTS ON MOBILE
+   ============================================ */
+@media (max-width: 1023px) {
+  .desktop-nav,
+  .desktop-sidebar,
+  .responsive-layout .desktop-main-container {
+    display: none !important;
+  }
+  
+  /* Ensure mobile layout shows correctly */
+  .responsive-layout {
+    display: contents;
+  }
+  
+  /* Show mobile wrapper on mobile screens */
+  .mobile-layout-wrapper {
+    display: block;
+  }
 }
 
-.font-medium {
-  font-weight: 500;
+/* Hide mobile layout wrapper on desktop when desktop layout is active */
+@media (min-width: 1024px) {
+  .mobile-layout-wrapper {
+    display: none !important;
+  }
 }
 
-/* Button Styles */
-.btn-primary {
-  background-color: #E5385A;
-  color: white;
-  font-weight: 700;
-  font-size: 16px;
-  height: 56px;
-  border-radius: 15px;
-  width: 100%;
-  border: none;
-  cursor: pointer;
-  transition: all 0.2s ease;
+/* ============================================
+   AUTH PAGES - DESKTOP LAYOUT (≥1024px)
+   Two-column layout: Marketing + Auth Card
+   ============================================ */
+@media (min-width: 1024px) {
+  /* Hide mobile auth layout on desktop */
+  .auth-mobile-layout {
+    display: none !important;
+  }
+
+  /* Show desktop auth layout */
+  .auth-desktop-layout {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    background-color: #FAFAFA;
+  }
+
+  .auth-desktop-container {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 32px;
+    margin-top: 64px; /* Account for fixed nav */
+  }
+
+  .auth-desktop-content {
+    display: flex;
+    align-items: stretch;
+    gap: 64px;
+    width: 100%;
+    max-width: 1100px;
+  }
+
+  /* Left Column - Marketing Content */
+  .auth-left-column {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 400px;
+  }
+
+  .auth-marketing {
+    max-width: 480px;
+  }
+
+  .auth-logo-badge {
+    margin-bottom: 32px;
+  }
+
+  .auth-headline {
+    margin: 0;
+    font-size: 42px;
+    font-weight: 800;
+    color: #231429;
+    line-height: 1.15;
+    letter-spacing: -1px;
+  }
+
+  .auth-description {
+    margin: 20px 0 0;
+    font-size: 17px;
+    color: #666;
+    line-height: 1.6;
+  }
+
+  .auth-features {
+    list-style: none;
+    margin: 32px 0 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .auth-feature {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 15px;
+    color: #444;
+    font-weight: 500;
+  }
+
+  .auth-trust-badge {
+    margin-top: 40px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .auth-trust-avatars {
+    display: flex;
+  }
+
+  .auth-trust-avatars img {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: 2px solid white;
+    margin-left: -10px;
+    object-fit: cover;
+  }
+
+  .auth-trust-avatars img:first-child {
+    margin-left: 0;
+  }
+
+  .auth-trust-text {
+    font-size: 14px;
+    color: #666;
+    font-weight: 500;
+  }
+
+  /* Right Column - Auth Card */
+  .auth-right-column {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .auth-card {
+    width: 440px;
+    background-color: white;
+    border-radius: 20px;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+    overflow: hidden;
+  }
+
+  /* Override mobile-specific styles inside auth card */
+  .auth-card .flex.flex-col.h-full {
+    height: auto;
+    min-height: 500px;
+  }
+
+  /* Adjust padding for desktop card */
+  .auth-card [style*="paddingLeft: 32px"],
+  .auth-card [style*="padding-left: 32px"] {
+    padding-left: 32px !important;
+    padding-right: 32px !important;
+  }
+
+  /* Hide home indicator bar on desktop */
+  .auth-card .absolute.left-1\\/2.-translate-x-1\\/2[style*="bottom: 8px"],
+  .auth-card [style*="bottom: 8px"][style*="width: 134px"] {
+    display: none !important;
+  }
 }
 
-.btn-primary:hover {
-  background-color: #D42E4F;
-  transform: translateY(-1px);
+/* ============================================
+   AUTH PAGES - MOBILE LAYOUT (<1024px)
+   Keep existing mobile-first design
+   ============================================ */
+@media (max-width: 1023px) {
+  /* Hide desktop auth layout on mobile */
+  .auth-desktop-layout {
+    display: none !important;
+  }
+
+  /* Show mobile auth layout */
+  .auth-mobile-layout {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
 }
 
-.btn-primary:active {
-  transform: translateY(0);
+/* ============================================
+   UTILITY ANIMATIONS
+   ============================================ */
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
-.btn-secondary {
-  background-color: transparent;
-  color: #E5385A;
-  font-weight: 600;
-  font-size: 16px;
-  height: 56px;
-  border-radius: 15px;
-  width: 100%;
-  border: 1px solid #E8E6EA;
-  cursor: pointer;
-  transition: all 0.2s ease;
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
-.btn-secondary:hover {
-  border-color: #E5385A;
-  background-color: rgba(229, 56, 90, 0.05);
+.fade-in {
+  animation: fadeIn 0.3s ease forwards;
 }
 
-/* Social Button */
-.btn-social {
-  width: 64px;
-  height: 64px;
-  border-radius: 12px;
-  border: 1px solid #E8E6EA;
-  background: white;
+/* ============================================
+   WEB LAYOUT - Unified Responsive Layout
+   Desktop-first layout for all pages
+   ============================================ */
+
+/* Base Web Layout */
+.web-layout {
+  min-height: 100vh;
+  background-color: #FAFAFA;
+}
+
+.web-container {
+  margin-top: 64px;
+  padding: 32px;
+  min-height: calc(100vh - 64px);
+}
+
+.web-content {
+  max-width: 1200px;
+  margin: 0 auto;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all 0.2s ease;
+  gap: 32px;
 }
 
-.btn-social:hover {
-  border-color: #E5385A;
-  transform: translateY(-2px);
+.web-main {
+  flex: 1;
+  min-width: 0;
 }
 
-/* Home Indicator */
-.home-indicator {
-  width: 134px;
-  height: 5px;
-  background-color: #231429;
-  border-radius: 100px;
+.web-sidebar {
+  width: 340px;
+  flex-shrink: 0;
+}
+
+/* Content variants */
+.web-content-full .web-main {
+  max-width: 900px;
   margin: 0 auto;
 }
 
-/* Pagination Dots */
-.dot {
-  width: 8px;
-  height: 8px;
+.web-content-with-sidebar {
+  max-width: 1280px;
+}
+
+/* ==========================================
+   WEB LAYOUT - Auth Two-Column
+   ========================================== */
+.web-auth-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 64px;
+  min-height: calc(100vh - 160px);
+}
+
+.web-auth-marketing {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.auth-marketing-inner {
+  max-width: 480px;
+}
+
+.auth-marketing-logo {
+  margin-bottom: 32px;
+}
+
+.auth-marketing-headline {
+  margin: 0;
+  font-size: 40px;
+  font-weight: 800;
+  color: #231429;
+  line-height: 1.15;
+  letter-spacing: -1px;
+}
+
+.auth-marketing-description {
+  margin: 20px 0 0;
+  font-size: 17px;
+  color: #666;
+  line-height: 1.6;
+}
+
+.auth-marketing-features {
+  list-style: none;
+  margin: 32px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.auth-marketing-features li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 15px;
+  color: #444;
+  font-weight: 500;
+}
+
+.auth-marketing-trust {
+  margin-top: 40px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.auth-marketing-trust .auth-trust-avatars {
+  display: flex;
+}
+
+.auth-marketing-trust .auth-trust-avatars img {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 2px solid white;
+  margin-left: -10px;
+  object-fit: cover;
+}
+
+.auth-marketing-trust .auth-trust-avatars img:first-child {
+  margin-left: 0;
+}
+
+.auth-marketing-trust span {
+  font-size: 14px;
+  color: #666;
+  font-weight: 500;
+}
+
+.web-auth-card {
+  width: 440px;
+  flex-shrink: 0;
+  background-color: white;
+  border-radius: 20px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+}
+
+/* Override mobile styles in auth card */
+.web-auth-card .flex.flex-col.h-full {
+  height: auto;
+  min-height: 480px;
+}
+
+.web-auth-card [style*="paddingTop: 100px"],
+.web-auth-card [style*="padding-top: 100px"],
+.web-auth-card [style*="paddingTop: 130px"],
+.web-auth-card [style*="padding-top: 130px"] {
+  padding-top: 40px !important;
+}
+
+/* Hide home indicator on desktop */
+.web-auth-card .absolute.bottom-\\[8px\\],
+.web-auth-card [style*="bottom: 8px"][style*="width: 134px"] {
+  display: none !important;
+}
+
+/* ==========================================
+   WEB LAYOUT - Form with Progress
+   ========================================== */
+.web-content-form .web-main {
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.web-form-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.form-progress {
+  background: white;
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+.form-progress-steps {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.form-progress-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+}
+
+.form-progress-dot {
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
   background-color: #E8E6EA;
-  transition: background-color 0.3s ease;
+  color: #ADAFBB;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 600;
+  transition: all 0.2s ease;
 }
 
-.dot.active {
+.form-progress-step.active .form-progress-dot {
   background-color: #E5385A;
+  color: white;
 }
 
-/* Card Stack Animation */
-.card-stack {
-  position: relative;
-  width: 240px;
-  height: 340px;
+.form-progress-step.current .form-progress-dot {
+  box-shadow: 0 0 0 4px rgba(229, 56, 90, 0.2);
 }
 
-.card-stack .card {
-  position: absolute;
-  width: 240px;
-  height: 340px;
-  border-radius: 20px;
+.form-progress-label {
+  font-size: 12px;
+  color: #ADAFBB;
+  font-weight: 500;
+  text-align: center;
+}
+
+.form-progress-step.active .form-progress-label {
+  color: #231429;
+}
+
+.form-progress-bar {
+  height: 4px;
+  background-color: #E8E6EA;
+  border-radius: 2px;
   overflow: hidden;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
-  background-size: cover;
-  background-position: center;
 }
 
-/* Utility classes */
-@layer utilities {
-  .safe-area-top {
-    padding-top: env(safe-area-inset-top, 47px);
+.form-progress-fill {
+  height: 100%;
+  background-color: #E5385A;
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+.web-form-card {
+  background-color: white;
+  border-radius: 20px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+}
+
+/* Override mobile styles in form card */
+.web-form-card .flex.flex-col.h-full {
+  height: auto;
+  min-height: 500px;
+}
+
+.web-form-card [style*="paddingTop: 48px"],
+.web-form-card [style*="padding-top: 48px"] {
+  padding-top: 32px !important;
+}
+
+/* Hide home indicator on desktop */
+.web-form-card .absolute.left-1\\/2,
+.web-form-card [style*="bottom: 8px"][style*="width: 134px"] {
+  display: none !important;
+}
+
+/* Hide back button on desktop (use browser nav) */
+.web-form-card [style*="width: 44px"][style*="height: 44px"][style*="borderRadius: 12px"] {
+  display: none !important;
+}
+
+/* ==========================================
+   WEB LAYOUT - App Content
+   ========================================== */
+.web-app-content {
+  background-color: white;
+  border-radius: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  overflow: hidden;
+}
+
+.web-app-content .flex.flex-col.h-full {
+  height: auto;
+  min-height: 600px;
+}
+
+/* Hide bottom nav on desktop */
+.web-app-content .bottom-nav {
+  display: none !important;
+}
+
+/* Adjust padding */
+.web-app-content [style*="paddingBottom: 100px"],
+.web-app-content [style*="padding-bottom: 100px"] {
+  padding-bottom: 24px !important;
+}
+
+.web-app-content [style*="paddingTop: 50px"],
+.web-app-content [style*="padding-top: 50px"] {
+  padding-top: 24px !important;
+}
+
+/* ==========================================
+   CHAT DESKTOP LAYOUT - Three Column
+   ========================================== */
+.chat-desktop-layout {
+  min-height: 100vh;
+  background-color: #FAFAFA;
+}
+
+.chat-container {
+  margin-top: 64px;
+  display: flex;
+  height: calc(100vh - 64px);
+}
+
+/* Chat Sidebar (Conversation List) */
+.chat-sidebar {
+  width: 320px;
+  background-color: white;
+  border-right: 1px solid #E8E6EA;
+  display: flex;
+  flex-direction: column;
+}
+
+.chat-sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px;
+  border-bottom: 1px solid #E8E6EA;
+}
+
+.chat-sidebar-header h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  color: #231429;
+}
+
+.chat-new-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background-color: #E5385A;
+  color: white;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s ease;
+}
+
+.chat-new-btn:hover {
+  background-color: #d12d4e;
+}
+
+.chat-search {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 16px 20px;
+  padding: 12px 16px;
+  background-color: #F5F5F5;
+  border-radius: 12px;
+}
+
+.chat-search input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  outline: none;
+  font-size: 14px;
+  color: #231429;
+}
+
+.chat-list {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.chat-list-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 20px;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  border-left: 3px solid transparent;
+}
+
+.chat-list-item:hover {
+  background-color: #FAFAFA;
+}
+
+.chat-list-item.active {
+  background-color: rgba(229, 56, 90, 0.05);
+  border-left-color: #E5385A;
+}
+
+.chat-avatar {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+}
+
+.chat-avatar img {
+  width: 100%;
+  height: 100%;
+  border-radius: 14px;
+  object-fit: cover;
+}
+
+.chat-online-dot {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 12px;
+  height: 12px;
+  background-color: #4CD964;
+  border: 2px solid white;
+  border-radius: 50%;
+}
+
+.chat-group-badge {
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  background-color: #E5385A;
+  color: white;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 5px;
+  border-radius: 6px;
+  border: 2px solid white;
+}
+
+.chat-list-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.chat-list-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.chat-list-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #231429;
+}
+
+.chat-list-time {
+  font-size: 12px;
+  color: #ADAFBB;
+}
+
+.chat-list-message {
+  margin: 0;
+  font-size: 13px;
+  color: #ADAFBB;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chat-list-message.unread {
+  color: #E5385A;
+  font-weight: 500;
+}
+
+.chat-unread-dot {
+  width: 8px;
+  height: 8px;
+  background-color: #E5385A;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* Chat Main Area */
+.chat-main {
+  flex: 1;
+  background-color: white;
+  display: flex;
+  flex-direction: column;
+}
+
+.chat-main .flex.flex-col.h-full {
+  height: 100%;
+}
+
+/* Hide mobile elements in chat */
+.chat-main [style*="bottom: 8px"][style*="width: 134px"] {
+  display: none !important;
+}
+
+/* Chat Context Panel */
+.chat-context {
+  width: 300px;
+  background-color: white;
+  border-left: 1px solid #E8E6EA;
+  padding: 24px;
+  position: relative;
+}
+
+.chat-context-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  color: #ADAFBB;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.chat-context-close:hover {
+  background-color: #F5F5F5;
+  color: #231429;
+}
+
+.chat-context-profile {
+  text-align: center;
+  margin-top: 20px;
+}
+
+.chat-context-profile img {
+  width: 80px;
+  height: 80px;
+  border-radius: 20px;
+  object-fit: cover;
+  margin-bottom: 16px;
+}
+
+.chat-context-profile h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: #231429;
+}
+
+.chat-context-profile p {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: #ADAFBB;
+}
+
+.chat-context-section {
+  margin-top: 28px;
+}
+
+.chat-context-section h4 {
+  margin: 0 0 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #ADAFBB;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.chat-context-projects {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.chat-context-project {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  background-color: #FAFAFA;
+  border-radius: 10px;
+}
+
+.chat-context-project img {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  object-fit: cover;
+}
+
+.chat-context-project span {
+  font-size: 13px;
+  font-weight: 500;
+  color: #231429;
+}
+
+.chat-context-skills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chat-skill-tag {
+  font-size: 12px;
+  color: #E5385A;
+  background-color: rgba(229, 56, 90, 0.1);
+  padding: 4px 10px;
+  border-radius: 8px;
+  font-weight: 500;
+}
+
+/* ==========================================
+   RESPONSIVE - Tablet (768-1023px)
+   ========================================== */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .web-layout {
+    display: block;
   }
-  
-  .safe-area-bottom {
-    padding-bottom: env(safe-area-inset-bottom, 34px);
+
+  .web-container {
+    padding: 24px;
+  }
+
+  .web-content {
+    flex-direction: column;
+  }
+
+  .web-sidebar {
+    width: 100%;
+  }
+
+  .web-auth-wrapper {
+    flex-direction: column;
+    gap: 32px;
+  }
+
+  .web-auth-marketing {
+    text-align: center;
+  }
+
+  .auth-marketing-inner {
+    max-width: 100%;
+  }
+
+  .auth-marketing-features {
+    align-items: center;
+  }
+
+  .auth-marketing-trust {
+    justify-content: center;
+  }
+
+  .web-auth-card {
+    width: 100%;
+    max-width: 480px;
+  }
+
+  .form-progress-steps {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .form-progress-step {
+    flex: 0 0 auto;
+    min-width: 60px;
+  }
+
+  .chat-container {
+    flex-direction: column;
+  }
+
+  .chat-sidebar {
+    width: 100%;
+    height: 200px;
+  }
+
+  .chat-context {
+    display: none;
   }
 }
 
+/* ==========================================
+   RESPONSIVE - Mobile (<768px)
+   Hide all web layouts, show mobile
+   ========================================== */
+@media (max-width: 767px) {
+  .web-layout,
+  .chat-desktop-layout {
+    display: none !important;
+  }
+
+  .mobile-layout-wrapper {
+    display: block !important;
+  }
+}
