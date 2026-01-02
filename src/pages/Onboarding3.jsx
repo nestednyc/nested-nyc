@@ -98,7 +98,7 @@ function Onboarding3() {
         {/* Sign In Link */}
         <div style={{ height: '16px' }} />
         <button 
-          onClick={() => navigate('/signup')}
+          onClick={() => navigate('/signin')}
           style={{
             backgroundColor: 'transparent',
             color: '#5B4AE6',

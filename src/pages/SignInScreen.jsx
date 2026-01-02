@@ -2,32 +2,31 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { authService, getErrorMessage, isSupabaseConfigured } from '../lib/supabase'
 import { getEmailValidationError, isEduEmail } from '../utils/emailValidation'
+import { useOnboarding } from '../context/OnboardingContext'
 
 /**
- * UniEmailScreen - University Email + Password Sign Up
+ * SignInScreen - Simple sign in for returning users
  * 
- * This is the sign-up form where new users create an account with:
- * - .edu email address (validated)
- * - Password (min 6 characters)
- * - Confirm password
- * 
- * On successful sign-up:
- * - If email confirmation is required: show VerifyScreen
- * - If auto-confirmed: proceed to onboarding (/profile)
+ * - Email + password sign in
+ * - "Forgot your password?" sends a one-time login link
  */
 
-function UniEmailScreen() {
+function SignInScreen() {
   const navigate = useNavigate()
+  const { hasOnboarded } = useOnboarding()
+  
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [confirmPassword, setConfirmPassword] = useState('')
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
-  const [hasBlurredEmail, setHasBlurredEmail] = useState(false)
+  const [isSendingLink, setIsSendingLink] = useState(false)
+  const [forgotPasswordSent, setForgotPasswordSent] = useState(false)
+  const [hasBlurred, setHasBlurred] = useState(false)
 
   const handleEmailChange = (e) => {
     setEmail(e.target.value)
     if (error) setError('')
+    if (forgotPasswordSent) setForgotPasswordSent(false)
   }
 
   const handlePasswordChange = (e) => {
@@ -35,20 +34,15 @@ function UniEmailScreen() {
     if (error) setError('')
   }
 
-  const handleConfirmPasswordChange = (e) => {
-    setConfirmPassword(e.target.value)
-    if (error) setError('')
-  }
-
   const handleEmailBlur = () => {
-    setHasBlurredEmail(true)
+    setHasBlurred(true)
     const validationError = getEmailValidationError(email)
     if (validationError) {
       setError(validationError)
     }
   }
 
-  const handleContinue = async () => {
+  const handleSignIn = async () => {
     setError('')
     
     // Validate email
@@ -58,77 +52,86 @@ function UniEmailScreen() {
       return
     }
 
-    // Validate password
-    if (!password) {
-      setError('Please enter a password')
+    // Check password
+    if (!password.trim()) {
+      setError('Please enter your password')
       return
     }
 
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters long')
-      return
-    }
-
-    // Validate confirm password
-    if (password !== confirmPassword) {
-      setError('Passwords do not match')
-      return
-    }
-
-    // Check Supabase configuration
     if (!isSupabaseConfigured()) {
-      setError('Authentication service is not configured. Please contact support.')
+      setError('Authentication service is not configured.')
       return
     }
 
     setIsLoading(true)
 
     try {
-      const { data, error: authError } = await authService.signUpWithEmailPassword(email, password)
+      const { data, error: authError } = await authService.signInWithEmailPassword(email, password)
 
       if (authError) {
-        console.error('Auth error:', authError)
         setError(getErrorMessage(authError))
         setIsLoading(false)
         return
       }
 
-      // Check if email confirmation is required
-      if (data?.needsEmailConfirmation) {
-        // User needs to verify email - go to verify screen
-        navigate('/verify', { state: { email, isSignUp: true } })
-      } else if (data?.session) {
-        // User is signed in (auto-confirmed) - go to onboarding
-        navigate('/profile', { replace: true })
-      } else {
-        // Fallback - go to verify screen
-        navigate('/verify', { state: { email, isSignUp: true } })
-      }
+      // Success - App.jsx handles redirect
+      setIsLoading(false)
     } catch (err) {
-      console.error('Unexpected error during signup:', err)
+      console.error('Sign in error:', err)
       setError(getErrorMessage(err))
       setIsLoading(false)
     }
   }
 
-  const handleKeyPress = (e) => {
-    if (e.key === 'Enter' && !isLoading) {
-      handleContinue()
+  const handleForgotPassword = async () => {
+    setError('')
+    
+    // Validate email
+    const validationError = getEmailValidationError(email)
+    if (validationError) {
+      setError(validationError)
+      return
+    }
+
+    if (!isSupabaseConfigured()) {
+      setError('Authentication service is not configured.')
+      return
+    }
+
+    setIsSendingLink(true)
+
+    try {
+      const { error: authError } = await authService.sendMagicLink(email)
+
+      if (authError) {
+        setError(getErrorMessage(authError))
+        setIsSendingLink(false)
+        return
+      }
+
+      // Success - show confirmation
+      setForgotPasswordSent(true)
+      setIsSendingLink(false)
+    } catch (err) {
+      console.error('Forgot password error:', err)
+      setError(getErrorMessage(err))
+      setIsSendingLink(false)
     }
   }
 
-  // Determine input border color based on validation state
-  const getEmailBorderColor = () => {
-    if (error && hasBlurredEmail && error.toLowerCase().includes('email')) {
-      return '#5B4AE6'
+  const handleKeyPress = (e) => {
+    if (e.key === 'Enter' && !isLoading && !isSendingLink) {
+      handleSignIn()
     }
-    if (email && isEduEmail(email)) {
-      return '#4CAF50'
-    }
+  }
+
+  const getBorderColor = () => {
+    if (error && hasBlurred) return '#5B4AE6'
+    if (email && isEduEmail(email)) return '#4CAF50'
     return '#E8E6EA'
   }
 
-  const canSubmit = email && password && confirmPassword && !isLoading
+  const canSubmit = email && password && !error && !isLoading && !isSendingLink
 
   return (
     <div 
@@ -167,7 +170,7 @@ function UniEmailScreen() {
             margin: 0
           }}
         >
-          Create account
+          Welcome back
         </h1>
         
         <p 
@@ -179,7 +182,7 @@ function UniEmailScreen() {
             color: '#ADAFBB'
           }}
         >
-          Use your .edu email to verify you're a real student
+          Sign in with your university email
         </p>
       </div>
       
@@ -204,10 +207,10 @@ function UniEmailScreen() {
             alignItems: 'center',
             height: '58px',
             borderRadius: '15px',
-            border: `2px solid ${getEmailBorderColor()}`,
+            border: `2px solid ${getBorderColor()}`,
             overflow: 'hidden',
             transition: 'border-color 0.2s ease',
-            backgroundColor: error && hasBlurredEmail && error.toLowerCase().includes('email') ? '#FFF5F5' : 'white'
+            backgroundColor: error && hasBlurred ? '#FFF5F5' : 'white'
           }}
         >
           <div 
@@ -235,7 +238,7 @@ function UniEmailScreen() {
             onBlur={handleEmailBlur}
             onKeyPress={handleKeyPress}
             placeholder="you@university.edu"
-            disabled={isLoading}
+            disabled={isLoading || isSendingLink}
             style={{
               flex: 1,
               height: '100%',
@@ -245,7 +248,7 @@ function UniEmailScreen() {
               border: 'none',
               outline: 'none',
               backgroundColor: 'transparent',
-              opacity: isLoading ? 0.6 : 1
+              opacity: isLoading || isSendingLink ? 0.6 : 1
             }}
           />
         </div>
@@ -311,8 +314,8 @@ function UniEmailScreen() {
             value={password}
             onChange={handlePasswordChange}
             onKeyPress={handleKeyPress}
-            placeholder="At least 6 characters"
-            disabled={isLoading}
+            placeholder="Enter your password"
+            disabled={isLoading || isSendingLink}
             style={{
               flex: 1,
               height: '100%',
@@ -322,87 +325,10 @@ function UniEmailScreen() {
               border: 'none',
               outline: 'none',
               backgroundColor: 'transparent',
-              opacity: isLoading ? 0.6 : 1
+              opacity: isLoading || isSendingLink ? 0.6 : 1
             }}
           />
         </div>
-      </div>
-
-      {/* Confirm Password Input */}
-      <div style={{ marginTop: '16px' }}>
-        <label 
-          style={{
-            display: 'block',
-            fontSize: '12px',
-            fontWeight: 600,
-            color: '#ADAFBB',
-            marginBottom: '8px',
-            textTransform: 'uppercase',
-            letterSpacing: '0.5px'
-          }}
-        >
-          Confirm Password
-        </label>
-        <div 
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            height: '58px',
-            borderRadius: '15px',
-            border: `2px solid ${confirmPassword && password !== confirmPassword ? '#5B4AE6' : '#E8E6EA'}`,
-            overflow: 'hidden',
-            backgroundColor: confirmPassword && password !== confirmPassword ? '#FFF5F5' : 'white'
-          }}
-        >
-          <div 
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              paddingLeft: '16px',
-              paddingRight: '12px',
-              height: '100%'
-            }}
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-              <rect x="3" y="11" width="18" height="11" rx="2" stroke="#5B4AE6" strokeWidth="2"/>
-              <path d="M7 11V7a5 5 0 0 1 10 0v4" stroke="#5B4AE6" strokeWidth="2"/>
-            </svg>
-          </div>
-          
-          <input
-            type="password"
-            value={confirmPassword}
-            onChange={handleConfirmPasswordChange}
-            onKeyPress={handleKeyPress}
-            placeholder="Confirm your password"
-            disabled={isLoading}
-            style={{
-              flex: 1,
-              height: '100%',
-              paddingRight: '16px',
-              fontSize: '14px',
-              color: '#231429',
-              border: 'none',
-              outline: 'none',
-              backgroundColor: 'transparent',
-              opacity: isLoading ? 0.6 : 1
-            }}
-          />
-        </div>
-        
-        {/* Password match indicator */}
-        {confirmPassword && password === confirmPassword && (
-          <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-              <circle cx="12" cy="12" r="10" fill="#4CAF50"/>
-              <path d="M8 12l2 2 4-4" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-            <span style={{ fontSize: '12px', color: '#4CAF50', fontWeight: 500 }}>
-              Passwords match
-            </span>
-          </div>
-        )}
       </div>
       
       {/* Error Message */}
@@ -443,13 +369,62 @@ function UniEmailScreen() {
           </p>
         </div>
       )}
+
+      {/* Forgot Password Success Message */}
+      {forgotPasswordSent && (
+        <div 
+          style={{
+            marginTop: '16px',
+            padding: '12px 16px',
+            backgroundColor: '#F0FDF4',
+            borderRadius: '12px',
+            border: '1px solid #BBF7D0'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+            <svg 
+              width="20" 
+              height="20" 
+              viewBox="0 0 24 24" 
+              fill="none" 
+              style={{ flexShrink: 0, marginTop: '2px' }}
+            >
+              <circle cx="12" cy="12" r="10" fill="#22C55E"/>
+              <path d="M8 12l2 2 4-4" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            
+            <p 
+              style={{
+                margin: 0,
+                fontSize: '13px',
+                lineHeight: 1.5,
+                color: '#16A34A',
+                flex: 1
+              }}
+            >
+              One-time login link sent. Check your email and click the link to sign in.
+            </p>
+          </div>
+          <p 
+            style={{
+              margin: 0,
+              marginTop: '8px',
+              fontSize: '11px',
+              color: '#9CA3AF',
+              paddingLeft: '30px'
+            }}
+          >
+            Password reset will be available soon.
+          </p>
+        </div>
+      )}
       
-      {/* Create Account Button */}
+      {/* Sign In Button */}
       <button 
-        onClick={handleContinue}
+        onClick={handleSignIn}
         disabled={!canSubmit}
         style={{
-          marginTop: '32px',
+          marginTop: '24px',
           width: '100%',
           height: '56px',
           backgroundColor: canSubmit ? '#5B4AE6' : '#E8E6EA',
@@ -480,17 +455,59 @@ function UniEmailScreen() {
                 <animate attributeName="stroke-dashoffset" dur="2s" values="0;-16;-32;-32" repeatCount="indefinite"/>
               </circle>
             </svg>
-            Creating account...
+            Signing in...
           </>
         ) : (
-          'Create account'
+          'Sign in'
+        )}
+      </button>
+
+      {/* Forgot Password */}
+      <button
+        onClick={handleForgotPassword}
+        disabled={!email || isSendingLink || isLoading}
+        style={{
+          marginTop: '16px',
+          width: '100%',
+          padding: '12px',
+          backgroundColor: 'transparent',
+          color: isSendingLink ? '#ADAFBB' : '#6B7280',
+          fontSize: '14px',
+          fontWeight: 500,
+          border: 'none',
+          cursor: !email || isSendingLink ? 'default' : 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '6px',
+          opacity: !email ? 0.5 : 1
+        }}
+      >
+        {isSendingLink ? (
+          <>
+            <svg 
+              width="16" 
+              height="16" 
+              viewBox="0 0 24 24" 
+              fill="none"
+              style={{ animation: 'spin 1s linear infinite' }}
+            >
+              <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="32" strokeDashoffset="32">
+                <animate attributeName="stroke-dasharray" dur="2s" values="0 32;16 16;0 32;0 32" repeatCount="indefinite"/>
+                <animate attributeName="stroke-dashoffset" dur="2s" values="0;-16;-32;-32" repeatCount="indefinite"/>
+              </circle>
+            </svg>
+            Sending link...
+          </>
+        ) : (
+          'Forgot your password?'
         )}
       </button>
       
       {/* Spacer */}
       <div style={{ flex: 1 }} />
 
-      {/* Sign in link */}
+      {/* Create account link */}
       <div 
         style={{ 
           paddingBottom: '40px',
@@ -498,10 +515,10 @@ function UniEmailScreen() {
         }}
       >
         <span style={{ fontSize: '14px', color: '#ADAFBB' }}>
-          Already have an account?{' '}
+          Don't have an account?{' '}
         </span>
         <button 
-          onClick={() => navigate('/signin')}
+          onClick={() => navigate('/signup')}
           style={{
             backgroundColor: 'transparent',
             border: 'none',
@@ -512,7 +529,7 @@ function UniEmailScreen() {
             padding: 0
           }}
         >
-          Sign in
+          Create one
         </button>
       </div>
       
@@ -540,4 +557,4 @@ function UniEmailScreen() {
   )
 }
 
-export default UniEmailScreen
+export default SignInScreen

@@ -25,7 +25,7 @@ function SplashScreen() {
         <NestedLogo />
         <h1 
           className="mt-4 text-[18px] font-bold tracking-[0.15em] uppercase"
-          style={{ color: '#E94057' }}
+          style={{ color: '#5B4AE6' }}
         >
           NESTED
         </h1>
@@ -64,7 +64,7 @@ function NestedLogo() {
       {/* Top left lobe - outer */}
       <path 
         d="M50 20L25 8L8 25L15 45L50 75L50 20Z" 
-        fill="#E94057"
+        fill="#5B4AE6"
       />
       
       {/* Top right lobe - outer */}

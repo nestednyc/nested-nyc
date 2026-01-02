@@ -142,7 +142,7 @@ export { supabase, isSupabaseConfigured, getConfigurationError }
 
 /**
  * Auth service with .edu email enforcement
- * Supports passwordless authentication via OTP codes and magic links
+ * Supports both password-based and passwordless (magic link/OTP) authentication
  */
 export const authService = {
   /**
@@ -156,7 +156,7 @@ export const authService = {
         valid: false,
         error: {
           message: 'Please enter your email address',
-          code: 'INVALID_EMAIL_DOMAIN'
+          code: 'INVALID_EMAIL'
         }
       }
     }
@@ -167,7 +167,7 @@ export const authService = {
         valid: false,
         error: {
           message: 'Please enter a valid email address',
-          code: 'INVALID_EMAIL_DOMAIN'
+          code: 'INVALID_EMAIL_FORMAT'
         }
       }
     }
@@ -187,40 +187,191 @@ export const authService = {
   },
 
   /**
-   * Send OTP code for passwordless sign in (only .edu emails)
-   * Uses Supabase signInWithOtp which sends a 6-digit code
-   * @param {string} email - User's email address
-   * @returns {Promise<{data: any, error: any}>}
+   * Validate password meets minimum requirements
+   * @param {string} password - Password to validate
+   * @returns {{valid: boolean, error: object|null}}
    */
-  async sendMagicLink(email) {
-    // CRITICAL: Validate .edu email FIRST before any Supabase call
-    const validation = this.validateEduEmail(email)
-    if (!validation.valid) {
-      return { data: null, error: validation.error }
+  validatePassword(password) {
+    if (!password || typeof password !== 'string') {
+      return {
+        valid: false,
+        error: {
+          message: 'Please enter a password',
+          code: 'INVALID_PASSWORD'
+        }
+      }
     }
 
-    // Check if Supabase is configured
-    if (!isSupabaseConfigured()) {
-      const configError = getConfigurationError()
+    if (password.length < 6) {
       return {
-        data: null,
+        valid: false,
         error: {
-          message: configError,
+          message: 'Password must be at least 6 characters long',
+          code: 'PASSWORD_TOO_SHORT'
+        }
+      }
+    }
+
+    return { valid: true, error: null }
+  },
+
+  /**
+   * Check if Supabase is ready for auth operations
+   * @returns {{ready: boolean, error: object|null}}
+   */
+  checkSupabaseReady() {
+    if (!isSupabaseConfigured()) {
+      return {
+        ready: false,
+        error: {
+          message: 'Authentication service is not configured. Please contact support.',
           code: 'SUPABASE_NOT_CONFIGURED',
-          developerMessage: configError
+          developerMessage: getConfigurationError()
         }
       }
     }
 
     if (!supabase) {
       return {
-        data: null,
+        ready: false,
         error: {
           message: 'Authentication service is not available.',
           code: 'SUPABASE_NOT_CONFIGURED',
           developerMessage: getConfigurationError()
         }
       }
+    }
+
+    return { ready: true, error: null }
+  },
+
+  // ===========================================
+  // PASSWORD-BASED AUTHENTICATION
+  // ===========================================
+
+  /**
+   * Sign up a new user with email and password (only .edu emails)
+   * @param {string} email - User's .edu email address
+   * @param {string} password - User's chosen password
+   * @returns {Promise<{data: any, error: any}>}
+   */
+  async signUpWithEmailPassword(email, password) {
+    // Validate email first
+    const emailValidation = this.validateEduEmail(email)
+    if (!emailValidation.valid) {
+      return { data: null, error: emailValidation.error }
+    }
+
+    // Validate password
+    const passwordValidation = this.validatePassword(password)
+    if (!passwordValidation.valid) {
+      return { data: null, error: passwordValidation.error }
+    }
+
+    // Check Supabase is ready
+    const { ready, error: configError } = this.checkSupabaseReady()
+    if (!ready) {
+      return { data: null, error: configError }
+    }
+
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/confirm`,
+          data: {
+            email_domain: email.split('@')[1].toLowerCase()
+          }
+        }
+      })
+
+      if (error) {
+        return { data: null, error: this._mapSupabaseError(error) }
+      }
+
+      // Check if user needs to confirm email
+      // Supabase returns user but session is null if email confirmation is required
+      if (data?.user && !data?.session) {
+        return {
+          data: { ...data, needsEmailConfirmation: true },
+          error: null
+        }
+      }
+
+      return { data, error: null }
+    } catch (err) {
+      return { data: null, error: this._handleNetworkError(err) }
+    }
+  },
+
+  /**
+   * Sign in an existing user with email and password
+   * @param {string} email - User's email address
+   * @param {string} password - User's password
+   * @returns {Promise<{data: any, error: any}>}
+   */
+  async signInWithEmailPassword(email, password) {
+    // Validate email first
+    const emailValidation = this.validateEduEmail(email)
+    if (!emailValidation.valid) {
+      return { data: null, error: emailValidation.error }
+    }
+
+    // Basic password check (not empty)
+    if (!password || password.trim() === '') {
+      return {
+        data: null,
+        error: {
+          message: 'Please enter your password',
+          code: 'INVALID_PASSWORD'
+        }
+      }
+    }
+
+    // Check Supabase is ready
+    const { ready, error: configError } = this.checkSupabaseReady()
+    if (!ready) {
+      return { data: null, error: configError }
+    }
+
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      })
+
+      if (error) {
+        return { data: null, error: this._mapSupabaseError(error) }
+      }
+
+      return { data, error: null }
+    } catch (err) {
+      return { data: null, error: this._handleNetworkError(err) }
+    }
+  },
+
+  // ===========================================
+  // MAGIC LINK / OTP AUTHENTICATION
+  // ===========================================
+
+  /**
+   * Send magic link / OTP code for passwordless sign in (only .edu emails)
+   * Uses Supabase signInWithOtp which sends both a magic link AND a 6-digit code
+   * @param {string} email - User's email address
+   * @returns {Promise<{data: any, error: any}>}
+   */
+  async sendMagicLink(email) {
+    // Validate .edu email FIRST before any Supabase call
+    const validation = this.validateEduEmail(email)
+    if (!validation.valid) {
+      return { data: null, error: validation.error }
+    }
+
+    // Check Supabase is ready
+    const { ready, error: configError } = this.checkSupabaseReady()
+    if (!ready) {
+      return { data: null, error: configError }
     }
 
     try {
@@ -239,52 +390,22 @@ export const authService = {
       })
 
       if (error) {
-        if (error.message?.includes('fetch') || error.message?.includes('network') || error.message?.includes('Failed')) {
-          return {
-            data: null,
-            error: {
-              message: 'Unable to connect to authentication service. Please check your internet connection.',
-              code: 'NETWORK_ERROR',
-              originalError: error
-            }
-          }
-        }
-
-        if (error.message.includes('domain') || error.message.includes('.edu')) {
-          return {
-            data: null,
-            error: {
-              message: 'Only .edu email addresses are allowed. Please use your university email.',
-              code: 'INVALID_EMAIL_DOMAIN'
-            }
-          }
-        }
-        return { data: null, error }
+        return { data: null, error: this._mapSupabaseError(error) }
       }
 
       return { data, error: null }
     } catch (err) {
-      if (err instanceof TypeError && err.message.includes('fetch')) {
-        return {
-          data: null,
-          error: {
-            message: 'Unable to connect to authentication service. Please check your internet connection.',
-            code: 'NETWORK_ERROR',
-            originalError: err
-          }
-        }
-      }
-
-      console.error('Error sending OTP:', err)
-      return {
-        data: null,
-        error: {
-          message: err.message || 'An error occurred. Please try again.',
-          code: 'OTP_SEND_ERROR',
-          originalError: err
-        }
-      }
+      return { data: null, error: this._handleNetworkError(err) }
     }
+  },
+
+  /**
+   * Alias for sendMagicLink - clarifies this is for sign-in
+   * @param {string} email - User's email address
+   * @returns {Promise<{data: any, error: any}>}
+   */
+  async sendSignInMagicLink(email) {
+    return this.sendMagicLink(email)
   },
 
   /**
@@ -294,15 +415,9 @@ export const authService = {
    * @returns {Promise<{data: any, error: any}>}
    */
   async verifyOtp(email, token) {
-    if (!isSupabaseConfigured() || !supabase) {
-      return {
-        data: null,
-        error: {
-          message: 'Authentication service is not configured.',
-          code: 'SUPABASE_NOT_CONFIGURED',
-          developerMessage: getConfigurationError()
-        }
-      }
+    const { ready, error: configError } = this.checkSupabaseReady()
+    if (!ready) {
+      return { data: null, error: configError }
     }
 
     try {
@@ -344,14 +459,9 @@ export const authService = {
    * @returns {Promise<{data: any, error: any}>}
    */
   async verifyTokenHash(tokenHash, type = 'email') {
-    if (!isSupabaseConfigured() || !supabase) {
-      return {
-        data: null,
-        error: {
-          message: 'Authentication service is not configured.',
-          code: 'SUPABASE_NOT_CONFIGURED'
-        }
-      }
+    const { ready, error: configError } = this.checkSupabaseReady()
+    if (!ready) {
+      return { data: null, error: configError }
     }
 
     try {
@@ -385,19 +495,18 @@ export const authService = {
     }
   },
 
+  // ===========================================
+  // SESSION MANAGEMENT
+  // ===========================================
+
   /**
    * Get current session
    * @returns {Promise<{data: any, error: any}>}
    */
   async getSession() {
-    if (!isSupabaseConfigured() || !supabase) {
-      return {
-        data: null,
-        error: {
-          message: 'Authentication service is not configured.',
-          code: 'SUPABASE_NOT_CONFIGURED'
-        }
-      }
+    const { ready, error: configError } = this.checkSupabaseReady()
+    if (!ready) {
+      return { data: null, error: configError }
     }
 
     const { data, error } = await supabase.auth.getSession()
@@ -409,14 +518,9 @@ export const authService = {
    * @returns {Promise<{data: any, error: any}>}
    */
   async getUser() {
-    if (!isSupabaseConfigured() || !supabase) {
-      return {
-        data: null,
-        error: {
-          message: 'Authentication service is not configured.',
-          code: 'SUPABASE_NOT_CONFIGURED'
-        }
-      }
+    const { ready, error: configError } = this.checkSupabaseReady()
+    if (!ready) {
+      return { data: null, error: configError }
     }
 
     const { data, error } = await supabase.auth.getUser()
@@ -442,17 +546,109 @@ export const authService = {
    * @returns {Promise<{error: any}>}
    */
   async signOut() {
-    if (!isSupabaseConfigured() || !supabase) {
-      return {
-        error: {
-          message: 'Authentication service is not configured.',
-          code: 'SUPABASE_NOT_CONFIGURED'
-        }
-      }
+    const { ready, error: configError } = this.checkSupabaseReady()
+    if (!ready) {
+      return { error: configError }
     }
 
     const { error } = await supabase.auth.signOut()
     return { error }
+  },
+
+  // ===========================================
+  // INTERNAL HELPERS
+  // ===========================================
+
+  /**
+   * Map Supabase errors to user-friendly messages
+   * @private
+   */
+  _mapSupabaseError(error) {
+    const msg = error?.message?.toLowerCase() || ''
+
+    // Email/domain errors
+    if (msg.includes('domain') || msg.includes('.edu')) {
+      return {
+        message: 'Only .edu email addresses are allowed. Please use your university email.',
+        code: 'INVALID_EMAIL_DOMAIN'
+      }
+    }
+
+    // Already registered
+    if (msg.includes('already registered') || msg.includes('user already')) {
+      return {
+        message: 'This email is already registered. Please sign in instead.',
+        code: 'USER_EXISTS'
+      }
+    }
+
+    // Invalid credentials (wrong password or user not found)
+    if (msg.includes('invalid login credentials') || msg.includes('invalid credentials')) {
+      return {
+        message: 'Invalid email or password. Please check your credentials and try again.',
+        code: 'INVALID_CREDENTIALS'
+      }
+    }
+
+    // User not found
+    if (msg.includes('user not found') || msg.includes('no user')) {
+      return {
+        message: 'No account found with this email. Please sign up first.',
+        code: 'USER_NOT_FOUND'
+      }
+    }
+
+    // Email not confirmed
+    if (msg.includes('email not confirmed')) {
+      return {
+        message: 'Please verify your email address before signing in. Check your inbox for a confirmation link.',
+        code: 'EMAIL_NOT_CONFIRMED'
+      }
+    }
+
+    // Rate limiting
+    if (msg.includes('rate limit') || msg.includes('too many')) {
+      return {
+        message: 'Too many attempts. Please wait a moment and try again.',
+        code: 'RATE_LIMITED'
+      }
+    }
+
+    // Network errors
+    if (msg.includes('fetch') || msg.includes('network') || msg.includes('failed to fetch')) {
+      return {
+        message: 'Unable to connect to authentication service. Please check your internet connection.',
+        code: 'NETWORK_ERROR'
+      }
+    }
+
+    // Default: return original message
+    return {
+      message: error.message || 'An unexpected error occurred. Please try again.',
+      code: 'UNKNOWN_ERROR',
+      originalError: error
+    }
+  },
+
+  /**
+   * Handle network/fetch errors
+   * @private
+   */
+  _handleNetworkError(err) {
+    if (err instanceof TypeError && err.message.includes('fetch')) {
+      return {
+        message: 'Unable to connect to authentication service. Please check your internet connection.',
+        code: 'NETWORK_ERROR',
+        originalError: err
+      }
+    }
+
+    console.error('Auth error:', err)
+    return {
+      message: err.message || 'An unexpected error occurred. Please try again.',
+      code: 'UNKNOWN_ERROR',
+      originalError: err
+    }
   }
 }
 
@@ -499,8 +695,13 @@ export function getErrorMessage(error) {
   if (!error) return 'An unexpected error occurred'
 
   // Handle our custom validation errors
-  if (error.code === 'INVALID_EMAIL_DOMAIN') {
+  if (error.code === 'INVALID_EMAIL_DOMAIN' || error.code === 'INVALID_EMAIL' || error.code === 'INVALID_EMAIL_FORMAT') {
     return error.message || 'Only .edu email addresses are allowed. Please use your university email.'
+  }
+
+  // Handle password errors
+  if (error.code === 'INVALID_PASSWORD' || error.code === 'PASSWORD_TOO_SHORT') {
+    return error.message || 'Please enter a valid password.'
   }
 
   // Handle Supabase configuration errors
@@ -517,25 +718,53 @@ export function getErrorMessage(error) {
     return error.message || 'Unable to connect to authentication service. Please check your internet connection.'
   }
 
-  // Handle Supabase errors
+  // Handle credential errors
+  if (error.code === 'INVALID_CREDENTIALS' || error.code === 'USER_NOT_FOUND') {
+    return error.message || 'Invalid email or password.'
+  }
+
+  // Handle user exists error
+  if (error.code === 'USER_EXISTS') {
+    return error.message || 'This email is already registered. Please sign in instead.'
+  }
+
+  // Handle email confirmation
+  if (error.code === 'EMAIL_NOT_CONFIRMED') {
+    return error.message || 'Please verify your email address before signing in.'
+  }
+
+  // Handle rate limiting
+  if (error.code === 'RATE_LIMITED') {
+    return error.message || 'Too many attempts. Please wait a moment and try again.'
+  }
+
+  // Handle verification errors
+  if (error.code === 'VERIFICATION_ERROR') {
+    return error.message || 'Verification failed. Please try again.'
+  }
+
+  // Handle Supabase errors with message property
   if (error.message) {
     // Map common Supabase errors to user-friendly messages
-    if (error.message.includes('User already registered') || error.message.includes('already registered')) {
+    const msg = error.message.toLowerCase()
+    
+    if (msg.includes('user already registered') || msg.includes('already registered')) {
       return 'This email is already registered. Please sign in instead.'
     }
-    if (error.message.includes('Invalid email')) {
+    if (msg.includes('invalid email')) {
       return 'Please enter a valid email address.'
     }
-    if (error.message.includes('Email rate limit') || error.message.includes('rate limit')) {
+    if (msg.includes('email rate limit') || msg.includes('rate limit')) {
       return 'Too many requests. Please wait a moment and try again.'
     }
-    if (error.message.includes('fetch') || error.message.includes('network') || error.message.includes('Failed to fetch')) {
+    if (msg.includes('fetch') || msg.includes('network') || msg.includes('failed to fetch')) {
       return 'Unable to connect to authentication service. Please check your internet connection and ensure Supabase is properly configured.'
+    }
+    if (msg.includes('invalid login credentials')) {
+      return 'Invalid email or password. Please check your credentials and try again.'
     }
     return error.message
   }
 
   return 'An unexpected error occurred. Please try again.'
 }
-
-

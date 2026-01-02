@@ -4,6 +4,9 @@ import { useState, useEffect } from 'react'
 // Auth
 import { authService } from './lib/supabase'
 
+// Context
+import { OnboardingProvider, useOnboarding } from './context/OnboardingContext'
+
 // Layout components
 import MobileFrame from './components/MobileFrame'
 import WebLayout from './components/WebLayout'
@@ -14,6 +17,7 @@ import Onboarding1 from './pages/Onboarding1'
 import Onboarding2 from './pages/Onboarding2'
 import Onboarding3 from './pages/Onboarding3'
 import SignUpScreen from './pages/SignUpScreen'
+import SignInScreen from './pages/SignInScreen'
 import UniEmailScreen from './pages/UniEmailScreen'
 import VerifyScreen from './pages/VerifyScreen'
 import ProfileScreen from './pages/ProfileScreen'
@@ -34,29 +38,56 @@ import EventDetailScreen from './pages/EventDetailScreen'
 import AuthConfirmScreen from './pages/AuthConfirmScreen'
 
 /**
- * Check if onboarding is complete
+ * Route Categories
+ * 
+ * AUTH_PUBLIC_ROUTES: Available to anyone (no auth required)
+ * ONBOARDING_ROUTES: Require auth, used during first-time setup
+ * APP_ROUTES: Require auth + completed onboarding
  */
-function isOnboardingComplete() {
-  return localStorage.getItem('nested_onboarding_complete') === 'true'
-}
+const AUTH_PUBLIC_ROUTES = [
+  '/', 
+  '/onboarding/1', '/onboarding/2', '/onboarding/3',
+  '/signup', '/signin', '/uni-email', '/verify', '/auth/confirm'
+]
+
+const ONBOARDING_ROUTES = [
+  '/profile', '/major', '/gender', '/interests', '/search-friends', '/notifications'
+]
+
+const APP_ROUTES = [
+  '/discover', '/events', '/matches', '/messages', '/my-profile', '/filters', '/create-project'
+]
 
 /**
- * Mark onboarding as complete - exported for use in NotificationsScreen
+ * Check if a path matches a route pattern
  */
-export function completeOnboarding() {
-  localStorage.setItem('nested_onboarding_complete', 'true')
+function matchesRoute(pathname, routes) {
+  return routes.some(route => {
+    if (route === pathname) return true
+    // Handle dynamic routes like /events/:id
+    if (route.includes(':')) {
+      const pattern = route.replace(/:[^/]+/g, '[^/]+')
+      return new RegExp(`^${pattern}$`).test(pathname)
+    }
+    return false
+  })
 }
 
-/**
- * Reset onboarding - for testing (call from console: window.resetOnboarding())
- */
-export function resetOnboarding() {
-  localStorage.removeItem('nested_onboarding_complete')
+function isAuthPublicRoute(pathname) {
+  return matchesRoute(pathname, AUTH_PUBLIC_ROUTES)
 }
 
-// Expose reset function globally for testing
-if (typeof window !== 'undefined') {
-  window.resetOnboarding = resetOnboarding
+function isOnboardingRoute(pathname) {
+  return matchesRoute(pathname, ONBOARDING_ROUTES)
+}
+
+function isAppRoute(pathname) {
+  if (matchesRoute(pathname, APP_ROUTES)) return true
+  // Handle dynamic routes
+  if (pathname.startsWith('/events/')) return true
+  if (pathname.startsWith('/chat/')) return true
+  if (pathname.startsWith('/projects/')) return true
+  return false
 }
 
 /**
@@ -76,33 +107,15 @@ function useIsDesktop() {
 }
 
 /**
- * Route categories for layout decisions
- */
-const AUTH_ROUTES = ['/signup', '/uni-email', '/verify', '/auth/confirm', '/onboarding/1', '/onboarding/2', '/onboarding/3']
-const FORM_ROUTES = ['/profile', '/major', '/gender', '/interests', '/search-friends', '/notifications']
-const APP_ROUTES = ['/discover', '/events', '/matches', '/messages', '/my-profile', '/filters']
-
-/**
- * Public routes that don't require onboarding completion
- */
-const PUBLIC_ROUTES = [
-  '/', 
-  '/onboarding/1', '/onboarding/2', '/onboarding/3',
-  '/signup', '/uni-email', '/verify', '/auth/confirm',
-  '/profile', '/major', '/gender', '/interests', '/search-friends', '/notifications'
-]
-
-/**
- * AppContent - Main app content with routing and onboarding gate
+ * AppContent - Main app content with routing and auth/onboarding guards
  */
 function AppContent() {
   const location = useLocation()
   const navigate = useNavigate()
   const isDesktop = useIsDesktop()
   const pathname = location.pathname
+  const { hasOnboarded, isInitialized: onboardingInitialized } = useOnboarding()
 
-  const [hasOnboarded, setHasOnboarded] = useState(false)
-  const [isReady, setIsReady] = useState(false)
   const [user, setUser] = useState(null)
   const [authLoading, setAuthLoading] = useState(true)
 
@@ -133,41 +146,75 @@ function AppContent() {
     return () => subscription?.unsubscribe()
   }, [navigate])
 
-  // Check onboarding status on mount
+  // Route guard logic
   useEffect(() => {
-    const status = isOnboardingComplete()
-    setHasOnboarded(status)
-    setIsReady(true)
-  }, [])
+    // Wait for both auth and onboarding state to initialize
+    if (authLoading || !onboardingInitialized) return
 
-  // Handle redirects
-  useEffect(() => {
-    if (!isReady || authLoading) return
+    const isPublic = isAuthPublicRoute(pathname)
+    const isOnboarding = isOnboardingRoute(pathname)
+    const isApp = isAppRoute(pathname)
 
-    const isPublicRoute = PUBLIC_ROUTES.includes(pathname)
-    const isAppRoute = APP_ROUTES.some(r => pathname.startsWith(r))
+    // Case 1: No user (not authenticated)
+    if (!user) {
+      // Allow public routes
+      if (isPublic) return
 
-    // On desktop, redirect from splash to discover if onboarded & authenticated
-    if (isDesktop && pathname === '/' && hasOnboarded && user) {
-      navigate('/discover', { replace: true })
-      return
+      // Redirect protected routes to signup
+      if (isOnboarding || isApp) {
+        navigate('/signup', { replace: true })
+        return
+      }
     }
 
-    // Protected app routes require authentication
-    if (isAppRoute && !user) {
-      navigate('/signup', { replace: true })
-      return
+    // Case 2: User is authenticated but hasn't completed onboarding
+    if (user && !hasOnboarded) {
+      // Allow onboarding routes
+      if (isOnboarding) return
+
+      // Allow auth public routes (they might be completing sign up)
+      if (isPublic) {
+        // But redirect splash/onboarding marketing to profile setup
+        if (pathname === '/' || pathname.startsWith('/onboarding/')) {
+          navigate('/profile', { replace: true })
+          return
+        }
+        return
+      }
+
+      // Redirect app routes to onboarding start
+      if (isApp) {
+        navigate('/profile', { replace: true })
+        return
+      }
     }
 
-    // If not onboarded and trying to access protected route, redirect to onboarding
-    if (!hasOnboarded && !isPublicRoute) {
-      navigate('/onboarding/1', { replace: true })
-      return
-    }
-  }, [isReady, authLoading, hasOnboarded, user, pathname, isDesktop, navigate])
+    // Case 3: User is authenticated and has completed onboarding
+    if (user && hasOnboarded) {
+      // Redirect onboarding routes to discover (they're done)
+      if (isOnboarding) {
+        navigate('/discover', { replace: true })
+        return
+      }
 
-  // Show loading spinner while checking auth/localStorage
-  if (!isReady || authLoading) {
+      // Redirect splash and marketing onboarding to discover
+      if (pathname === '/' || pathname.startsWith('/onboarding/')) {
+        navigate('/discover', { replace: true })
+        return
+      }
+
+      // Redirect signup/signin to discover (already logged in)
+      if (pathname === '/signup' || pathname === '/signin') {
+        navigate('/discover', { replace: true })
+        return
+      }
+
+      // Allow everything else
+    }
+  }, [authLoading, onboardingInitialized, user, hasOnboarded, pathname, navigate])
+
+  // Show loading spinner while checking auth/onboarding
+  if (authLoading || !onboardingInitialized) {
     return (
       <div className="loading-screen">
         <div className="loading-spinner" />
@@ -175,12 +222,11 @@ function AppContent() {
     )
   }
 
-  // Determine layout type based on route
-  const isAuthRoute = AUTH_ROUTES.includes(pathname)
-  const isFormRoute = FORM_ROUTES.includes(pathname)
-  const isAppRoute = APP_ROUTES.includes(pathname)
+  // Determine layout type for styling
+  const isAuthRoute = ['/signup', '/signin', '/uni-email', '/verify', '/auth/confirm', '/onboarding/1', '/onboarding/2', '/onboarding/3'].includes(pathname)
+  const isFormRoute = ONBOARDING_ROUTES.includes(pathname)
   const isChatRoute = pathname.startsWith('/chat/')
-  const useDesktopLayout = isDesktop && (isAppRoute || isAuthRoute || isFormRoute || isChatRoute)
+  const useDesktopLayout = isDesktop && (isAppRoute(pathname) || isAuthRoute || isFormRoute || isChatRoute)
 
   const getLayoutType = () => {
     if (isAuthRoute) return 'auth'
@@ -194,11 +240,11 @@ function AppContent() {
       {/* Splash - Mobile landing */}
       <Route path="/" element={
         isDesktop 
-          ? <Navigate to={hasOnboarded ? '/discover' : '/onboarding/1'} replace />
+          ? <Navigate to={hasOnboarded && user ? '/discover' : '/onboarding/1'} replace />
           : <MobileFrame><SplashScreen /></MobileFrame>
       } />
       
-      {/* Onboarding */}
+      {/* Onboarding Marketing */}
       <Route path="/onboarding/1" element={
         useDesktopLayout 
           ? <WebLayout layoutType="auth"><Onboarding1 /></WebLayout>
@@ -215,11 +261,16 @@ function AppContent() {
           : <MobileFrame><Onboarding3 /></MobileFrame>
       } />
       
-      {/* Auth */}
+      {/* Auth Routes */}
       <Route path="/signup" element={
         useDesktopLayout 
           ? <WebLayout layoutType="auth"><SignUpScreen /></WebLayout>
           : <MobileFrame><SignUpScreen /></MobileFrame>
+      } />
+      <Route path="/signin" element={
+        useDesktopLayout 
+          ? <WebLayout layoutType="auth"><SignInScreen /></WebLayout>
+          : <MobileFrame><SignInScreen /></MobileFrame>
       } />
       <Route path="/uni-email" element={
         useDesktopLayout 
@@ -237,7 +288,7 @@ function AppContent() {
           : <MobileFrame><AuthConfirmScreen /></MobileFrame>
       } />
       
-      {/* Profile Setup */}
+      {/* Profile Setup / Onboarding Flow */}
       <Route path="/profile" element={
         useDesktopLayout 
           ? <WebLayout layoutType="form"><ProfileScreen /></WebLayout>
@@ -318,7 +369,7 @@ function AppContent() {
           : <MobileFrame><ChatScreen /></MobileFrame>
       } />
       
-      {/* Project Detail - uses projectId param */}
+      {/* Project Detail */}
       <Route path="/projects/:projectId" element={
         isDesktop 
           ? <WebLayout layoutType="app"><ProfileDetailScreen /></WebLayout>
@@ -326,18 +377,22 @@ function AppContent() {
       } />
       
       {/* Fallback */}
-      <Route path="*" element={<Navigate to={hasOnboarded ? '/discover' : '/'} replace />} />
+      <Route path="*" element={
+        <Navigate to={user && hasOnboarded ? '/discover' : '/'} replace />
+      } />
     </Routes>
   )
 }
 
 /**
- * App - Root component
+ * App - Root component with providers
  */
 function App() {
   return (
     <BrowserRouter>
-      <AppContent />
+      <OnboardingProvider>
+        <AppContent />
+      </OnboardingProvider>
     </BrowserRouter>
   )
 }

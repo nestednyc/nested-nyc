@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom'
-import { completeOnboarding } from '../App'
+import { useOnboarding } from '../context/OnboardingContext'
 
 /**
  * NotificationsScreen - "Enable notifications" Permission Screen
@@ -16,12 +16,13 @@ import { completeOnboarding } from '../App'
 
 function NotificationsScreen() {
   const navigate = useNavigate()
+  const { setHasOnboarded } = useOnboarding()
 
   const handleComplete = () => {
-    // Mark onboarding as complete in localStorage
-    completeOnboarding()
+    // Mark onboarding as complete in React state + localStorage
+    setHasOnboarded(true)
     // Navigate to main app
-    navigate('/discover')
+    navigate('/discover', { replace: true })
   }
 
   return (
