@@ -142,19 +142,18 @@ export { supabase, isSupabaseConfigured, getConfigurationError }
 
 /**
  * Auth service with .edu email enforcement
+ * Supports passwordless authentication via OTP codes and magic links
  */
 export const authService = {
   /**
-   * Sign up with email (only .edu emails allowed)
-   * @param {string} email - User's email address
-   * @param {string} password - User's password
-   * @returns {Promise<{data: any, error: any}>}
+   * Validate .edu email before any auth operation
+   * @param {string} email - Email to validate
+   * @returns {{valid: boolean, error: object|null}}
    */
-  async signUp(email, password) {
-    // CRITICAL: Validate .edu email FIRST before any Supabase call
+  validateEduEmail(email) {
     if (!email || typeof email !== 'string' || email.trim() === '') {
       return {
-        data: null,
+        valid: false,
         error: {
           message: 'Please enter your email address',
           code: 'INVALID_EMAIL_DOMAIN'
@@ -162,11 +161,10 @@ export const authService = {
       }
     }
 
-    // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
     if (!emailRegex.test(email)) {
       return {
-        data: null,
+        valid: false,
         error: {
           message: 'Please enter a valid email address',
           code: 'INVALID_EMAIL_DOMAIN'
@@ -174,14 +172,10 @@ export const authService = {
       }
     }
 
-    // Validate .edu domain - STRICT validation before Supabase
     const domain = email.split('@')[1]?.toLowerCase()
-    const isEduDomain = domain && domain.endsWith('.edu')
-    
-    if (!isEduDomain) {
-      // Return error immediately - DO NOT call Supabase
+    if (!domain || !domain.endsWith('.edu')) {
       return {
-        data: null,
+        valid: false,
         error: {
           message: 'Only .edu email addresses are allowed. Please use your university email address ending in .edu',
           code: 'INVALID_EMAIL_DOMAIN'
@@ -189,91 +183,23 @@ export const authService = {
       }
     }
 
-    // Only proceed to Supabase if validation passes
-    try {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          emailRedirectTo: `${window.location.origin}/verify`,
-          data: {
-            email_domain: email.split('@')[1] // Store domain for verification
-          }
-        }
-      })
-
-      if (error) {
-        // Check if error is due to email domain (if Supabase hook is set up)
-        if (error.message.includes('domain') || error.message.includes('.edu')) {
-          return {
-            data: null,
-            error: {
-              message: 'Only .edu email addresses are allowed. Please use your university email.',
-              code: 'INVALID_EMAIL_DOMAIN'
-            }
-          }
-        }
-        return { data: null, error }
-      }
-
-      return { data, error: null }
-    } catch (err) {
-      return {
-        data: null,
-        error: {
-          message: 'An error occurred during sign up. Please try again.',
-          code: 'SIGNUP_ERROR'
-        }
-      }
-    }
+    return { valid: true, error: null }
   },
 
   /**
-   * Send magic link for passwordless sign in (only .edu emails)
+   * Send OTP code for passwordless sign in (only .edu emails)
+   * Uses Supabase signInWithOtp which sends a 6-digit code
    * @param {string} email - User's email address
    * @returns {Promise<{data: any, error: any}>}
    */
   async sendMagicLink(email) {
     // CRITICAL: Validate .edu email FIRST before any Supabase call
-    // This ensures Supabase auth is NEVER triggered for invalid emails
-    if (!email || typeof email !== 'string' || email.trim() === '') {
-      return {
-        data: null,
-        error: {
-          message: 'Please enter your email address',
-          code: 'INVALID_EMAIL_DOMAIN'
-        }
-      }
+    const validation = this.validateEduEmail(email)
+    if (!validation.valid) {
+      return { data: null, error: validation.error }
     }
 
-    // Validate email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    if (!emailRegex.test(email)) {
-      return {
-        data: null,
-        error: {
-          message: 'Please enter a valid email address',
-          code: 'INVALID_EMAIL_DOMAIN'
-        }
-      }
-    }
-
-    // Validate .edu domain - STRICT validation before Supabase
-    const domain = email.split('@')[1]?.toLowerCase()
-    const isEduDomain = domain && domain.endsWith('.edu')
-    
-    if (!isEduDomain) {
-      // Return error immediately - DO NOT call Supabase
-      return {
-        data: null,
-        error: {
-          message: 'Only .edu email addresses are allowed. Please use your university email address ending in .edu',
-          code: 'INVALID_EMAIL_DOMAIN'
-        }
-      }
-    }
-
-    // Check if Supabase is configured (only after validation passes)
+    // Check if Supabase is configured
     if (!isSupabaseConfigured()) {
       const configError = getConfigurationError()
       return {
@@ -286,12 +212,11 @@ export const authService = {
       }
     }
 
-    // Ensure supabase client exists before making API calls
     if (!supabase) {
       return {
         data: null,
         error: {
-          message: 'Authentication service is not available. Please configure Supabase environment variables.',
+          message: 'Authentication service is not available.',
           code: 'SUPABASE_NOT_CONFIGURED',
           developerMessage: getConfigurationError()
         }
@@ -299,23 +224,26 @@ export const authService = {
     }
 
     try {
+      // signInWithOtp sends both a magic link AND an OTP code
+      // The user can either click the link or enter the 6-digit code
       const { data, error } = await supabase.auth.signInWithOtp({
         email,
         options: {
-          emailRedirectTo: `${window.location.origin}/verify`,
+          // Magic link redirects to /auth/confirm for token exchange
+          emailRedirectTo: `${window.location.origin}/auth/confirm`,
+          shouldCreateUser: true,
           data: {
-            email_domain: email.split('@')[1]
+            email_domain: email.split('@')[1].toLowerCase()
           }
         }
       })
 
       if (error) {
-        // Handle network errors
         if (error.message?.includes('fetch') || error.message?.includes('network') || error.message?.includes('Failed')) {
           return {
             data: null,
             error: {
-              message: 'Unable to connect to authentication service. Please check your internet connection and ensure Supabase is properly configured.',
+              message: 'Unable to connect to authentication service. Please check your internet connection.',
               code: 'NETWORK_ERROR',
               originalError: error
             }
@@ -336,26 +264,23 @@ export const authService = {
 
       return { data, error: null }
     } catch (err) {
-      // Handle network/fetch errors
       if (err instanceof TypeError && err.message.includes('fetch')) {
         return {
           data: null,
           error: {
-            message: 'Unable to connect to authentication service. Please check your internet connection and ensure Supabase credentials are correct.',
+            message: 'Unable to connect to authentication service. Please check your internet connection.',
             code: 'NETWORK_ERROR',
             originalError: err
           }
         }
       }
 
-      // Log error for debugging
-      console.error('Error sending magic link:', err)
-      
+      console.error('Error sending OTP:', err)
       return {
         data: null,
         error: {
           message: err.message || 'An error occurred. Please try again.',
-          code: 'MAGIC_LINK_ERROR',
+          code: 'OTP_SEND_ERROR',
           originalError: err
         }
       }
@@ -363,9 +288,9 @@ export const authService = {
   },
 
   /**
-   * Verify OTP code
+   * Verify OTP code (6-digit code from email)
    * @param {string} email - User's email
-   * @param {string} token - OTP token
+   * @param {string} token - 6-digit OTP token
    * @returns {Promise<{data: any, error: any}>}
    */
   async verifyOtp(email, token) {
@@ -387,12 +312,73 @@ export const authService = {
         type: 'email'
       })
 
-      return { data, error }
+      if (error) {
+        return {
+          data: null,
+          error: {
+            message: error.message.includes('expired') 
+              ? 'Verification code has expired. Please request a new one.'
+              : 'Invalid verification code. Please try again.',
+            code: 'VERIFICATION_ERROR',
+            originalError: error
+          }
+        }
+      }
+
+      return { data, error: null }
     } catch (err) {
       return {
         data: null,
         error: {
           message: 'Invalid verification code. Please try again.',
+          code: 'VERIFICATION_ERROR'
+        }
+      }
+    }
+  },
+
+  /**
+   * Verify magic link token hash (when user clicks link in email)
+   * @param {string} tokenHash - Token hash from URL
+   * @param {string} type - Token type (usually 'email' or 'magiclink')
+   * @returns {Promise<{data: any, error: any}>}
+   */
+  async verifyTokenHash(tokenHash, type = 'email') {
+    if (!isSupabaseConfigured() || !supabase) {
+      return {
+        data: null,
+        error: {
+          message: 'Authentication service is not configured.',
+          code: 'SUPABASE_NOT_CONFIGURED'
+        }
+      }
+    }
+
+    try {
+      const { data, error } = await supabase.auth.verifyOtp({
+        token_hash: tokenHash,
+        type: type
+      })
+
+      if (error) {
+        return {
+          data: null,
+          error: {
+            message: error.message.includes('expired')
+              ? 'This link has expired. Please request a new one.'
+              : 'Invalid or expired link. Please request a new one.',
+            code: 'VERIFICATION_ERROR',
+            originalError: error
+          }
+        }
+      }
+
+      return { data, error: null }
+    } catch (err) {
+      return {
+        data: null,
+        error: {
+          message: 'Failed to verify link. Please try again.',
           code: 'VERIFICATION_ERROR'
         }
       }
@@ -416,6 +402,39 @@ export const authService = {
 
     const { data, error } = await supabase.auth.getSession()
     return { data, error }
+  },
+
+  /**
+   * Get current user (validates JWT with server)
+   * @returns {Promise<{data: any, error: any}>}
+   */
+  async getUser() {
+    if (!isSupabaseConfigured() || !supabase) {
+      return {
+        data: null,
+        error: {
+          message: 'Authentication service is not configured.',
+          code: 'SUPABASE_NOT_CONFIGURED'
+        }
+      }
+    }
+
+    const { data, error } = await supabase.auth.getUser()
+    return { data, error }
+  },
+
+  /**
+   * Subscribe to auth state changes
+   * @param {Function} callback - Called with (event, session) on auth changes
+   * @returns {Object} Subscription object with unsubscribe method
+   */
+  onAuthStateChange(callback) {
+    if (!isSupabaseConfigured() || !supabase) {
+      console.warn('Auth state listener not set up - Supabase not configured')
+      return { data: { subscription: { unsubscribe: () => {} } } }
+    }
+
+    return supabase.auth.onAuthStateChange(callback)
   },
 
   /**

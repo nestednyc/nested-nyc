@@ -1,6 +1,9 @@
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 
+// Auth
+import { authService } from './lib/supabase'
+
 // Layout components
 import MobileFrame from './components/MobileFrame'
 import WebLayout from './components/WebLayout'
@@ -28,6 +31,7 @@ import FiltersScreen from './pages/FiltersScreen'
 import ProfileDetailScreen from './pages/ProfileDetailScreen'
 import CreateProjectScreen from './pages/CreateProjectScreen'
 import EventDetailScreen from './pages/EventDetailScreen'
+import AuthConfirmScreen from './pages/AuthConfirmScreen'
 
 /**
  * Check if onboarding is complete
@@ -74,7 +78,7 @@ function useIsDesktop() {
 /**
  * Route categories for layout decisions
  */
-const AUTH_ROUTES = ['/signup', '/uni-email', '/verify', '/onboarding/1', '/onboarding/2', '/onboarding/3']
+const AUTH_ROUTES = ['/signup', '/uni-email', '/verify', '/auth/confirm', '/onboarding/1', '/onboarding/2', '/onboarding/3']
 const FORM_ROUTES = ['/profile', '/major', '/gender', '/interests', '/search-friends', '/notifications']
 const APP_ROUTES = ['/discover', '/events', '/matches', '/messages', '/my-profile', '/filters']
 
@@ -84,7 +88,7 @@ const APP_ROUTES = ['/discover', '/events', '/matches', '/messages', '/my-profil
 const PUBLIC_ROUTES = [
   '/', 
   '/onboarding/1', '/onboarding/2', '/onboarding/3',
-  '/signup', '/uni-email', '/verify',
+  '/signup', '/uni-email', '/verify', '/auth/confirm',
   '/profile', '/major', '/gender', '/interests', '/search-friends', '/notifications'
 ]
 
@@ -99,6 +103,35 @@ function AppContent() {
 
   const [hasOnboarded, setHasOnboarded] = useState(false)
   const [isReady, setIsReady] = useState(false)
+  const [user, setUser] = useState(null)
+  const [authLoading, setAuthLoading] = useState(true)
+
+  // Check auth session and listen for changes
+  useEffect(() => {
+    // Get initial session
+    authService.getSession()
+      .then(({ data }) => {
+        setUser(data?.session?.user ?? null)
+      })
+      .catch((err) => {
+        console.error('Failed to get session:', err)
+      })
+      .finally(() => {
+        setAuthLoading(false)
+      })
+
+    // Listen for auth state changes
+    const { data: { subscription } } = authService.onAuthStateChange((event, session) => {
+      setUser(session?.user ?? null)
+      
+      // On sign out, redirect to signup
+      if (event === 'SIGNED_OUT') {
+        navigate('/signup', { replace: true })
+      }
+    })
+
+    return () => subscription?.unsubscribe()
+  }, [navigate])
 
   // Check onboarding status on mount
   useEffect(() => {
@@ -109,13 +142,20 @@ function AppContent() {
 
   // Handle redirects
   useEffect(() => {
-    if (!isReady) return
+    if (!isReady || authLoading) return
 
     const isPublicRoute = PUBLIC_ROUTES.includes(pathname)
+    const isAppRoute = APP_ROUTES.some(r => pathname.startsWith(r))
 
-    // On desktop, redirect from splash to discover if onboarded
-    if (isDesktop && pathname === '/' && hasOnboarded) {
+    // On desktop, redirect from splash to discover if onboarded & authenticated
+    if (isDesktop && pathname === '/' && hasOnboarded && user) {
       navigate('/discover', { replace: true })
+      return
+    }
+
+    // Protected app routes require authentication
+    if (isAppRoute && !user) {
+      navigate('/signup', { replace: true })
       return
     }
 
@@ -124,10 +164,10 @@ function AppContent() {
       navigate('/onboarding/1', { replace: true })
       return
     }
-  }, [isReady, hasOnboarded, pathname, isDesktop, navigate])
+  }, [isReady, authLoading, hasOnboarded, user, pathname, isDesktop, navigate])
 
-  // Show loading spinner while checking localStorage
-  if (!isReady) {
+  // Show loading spinner while checking auth/localStorage
+  if (!isReady || authLoading) {
     return (
       <div className="loading-screen">
         <div className="loading-spinner" />
@@ -190,6 +230,11 @@ function AppContent() {
         useDesktopLayout 
           ? <WebLayout layoutType="auth"><VerifyScreen /></WebLayout>
           : <MobileFrame><VerifyScreen /></MobileFrame>
+      } />
+      <Route path="/auth/confirm" element={
+        useDesktopLayout 
+          ? <WebLayout layoutType="auth"><AuthConfirmScreen /></WebLayout>
+          : <MobileFrame><AuthConfirmScreen /></MobileFrame>
       } />
       
       {/* Profile Setup */}
