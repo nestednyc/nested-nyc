@@ -85,7 +85,6 @@ function signupTemplate(data: EmailTemplateData): EmailTemplate {
     data.redirectTo || '',
     data.siteUrl || ''
   );
-  const safeToken = sanitizeHtml(data.token);
 
   return {
     subject: 'Confirm your Nested account',
@@ -95,13 +94,9 @@ function signupTemplate(data: EmailTemplateData): EmailTemplate {
       <p style="text-align: center;">
         <a href="${confirmUrl}" class="button">Confirm Email</a>
       </p>
-      <p style="text-align: center;">Or enter this code:</p>
-      <p style="text-align: center;">
-        <span class="code">${safeToken}</span>
-      </p>
-      <p class="warning">This code expires in 24 hours.</p>
+      <p class="warning">This link expires in 24 hours.</p>
     `),
-    text: `Welcome to Nested!\n\nConfirm your email: ${confirmUrl}\n\nOr use code: ${safeToken}\n\nThis code expires in 24 hours.`
+    text: `Welcome to Nested!\n\nConfirm your email: ${confirmUrl}\n\nThis link expires in 24 hours.`
   };
 }
 
@@ -115,7 +110,6 @@ function recoveryTemplate(data: EmailTemplateData): EmailTemplate {
     data.redirectTo || '',
     data.siteUrl || ''
   );
-  const safeToken = sanitizeHtml(data.token);
 
   return {
     subject: 'Reset your Nested password',
@@ -125,13 +119,9 @@ function recoveryTemplate(data: EmailTemplateData): EmailTemplate {
       <p style="text-align: center;">
         <a href="${confirmUrl}" class="button">Reset Password</a>
       </p>
-      <p style="text-align: center;">Or enter this code:</p>
-      <p style="text-align: center;">
-        <span class="code">${safeToken}</span>
-      </p>
       <p class="warning">This link expires in 1 hour. If you didn't request this, ignore this email.</p>
     `),
-    text: `Reset your Nested password\n\nClick here: ${confirmUrl}\n\nOr use code: ${safeToken}\n\nThis link expires in 1 hour.`
+    text: `Reset your Nested password\n\nClick here: ${confirmUrl}\n\nThis link expires in 1 hour.`
   };
 }
 
@@ -145,7 +135,6 @@ function magiclinkTemplate(data: EmailTemplateData): EmailTemplate {
     data.redirectTo || '',
     data.siteUrl || ''
   );
-  const safeToken = sanitizeHtml(data.token);
 
   return {
     subject: 'Your Nested login link',
@@ -155,13 +144,9 @@ function magiclinkTemplate(data: EmailTemplateData): EmailTemplate {
       <p style="text-align: center;">
         <a href="${confirmUrl}" class="button">Sign In</a>
       </p>
-      <p style="text-align: center;">Or enter this code:</p>
-      <p style="text-align: center;">
-        <span class="code">${safeToken}</span>
-      </p>
       <p class="warning">This link expires in 1 hour.</p>
     `),
-    text: `Sign in to Nested\n\nClick here: ${confirmUrl}\n\nOr use code: ${safeToken}\n\nThis link expires in 1 hour.`
+    text: `Sign in to Nested\n\nClick here: ${confirmUrl}\n\nThis link expires in 1 hour.`
   };
 }
 
@@ -175,7 +160,6 @@ function inviteTemplate(data: EmailTemplateData): EmailTemplate {
     data.redirectTo || '',
     data.siteUrl || ''
   );
-  const safeToken = sanitizeHtml(data.token);
 
   return {
     subject: "You've been invited to Nested",
@@ -185,13 +169,9 @@ function inviteTemplate(data: EmailTemplateData): EmailTemplate {
       <p style="text-align: center;">
         <a href="${confirmUrl}" class="button">Accept Invitation</a>
       </p>
-      <p style="text-align: center;">Or enter this code:</p>
-      <p style="text-align: center;">
-        <span class="code">${safeToken}</span>
-      </p>
       <p class="warning">This invitation expires in 7 days.</p>
     `),
-    text: `You've been invited to Nested!\n\nAccept here: ${confirmUrl}\n\nOr use code: ${safeToken}\n\nThis invitation expires in 7 days.`
+    text: `You've been invited to Nested!\n\nAccept here: ${confirmUrl}\n\nThis invitation expires in 7 days.`
   };
 }
 
@@ -205,7 +185,6 @@ function emailChangeTemplate(data: EmailTemplateData): EmailTemplate {
     data.redirectTo || '',
     data.siteUrl || ''
   );
-  const safeToken = sanitizeHtml(data.token);
   const safeNewEmail = sanitizeHtml(data.newEmail);
 
   return {
@@ -216,13 +195,9 @@ function emailChangeTemplate(data: EmailTemplateData): EmailTemplate {
       <p style="text-align: center;">
         <a href="${confirmUrl}" class="button">Confirm Change</a>
       </p>
-      <p style="text-align: center;">Or enter this code:</p>
-      <p style="text-align: center;">
-        <span class="code">${safeToken}</span>
-      </p>
       <p class="warning">If you didn't request this change, please secure your account immediately.</p>
     `),
-    text: `Confirm email change on Nested\n\nConfirm here: ${confirmUrl}\n\nOr use code: ${safeToken}`
+    text: `Confirm email change on Nested\n\nConfirm here: ${confirmUrl}`
   };
 }
 
