@@ -174,7 +174,12 @@ function AppContent() {
 
       // Allow auth public routes (they might be completing sign up)
       if (isPublic) {
-        // But redirect splash/onboarding marketing to profile setup
+        // Redirect authenticated users from signin/signup to main app
+        if (pathname === '/signin' || pathname === '/signup') {
+          navigate('/discover', { replace: true })
+          return
+        }
+        // Redirect splash/onboarding marketing to profile setup
         if (pathname === '/' || pathname.startsWith('/onboarding/')) {
           navigate('/profile', { replace: true })
           return
