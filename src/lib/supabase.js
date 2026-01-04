@@ -653,40 +653,6 @@ export const authService = {
 }
 
 /**
- * Check if email is a valid .edu email address
- * @param {string} email - Email address to validate
- * @returns {boolean}
- */
-export function isEduEmail(email) {
-  if (!email || typeof email !== 'string') {
-    return false
-  }
-
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-  if (!emailRegex.test(email)) {
-    return false
-  }
-
-  const domain = email.split('@')[1]?.toLowerCase()
-  
-  // Check for .edu domain
-  if (domain && domain.endsWith('.edu')) {
-    return true
-  }
-
-  // Also allow common international university domains
-  // You can customize this list based on your needs
-  const allowedDomains = [
-    '.ac.uk', // UK universities
-    '.edu.au', // Australian universities
-    '.edu.ca', // Canadian universities
-    '.ac.za', // South African universities
-  ]
-
-  return allowedDomains.some(allowed => domain?.endsWith(allowed))
-}
-
-/**
  * Get a user-friendly error message
  * @param {any} error - Error object from Supabase or validation
  * @returns {string}

@@ -1,29 +1,37 @@
 # Supabase Configuration
-# This file configures your local Supabase development environment
+# For remote project: upaphmckhicnavihsaam
 
-[project]
-# Your Supabase project reference ID
-# Find this in your Supabase dashboard → Settings → General
-project_id = "your-project-ref"
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+shadow_port = 54320
+major_version = 15
+
+[studio]
+enabled = true
+port = 54323
+api_url = "http://localhost"
 
 [auth]
-# Auth configuration
 enabled = true
-external_url = "http://localhost:54321"
 site_url = "http://localhost:3000"
 additional_redirect_urls = ["https://localhost:3000"]
 jwt_expiry = 3600
 enable_signup = true
 
 [auth.email]
-# Email auth settings
 enable_signup = true
 double_confirm_changes = true
 enable_confirmations = true
 
-[functions]
-# Edge Functions configuration
-validate-email = {
-  verify_jwt = false
-}
+[functions.validate-email]
+verify_jwt = false
 
+[functions.send-email]
+verify_jwt = false
