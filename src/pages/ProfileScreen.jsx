@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useOnboarding } from '../context/OnboardingContext'
 
 /**
  * ProfileScreen - Profile Details
@@ -8,6 +9,7 @@ import { useNavigate } from 'react-router-dom'
  * Features:
  * - Type-ahead university search (inline dropdown)
  * - All overlays use position: absolute (stays in phone frame)
+ * - Saves data to DB via OnboardingContext
  */
 
 const NYC_SCHOOLS = [
@@ -35,12 +37,15 @@ const NYC_SCHOOLS = [
 
 function ProfileScreen() {
   const navigate = useNavigate()
-  const [firstName, setFirstName] = useState('')
-  const [lastName, setLastName] = useState('')
-  const [schoolQuery, setSchoolQuery] = useState('')
-  const [selectedSchool, setSelectedSchool] = useState(null)
+  const { onboardingData, setOnboardingData } = useOnboarding()
+  
+  const [firstName, setFirstName] = useState(onboardingData.firstName || '')
+  const [lastName, setLastName] = useState(onboardingData.lastName || '')
+  const [schoolQuery, setSchoolQuery] = useState(onboardingData.school || '')
+  const [selectedSchool, setSelectedSchool] = useState(onboardingData.school || null)
   const [showDropdown, setShowDropdown] = useState(false)
   const [focusedIndex, setFocusedIndex] = useState(-1)
+  const [isSaving, setIsSaving] = useState(false)
   const inputRef = useRef(null)
   const dropdownRef = useRef(null)
 
@@ -94,7 +99,27 @@ function ProfileScreen() {
     setFocusedIndex(-1)
   }
 
-  const canContinue = firstName.trim() && lastName.trim() && selectedSchool
+  const canContinue = firstName.trim() && lastName.trim() && selectedSchool && !isSaving
+
+  const handleContinue = async () => {
+    if (!canContinue) return
+    
+    setIsSaving(true)
+    try {
+      // Save to context and DB
+      await setOnboardingData({
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        school: selectedSchool
+      }, true) // true = sync to DB
+      
+      navigate('/major')
+    } catch (err) {
+      console.error('Failed to save profile:', err)
+      // Still navigate even if save fails
+      navigate('/major')
+    }
+  }
 
   return (
     <div 
@@ -449,7 +474,8 @@ function ProfileScreen() {
       
       {/* Continue Button */}
       <button 
-        onClick={() => canContinue && navigate('/major')}
+        onClick={handleContinue}
+        disabled={!canContinue}
         style={{
           width: '100%',
           height: '52px',
@@ -462,10 +488,21 @@ function ProfileScreen() {
           cursor: canContinue ? 'pointer' : 'not-allowed',
           marginBottom: '20px',
           flexShrink: 0,
-          transition: 'all 0.2s ease'
+          transition: 'all 0.2s ease',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '8px'
         }}
       >
-        Continue
+        {isSaving ? (
+          <>
+            <svg width="18" height="18" viewBox="0 0 24 24" style={{ animation: 'spin 1s linear infinite' }}>
+              <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" fill="none" strokeDasharray="32" strokeDashoffset="16"/>
+            </svg>
+            Saving...
+          </>
+        ) : 'Continue'}
       </button>
       
       {/* Home Indicator */}

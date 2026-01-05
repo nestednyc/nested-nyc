@@ -1,20 +1,11 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useOnboarding } from '../context/OnboardingContext'
 
 /**
  * InterestsScreen - Skills Selection
  * Nested NYC – Student-only project network
- * 
- * Specs:
- * - Back button: 52x52px, 15px radius, border #E5E7EB
- * - Skip: 16px bold, #5B4AE6
- * - Title: 34px bold italic, #5B4AE6
- * - Subtitle: 14px, #5B4AE6
- * - Grid: 2 columns, gap 10px
- * - Tags: 46px height, 15px radius, line icons
- *   - Unselected: border #E5E7EB, icon+text #5B4AE6
- *   - Selected: bg #5B4AE6, icon+text white
- * - Continue btn: 56px height, 15px radius, #5B4AE6 bg
+ * Saves skills to DB via OnboardingContext
  */
 
 // Skill icon components
@@ -124,7 +115,10 @@ const icons = {
 
 function InterestsScreen() {
   const navigate = useNavigate()
-  const [selected, setSelected] = useState(['react', 'uiux', 'product'])
+  const { onboardingData, setOnboardingData } = useOnboarding()
+  
+  const [selected, setSelected] = useState(onboardingData.skills || [])
+  const [isSaving, setIsSaving] = useState(false)
 
   const skills = [
     { id: 'react', label: 'React' },
@@ -281,7 +275,16 @@ function InterestsScreen() {
       
       {/* Continue Button */}
       <button 
-        onClick={() => navigate('/search-friends')}
+        onClick={async () => {
+          setIsSaving(true)
+          try {
+            await setOnboardingData({ skills: selected }, true)
+          } catch (err) {
+            console.error('Failed to save:', err)
+          }
+          navigate('/search-friends')
+        }}
+        disabled={isSaving}
         style={{
           width: '100%',
           height: '56px',
@@ -291,12 +294,15 @@ function InterestsScreen() {
           fontWeight: 700,
           borderRadius: '15px',
           border: 'none',
-          cursor: 'pointer',
+          cursor: isSaving ? 'wait' : 'pointer',
           marginBottom: '24px',
-          flexShrink: 0
+          flexShrink: 0,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center'
         }}
       >
-        Continue
+        {isSaving ? 'Saving...' : 'Continue'}
       </button>
       
       {/* Home Indicator */}

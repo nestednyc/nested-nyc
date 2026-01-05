@@ -1,23 +1,20 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useOnboarding } from '../context/OnboardingContext'
 
 /**
  * GenderScreen - Role Selection (Build/Join/Both)
  * Nested NYC – Student-only project network
  * 
- * Specs:
- * - Back button: 52x52px, 15px radius, border #E5E7EB
- * - Skip: 16px bold, #5B4AE6
- * - Title: 34px bold, #231429
- * - Options: 58px height, 15px radius, gap 12px
- *   - Unselected: border #E5E7EB, text #231429
- *   - Selected: bg #5B4AE6, text white
- * - Continue btn: 56px, 15px radius, #5B4AE6 bg
+ * Saves rolePreference to DB via OnboardingContext
  */
 
 function GenderScreen() {
   const navigate = useNavigate()
-  const [selected, setSelected] = useState('both')
+  const { onboardingData, setOnboardingData } = useOnboarding()
+  
+  const [selected, setSelected] = useState(onboardingData.rolePreference || 'both')
+  const [isSaving, setIsSaving] = useState(false)
 
   const options = [
     { id: 'build', label: 'Build a project', icon: 'check' },
@@ -151,7 +148,16 @@ function GenderScreen() {
       
       {/* Continue Button */}
       <button 
-        onClick={() => navigate('/interests')}
+        onClick={async () => {
+          setIsSaving(true)
+          try {
+            await setOnboardingData({ rolePreference: selected }, true)
+          } catch (err) {
+            console.error('Failed to save:', err)
+          }
+          navigate('/interests')
+        }}
+        disabled={isSaving}
         style={{
           width: '100%',
           height: '56px',
@@ -161,11 +167,14 @@ function GenderScreen() {
           fontWeight: 700,
           borderRadius: '15px',
           border: 'none',
-          cursor: 'pointer',
-          marginBottom: '24px'
+          cursor: isSaving ? 'wait' : 'pointer',
+          marginBottom: '24px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center'
         }}
       >
-        Continue
+        {isSaving ? 'Saving...' : 'Continue'}
       </button>
       
       {/* Home Indicator */}

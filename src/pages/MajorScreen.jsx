@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useOnboarding } from '../context/OnboardingContext'
 
 /**
  * MajorScreen - Major + Looking For Selection
@@ -10,6 +11,7 @@ import { useNavigate } from 'react-router-dom'
  * - Icon-driven visual language
  * - Horizontal scroll for majors (compact)
  * - Grid of icon cards for intent
+ * - Saves data to DB via OnboardingContext
  */
 
 // Major/Field icons
@@ -141,8 +143,11 @@ const LookingForIcons = {
 
 function MajorScreen() {
   const navigate = useNavigate()
-  const [selectedMajor, setSelectedMajor] = useState(null)
-  const [selectedLookingFor, setSelectedLookingFor] = useState([])
+  const { onboardingData, setOnboardingData } = useOnboarding()
+  
+  const [selectedMajor, setSelectedMajor] = useState(onboardingData.major || null)
+  const [selectedLookingFor, setSelectedLookingFor] = useState(onboardingData.lookingFor || [])
+  const [isSaving, setIsSaving] = useState(false)
 
   const majors = [
     { id: 'cs', label: 'CS' },
@@ -174,7 +179,23 @@ function MajorScreen() {
     )
   }
 
-  const canContinue = selectedMajor && selectedLookingFor.length > 0
+  const canContinue = selectedMajor && selectedLookingFor.length > 0 && !isSaving
+
+  const handleContinue = async () => {
+    if (!canContinue) return
+    
+    setIsSaving(true)
+    try {
+      await setOnboardingData({
+        major: selectedMajor,
+        lookingFor: selectedLookingFor
+      }, true)
+      navigate('/gender')
+    } catch (err) {
+      console.error('Failed to save major:', err)
+      navigate('/gender')
+    }
+  }
 
   return (
     <div 
@@ -459,7 +480,8 @@ function MajorScreen() {
       
       {/* Continue Button */}
       <button 
-        onClick={() => canContinue && navigate('/gender')}
+        onClick={handleContinue}
+        disabled={!canContinue}
         style={{
           width: '100%',
           height: '54px',
@@ -473,10 +495,14 @@ function MajorScreen() {
           marginTop: '16px',
           marginBottom: '20px',
           flexShrink: 0,
-          transition: 'all 0.2s ease'
+          transition: 'all 0.2s ease',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '8px'
         }}
       >
-        Continue
+        {isSaving ? 'Saving...' : 'Continue'}
       </button>
       
       {/* Home Indicator */}
