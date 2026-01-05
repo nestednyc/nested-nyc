@@ -30,7 +30,7 @@ function SearchFriendsScreen() {
         }}
       >
         <button 
-          onClick={() => navigate('/notifications')}
+          onClick={() => navigate('/username')}
           style={{
             fontSize: '16px',
             fontWeight: 700,
@@ -91,7 +91,7 @@ function SearchFriendsScreen() {
       
       {/* Access Button */}
       <button 
-        onClick={() => navigate('/notifications')}
+        onClick={() => navigate('/username')}
         style={{
           width: '100%',
           height: '56px',

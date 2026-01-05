@@ -341,6 +341,97 @@ export const authService = {
     }
   },
 
+  /**
+   * Sign in with username OR email + password
+   * Delegates to username-login Edge Function which:
+   *   - Resolves username → email server-side using service_role
+   *   - Performs signInWithPassword server-side
+   *   - Returns session + user tokens for the client to set
+   * @param {string} identifier - Username or email address
+   * @param {string} password - User's password
+   * @returns {Promise<{data: any, error: any}>}
+   */
+  async signInWithIdentifier(identifier, password) {
+    // Basic validation
+    if (!identifier || identifier.trim() === '') {
+      return {
+        data: null,
+        error: {
+          message: 'Please enter your username or email',
+          code: 'INVALID_IDENTIFIER'
+        }
+      }
+    }
+
+    if (!password || password.trim() === '') {
+      return {
+        data: null,
+        error: {
+          message: 'Please enter your password',
+          code: 'INVALID_PASSWORD'
+        }
+      }
+    }
+
+    // Check Supabase is ready
+    const { ready, error: configError } = this.checkSupabaseReady()
+    if (!ready) {
+      return { data: null, error: configError }
+    }
+
+    // Call Edge Function to handle username/email lookup + password auth server-side
+    try {
+      const { data, error } = await supabase.functions.invoke('username-login', {
+        body: {
+          identifier: identifier.trim(),
+          password: password.trim()
+        }
+      })
+
+      if (error) {
+        // Generic error to avoid leaking existence of usernames/emails
+        return {
+          data: null,
+          error: {
+            message: 'Invalid username or password',
+            code: 'INVALID_CREDENTIALS'
+          }
+        }
+      }
+
+      // Expect session tokens from Edge Function
+      if (!data || !data.session || !data.session.access_token || !data.session.refresh_token) {
+        return {
+          data: null,
+          error: {
+            message: 'Invalid username or password',
+            code: 'INVALID_CREDENTIALS'
+          }
+        }
+      }
+
+      // Set session on client using returned tokens
+      const { data: sessionData, error: setSessionError } = await supabase.auth.setSession({
+        access_token: data.session.access_token,
+        refresh_token: data.session.refresh_token
+      })
+
+      if (setSessionError) {
+        return {
+          data: null,
+          error: {
+            message: 'Invalid username or password',
+            code: 'INVALID_CREDENTIALS'
+          }
+        }
+      }
+
+      return { data: sessionData, error: null }
+    } catch (err) {
+      return { data: null, error: this._handleNetworkError(err) }
+    }
+  },
+
   // ===========================================
   // MAGIC LINK / OTP AUTHENTICATION
   // ===========================================

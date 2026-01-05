@@ -1,5 +1,8 @@
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useOnboarding } from '../context/OnboardingContext'
+import { authService } from '../lib/supabase'
+import { profileService } from '../lib/profileService'
 
 /**
  * NotificationsScreen - "Enable notifications" Permission Screen
@@ -17,12 +20,42 @@ import { useOnboarding } from '../context/OnboardingContext'
 function NotificationsScreen() {
   const navigate = useNavigate()
   const { setHasOnboarded } = useOnboarding()
+  const [isCompleting, setIsCompleting] = useState(false)
+  const [user, setUser] = useState(null)
 
-  const handleComplete = () => {
-    // Mark onboarding as complete in React state + localStorage
-    setHasOnboarded(true)
-    // Navigate to main app
-    navigate('/discover', { replace: true })
+  // Get current user on mount
+  useEffect(() => {
+    let mounted = true
+    const fetchUser = async () => {
+      const { data } = await authService.getSession()
+      if (mounted && data?.session?.user) {
+        setUser(data.session.user)
+      }
+    }
+    fetchUser()
+    return () => { mounted = false }
+  }, [])
+
+  const handleComplete = async () => {
+    setIsCompleting(true)
+    
+    try {
+      // Mark onboarding as complete in DB (if user exists)
+      if (user) {
+        await profileService.completeOnboarding(user.id)
+      }
+      
+      // Mark onboarding as complete in React state + localStorage
+      await setHasOnboarded(true)
+      
+      // Navigate to main app
+      navigate('/discover', { replace: true })
+    } catch (err) {
+      console.error('Failed to complete onboarding:', err)
+      // Still navigate even if DB update fails - localStorage is the fallback
+      await setHasOnboarded(true)
+      navigate('/discover', { replace: true })
+    }
   }
 
   return (
@@ -101,6 +134,7 @@ function NotificationsScreen() {
       {/* Notify Button */}
       <button 
         onClick={handleComplete}
+        disabled={isCompleting}
         style={{
           width: '100%',
           height: '56px',
@@ -110,11 +144,25 @@ function NotificationsScreen() {
           fontWeight: 700,
           borderRadius: '15px',
           border: 'none',
-          cursor: 'pointer',
-          marginBottom: '60px'
+          cursor: isCompleting ? 'wait' : 'pointer',
+          marginBottom: '60px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '8px',
+          opacity: isCompleting ? 0.8 : 1
         }}
       >
-        I want to be notified
+        {isCompleting ? (
+          <>
+            <svg width="20" height="20" viewBox="0 0 24 24" style={{ animation: 'spin 1s linear infinite' }}>
+              <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" fill="none" strokeDasharray="32" strokeDashoffset="16"/>
+            </svg>
+            Finishing up...
+          </>
+        ) : (
+          'I want to be notified'
+        )}
       </button>
       
       {/* Home Indicator */}

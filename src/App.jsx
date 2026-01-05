@@ -26,6 +26,7 @@ import GenderScreen from './pages/GenderScreen'
 import InterestsScreen from './pages/InterestsScreen'
 import SearchFriendsScreen from './pages/SearchFriendsScreen'
 import NotificationsScreen from './pages/NotificationsScreen'
+import UsernameScreen from './pages/UsernameScreen'
 import DiscoverScreen from './pages/DiscoverScreen'
 import EventsScreen from './pages/EventsScreen'
 import MatchesScreen from './pages/MatchesScreen'
@@ -51,7 +52,7 @@ const AUTH_PUBLIC_ROUTES = [
 ]
 
 const ONBOARDING_ROUTES = [
-  '/profile', '/major', '/gender', '/interests', '/search-friends', '/notifications'
+  '/profile', '/major', '/gender', '/interests', '/search-friends', '/username', '/notifications'
 ]
 
 const APP_ROUTES = [
@@ -318,6 +319,11 @@ function AppContent() {
         useDesktopLayout 
           ? <WebLayout layoutType="form"><SearchFriendsScreen /></WebLayout>
           : <MobileFrame><SearchFriendsScreen /></MobileFrame>
+      } />
+      <Route path="/username" element={
+        useDesktopLayout 
+          ? <WebLayout layoutType="form"><UsernameScreen /></WebLayout>
+          : <MobileFrame><UsernameScreen /></MobileFrame>
       } />
       <Route path="/notifications" element={
         useDesktopLayout 

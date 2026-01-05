@@ -7,7 +7,7 @@ import { useOnboarding } from '../context/OnboardingContext'
 /**
  * SignInScreen - Simple sign in for returning users
  * 
- * - Email + password sign in
+ * - Username OR Email + password sign in
  * - "Forgot your password?" sends a one-time login link
  */
 
@@ -15,7 +15,7 @@ function SignInScreen() {
   const navigate = useNavigate()
   const { hasOnboarded } = useOnboarding()
   
-  const [email, setEmail] = useState('')
+  const [identifier, setIdentifier] = useState('') // username or email
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
@@ -23,8 +23,8 @@ function SignInScreen() {
   const [forgotPasswordSent, setForgotPasswordSent] = useState(false)
   const [hasBlurred, setHasBlurred] = useState(false)
 
-  const handleEmailChange = (e) => {
-    setEmail(e.target.value)
+  const handleIdentifierChange = (e) => {
+    setIdentifier(e.target.value)
     if (error) setError('')
     if (forgotPasswordSent) setForgotPasswordSent(false)
   }
@@ -34,22 +34,36 @@ function SignInScreen() {
     if (error) setError('')
   }
 
-  const handleEmailBlur = () => {
+  const handleIdentifierBlur = () => {
     setHasBlurred(true)
-    const validationError = getEmailValidationError(email)
-    if (validationError) {
-      setError(validationError)
+    // Only validate as email if it contains @
+    if (identifier.includes('@')) {
+      const validationError = getEmailValidationError(identifier)
+      if (validationError) {
+        setError(validationError)
+      }
     }
   }
+  
+  // Check if input looks like an email
+  const isEmailInput = identifier.includes('@')
 
   const handleSignIn = async () => {
     setError('')
     
-    // Validate email
-    const validationError = getEmailValidationError(email)
-    if (validationError) {
-      setError(validationError)
+    // Basic validation
+    if (!identifier.trim()) {
+      setError('Please enter your username or email')
       return
+    }
+
+    // If it looks like an email, validate the format
+    if (isEmailInput) {
+      const validationError = getEmailValidationError(identifier)
+      if (validationError) {
+        setError(validationError)
+        return
+      }
     }
 
     // Check password
@@ -66,7 +80,8 @@ function SignInScreen() {
     setIsLoading(true)
 
     try {
-      const { data, error: authError } = await authService.signInWithEmailPassword(email, password)
+      // Use signInWithIdentifier which handles both username and email
+      const { data, error: authError } = await authService.signInWithIdentifier(identifier, password)
 
       if (authError) {
         setError(getErrorMessage(authError))
@@ -86,8 +101,14 @@ function SignInScreen() {
   const handleForgotPassword = async () => {
     setError('')
     
+    // For forgot password, we need an email (not username)
+    if (!isEmailInput) {
+      setError('Please enter your email address to reset your password')
+      return
+    }
+    
     // Validate email
-    const validationError = getEmailValidationError(email)
+    const validationError = getEmailValidationError(identifier)
     if (validationError) {
       setError(validationError)
       return
@@ -101,7 +122,7 @@ function SignInScreen() {
     setIsSendingLink(true)
 
     try {
-      const { error: authError } = await authService.sendMagicLink(email)
+      const { error: authError } = await authService.sendMagicLink(identifier)
 
       if (authError) {
         setError(getErrorMessage(authError))
@@ -126,12 +147,12 @@ function SignInScreen() {
   }
 
   const getBorderColor = () => {
-    if (error && hasBlurred) return '#5B4AE6'
-    if (email && isEduEmail(email)) return '#4CAF50'
+    if (error && hasBlurred) return '#EF4444' // Red for errors
+    if (hasBlurred && isEmailInput && isEduEmail(identifier)) return '#4CAF50' // Green only after blur
     return '#E8E6EA'
   }
 
-  const canSubmit = email && password && !error && !isLoading && !isSendingLink
+  const canSubmit = identifier && password && !error && !isLoading && !isSendingLink
 
   return (
     <div 
@@ -182,11 +203,11 @@ function SignInScreen() {
             color: '#ADAFBB'
           }}
         >
-          Sign in with your university email
+          Sign in with your username or email
         </p>
       </div>
       
-      {/* Email Input */}
+      {/* Username or Email Input */}
       <div style={{ marginTop: '30px' }}>
         <label 
           style={{
@@ -199,7 +220,7 @@ function SignInScreen() {
             letterSpacing: '0.5px'
           }}
         >
-          University Email
+          Username or Email
         </label>
         <div 
           style={{
@@ -223,21 +244,30 @@ function SignInScreen() {
               height: '100%'
             }}
           >
-            <svg width="20" height="16" viewBox="0 0 20 16" fill="none">
-              <path 
-                d="M18 0H2C0.9 0 0 0.9 0 2V14C0 15.1 0.9 16 2 16H18C19.1 16 20 15.1 20 14V2C20 0.9 19.1 0 18 0ZM18 4L10 9L2 4V2L10 7L18 2V4Z" 
-                fill="#5B4AE6"
-              />
-            </svg>
+            {isEmailInput ? (
+              <svg width="20" height="16" viewBox="0 0 20 16" fill="none">
+                <path 
+                  d="M18 0H2C0.9 0 0 0.9 0 2V14C0 15.1 0.9 16 2 16H18C19.1 16 20 15.1 20 14V2C20 0.9 19.1 0 18 0ZM18 4L10 9L2 4V2L10 7L18 2V4Z" 
+                  fill="#5B4AE6"
+                />
+              </svg>
+            ) : (
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                <circle cx="12" cy="8" r="4" stroke="#5B4AE6" strokeWidth="2"/>
+                <path d="M4 20c0-4 4-6 8-6s8 2 8 6" stroke="#5B4AE6" strokeWidth="2" strokeLinecap="round"/>
+              </svg>
+            )}
           </div>
           
           <input
-            type="email"
-            value={email}
-            onChange={handleEmailChange}
-            onBlur={handleEmailBlur}
+            type="text"
+            value={identifier}
+            onChange={handleIdentifierChange}
+            onBlur={handleIdentifierBlur}
             onKeyPress={handleKeyPress}
-            placeholder="you@university.edu"
+            placeholder="username or email"
+            autoComplete="username"
+            autoCapitalize="off"
             disabled={isLoading || isSendingLink}
             style={{
               flex: 1,
@@ -253,16 +283,24 @@ function SignInScreen() {
           />
         </div>
         
-        {/* Valid email indicator */}
-        {email && isEduEmail(email) && !error && (
+        {/* Valid indicator - only show after user finishes typing (blur) */}
+        {identifier && !error && hasBlurred && (
           <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-              <circle cx="12" cy="12" r="10" fill="#4CAF50"/>
-              <path d="M8 12l2 2 4-4" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-            <span style={{ fontSize: '12px', color: '#4CAF50', fontWeight: 500 }}>
-              Valid university email
-            </span>
+            {isEmailInput && isEduEmail(identifier) ? (
+              <>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                  <circle cx="12" cy="12" r="10" fill="#4CAF50"/>
+                  <path d="M8 12l2 2 4-4" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+                <span style={{ fontSize: '12px', color: '#4CAF50', fontWeight: 500 }}>
+                  Valid university email
+                </span>
+              </>
+            ) : !isEmailInput && identifier.length >= 3 ? (
+              <span style={{ fontSize: '12px', color: '#5B4AE6', fontWeight: 500 }}>
+                Signing in as @{identifier}
+              </span>
+            ) : null}
           </div>
         )}
       </div>
@@ -465,7 +503,7 @@ function SignInScreen() {
       {/* Forgot Password */}
       <button
         onClick={handleForgotPassword}
-        disabled={!email || isSendingLink || isLoading}
+        disabled={!isEmailInput || isSendingLink || isLoading}
         style={{
           marginTop: '16px',
           width: '100%',
@@ -475,12 +513,12 @@ function SignInScreen() {
           fontSize: '14px',
           fontWeight: 500,
           border: 'none',
-          cursor: !email || isSendingLink ? 'default' : 'pointer',
+          cursor: !isEmailInput || isSendingLink ? 'default' : 'pointer',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           gap: '6px',
-          opacity: !email ? 0.5 : 1
+          opacity: !isEmailInput ? 0.5 : 1
         }}
       >
         {isSendingLink ? (

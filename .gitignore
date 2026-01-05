@@ -29,3 +29,4 @@ pnpm-debug.log*
 # Testing
 coverage
 
+.cursor/plans/username_system_implementation_4128bb72.plan.md
