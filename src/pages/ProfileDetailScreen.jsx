@@ -113,6 +113,16 @@ function ProfileDetailScreen() {
 
   // Desktop Layout
   if (isDesktop) {
+    // Determine commitment level from category
+    const getCommitmentLevel = () => {
+      const cat = (project.category || '').toLowerCase()
+      if (cat.includes('hackathon')) return { type: 'Hackathon', hours: '48 hours' }
+      if (cat.includes('startup')) return { type: 'Startup Mode', hours: '15–20 hrs/week' }
+      if (cat.includes('side') || cat.includes('project')) return { type: 'Side Project', hours: '5–10 hrs/week' }
+      return { type: 'Side Project', hours: '5–10 hrs/week' } // Default
+    }
+    const commitment = getCommitmentLevel()
+
     return (
       <div className="project-detail-desktop">
         {/* Back Button - Desktop */}
@@ -131,92 +141,242 @@ function ProfileDetailScreen() {
         <div className="project-detail-layout">
           {/* Left Column - Main Content */}
           <div className="project-detail-main">
-            {/* Hero Image */}
-            <div className="project-detail-hero">
-              <img 
-                src={project.image}
-                alt={project.title}
-                className="project-detail-image"
-              />
-              <div className="project-detail-hero-overlay" />
-              <div className="project-detail-category-badge">
-                {project.category}
+            {/* Project Header - Text First */}
+            <div className="project-detail-header-text">
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px', marginBottom: '16px' }}>
+                {/* Optional Small Icon/Avatar */}
+                <div 
+                  style={{
+                    width: '56px',
+                    height: '56px',
+                    borderRadius: '14px',
+                    backgroundColor: 'rgba(91, 74, 230, 0.1)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0
+                  }}
+                >
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#5B4AE6" strokeWidth="2">
+                    <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+                    <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
+                    <line x1="12" y1="22.08" x2="12" y2="12"/>
+                  </svg>
+                </div>
+                
+                <div style={{ flex: 1 }}>
+                  <h1 className="project-detail-title-text">{project.title}</h1>
+                  
+                  {/* Inline Badges */}
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '12px' }}>
+                    {/* Location Badge */}
+                    <span 
+                      style={{
+                        fontSize: '12px',
+                        fontWeight: 600,
+                        color: '#6B7280',
+                        backgroundColor: '#F3F4F6',
+                        padding: '6px 12px',
+                        borderRadius: '12px'
+                      }}
+                    >
+                      NYC
+                    </span>
+                    
+                    {/* Category Badge */}
+                    {project.category && (
+                      <span 
+                        style={{
+                          fontSize: '12px',
+                          fontWeight: 600,
+                          color: '#5B4AE6',
+                          backgroundColor: 'rgba(91, 74, 230, 0.1)',
+                          padding: '6px 12px',
+                          borderRadius: '12px'
+                        }}
+                      >
+                        {project.category}
+                      </span>
+                    )}
+                    
+                    {/* Status Badge */}
+                    <span 
+                      style={{
+                        fontSize: '12px',
+                        fontWeight: 600,
+                        color: '#059669',
+                        backgroundColor: 'rgba(5, 150, 105, 0.1)',
+                        padding: '6px 12px',
+                        borderRadius: '12px'
+                      }}
+                    >
+                      Active
+                    </span>
+                  </div>
+                </div>
               </div>
-            </div>
-
-            {/* Project Header */}
-            <div className="project-detail-header">
-              <h1 className="project-detail-title">{project.title}</h1>
-              <div className="project-detail-schools">
-                {project.schools.map((school, idx) => (
-                  <span key={idx} className="school-badge-desktop">
-                    {school}
-                  </span>
-                ))}
-              </div>
+              
+              {/* Tagline/One-line Description */}
+              {(project.tagline || project.description) && (
+                <p 
+                  style={{
+                    margin: 0,
+                    fontSize: '16px',
+                    lineHeight: 1.6,
+                    color: '#6B7280',
+                    marginTop: '8px'
+                  }}
+                >
+                  {project.tagline || project.description?.split('.')[0] || 'Building something awesome'}
+                </p>
+              )}
             </div>
 
             {/* About Section */}
             <div className="project-detail-section">
               <h3 className="section-title-desktop">About this project</h3>
-              <p className="project-description-desktop">
-                {project.description}
+              <p className="project-description-desktop" style={{ lineHeight: '1.8', marginBottom: 0 }}>
+                {project.description || 'No description provided yet.'}
               </p>
             </div>
 
-            {/* Skills Section */}
+            {/* Looking For Section */}
             <div className="project-detail-section">
-              <h3 className="section-title-desktop">Skills needed</h3>
+              <h3 className="section-title-desktop">Looking for</h3>
               <div className="skills-grid-desktop">
-                {project.skillsNeeded?.map((skill, index) => (
-                  <span key={index} className="skill-tag-desktop">
-                    {skill}
-                  </span>
-                ))}
+                {project.skillsNeeded && project.skillsNeeded.length > 0 ? (
+                  project.skillsNeeded.map((skill, index) => (
+                    <span key={index} className="skill-tag-desktop">
+                      {skill}
+                    </span>
+                  ))
+                ) : (
+                  <span style={{ fontSize: '14px', color: '#9CA3AF' }}>No specific roles listed yet</span>
+                )}
+              </div>
+            </div>
+
+            {/* Commitment Level Section */}
+            <div className="project-detail-section">
+              <h3 className="section-title-desktop">Commitment Level</h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <div 
+                    style={{
+                      width: '40px',
+                      height: '40px',
+                      borderRadius: '10px',
+                      backgroundColor: 'rgba(91, 74, 230, 0.1)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0
+                    }}
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#5B4AE6" strokeWidth="2">
+                      <circle cx="12" cy="12" r="10"/>
+                      <polyline points="12 6 12 12 16 14"/>
+                    </svg>
+                  </div>
+                  <div>
+                    <p style={{ margin: 0, fontSize: '15px', fontWeight: 600, color: '#111827' }}>
+                      {commitment.type}
+                    </p>
+                    <p style={{ margin: '2px 0 0 0', fontSize: '13px', color: '#6B7280' }}>
+                      {commitment.hours}
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
 
             {/* Team Section */}
-            <div className="project-detail-section">
-              <div className="team-header-desktop">
-                <h3 className="section-title-desktop">Meet the team</h3>
-                <span className="team-count-desktop">
-                  {project.team?.length || 0} {(project.team?.length || 0) === 1 ? 'member' : 'members'}
-                </span>
-              </div>
-              <div className="team-grid-desktop">
-                {project.team?.map((member, index) => (
-                  <div key={index} className="team-card-desktop">
-                    <img 
-                      src={member.image}
-                      alt={member.name}
-                      className="team-avatar-desktop"
-                    />
-                    <div className="team-info-desktop">
-                      <p className="team-name-desktop">{member.name}</p>
-                      <p className="team-school-desktop">{member.school}</p>
+            {project.team && project.team.length > 0 && (
+              <div className="project-detail-section">
+                <div className="team-header-desktop">
+                  <h3 className="section-title-desktop">Meet the team</h3>
+                  <span className="team-count-desktop">
+                    {project.team.length} {project.team.length === 1 ? 'member' : 'members'}
+                  </span>
+                </div>
+                <div className="team-grid-desktop">
+                  {project.team.map((member, index) => (
+                    <div key={index} className="team-card-desktop">
+                      {/* Use icon instead of image for builder-focused design */}
+                      <div 
+                        style={{
+                          width: '56px',
+                          height: '56px',
+                          borderRadius: '14px',
+                          backgroundColor: 'rgba(91, 74, 230, 0.1)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0
+                        }}
+                      >
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#5B4AE6" strokeWidth="2">
+                          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                          <circle cx="12" cy="7" r="4"/>
+                        </svg>
+                      </div>
+                      <div className="team-info-desktop">
+                        <p className="team-name-desktop">{member.name}</p>
+                        <p className="team-school-desktop">{member.school}</p>
+                      </div>
+                      <span className="team-role-desktop">{member.role}</span>
                     </div>
-                    <span className="team-role-desktop">{member.role}</span>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
           </div>
 
-          {/* Right Column - CTA Sidebar */}
+          {/* Right Column - Action Card */}
           <div className="project-detail-sidebar">
             <div className="project-cta-card">
-              {/* Spots Left */}
-              <div className="spots-indicator">
-                <div className="spots-number">{project.spotsLeft}</div>
-                <div className="spots-text">
-                  <span className="spots-label">{project.spotsLeft === 1 ? 'Spot' : 'Spots'} left</span>
-                  <span className="spots-sublabel">Open positions on this team</span>
+              {/* Spots Left Indicator */}
+              <div style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: '12px', 
+                paddingBottom: '20px', 
+                borderBottom: '1px solid #E5E7EB',
+                marginBottom: '20px'
+              }}>
+                <div style={{
+                  width: '56px',
+                  height: '56px',
+                  borderRadius: '14px',
+                  backgroundColor: '#5B4AE6',
+                  color: 'white',
+                  fontSize: '24px',
+                  fontWeight: 700,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0
+                }}>
+                  {project.spotsLeft || 0}
+                </div>
+                <div>
+                  <p style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#111827' }}>
+                    {project.spotsLeft === 1 ? 'Spot' : 'Spots'} left
+                  </p>
+                  <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: '#6B7280' }}>
+                    Open positions
+                  </p>
                 </div>
               </div>
 
-              {/* CTA Buttons */}
-              <button className="join-btn-desktop">
+              {/* Primary CTA Button */}
+              <button 
+                className="join-btn-desktop"
+                style={{
+                  width: '100%',
+                  marginBottom: '12px'
+                }}
+              >
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                   <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
                   <circle cx="8.5" cy="7" r="4"/>
@@ -226,9 +386,14 @@ function ProfileDetailScreen() {
                 Request to Join
               </button>
 
+              {/* Secondary Button */}
               <button 
                 className={`save-btn-desktop ${isSaved ? 'saved' : ''}`}
                 onClick={() => setIsSaved(!isSaved)}
+                style={{
+                  width: '100%',
+                  marginBottom: '24px'
+                }}
               >
                 <svg width="18" height="18" viewBox="0 0 24 24" fill={isSaved ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2">
                   <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
@@ -236,56 +401,99 @@ function ProfileDetailScreen() {
                 {isSaved ? 'Saved' : 'Save for later'}
               </button>
 
-              {/* Quick Info */}
-              <div className="project-quick-info">
+              {/* Metadata Section */}
+              <div style={{ 
+                display: 'flex', 
+                flexDirection: 'column', 
+                gap: '16px', 
+                paddingTop: '20px',
+                borderTop: '1px solid #E5E7EB',
+                marginBottom: '24px'
+              }}>
+                {/* Team Members */}
                 <div className="quick-info-item">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2">
                     <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
                     <circle cx="9" cy="7" r="4"/>
                     <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
                     <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
                   </svg>
-                  <span>{project.team?.length || 0} team members</span>
+                  <span>{project.team?.length || 0} team {project.team?.length === 1 ? 'member' : 'members'}</span>
                 </div>
+                
+                {/* Status */}
                 <div className="quick-info-item">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2">
-                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
-                    <line x1="16" y1="2" x2="16" y2="6"/>
-                    <line x1="8" y1="2" x2="8" y2="6"/>
-                    <line x1="3" y1="10" x2="21" y2="10"/>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2">
+                    <circle cx="12" cy="12" r="10"/>
+                    <polyline points="12 6 12 12 16 14"/>
                   </svg>
-                  <span>Active project</span>
+                  <span>Active</span>
                 </div>
+                
+                {/* Location */}
                 <div className="quick-info-item">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2">
                     <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
                     <circle cx="12" cy="10" r="3"/>
                   </svg>
                   <span>NYC area</span>
                 </div>
               </div>
-            </div>
 
-            {/* Share Card */}
-            <div className="project-share-card">
-              <h4>Share this project</h4>
-              <div className="share-buttons">
-                <button className="share-btn" title="Copy link">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
-                    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
-                  </svg>
-                </button>
-                <button className="share-btn" title="Share on Twitter">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
-                  </svg>
-                </button>
-                <button className="share-btn" title="Share on LinkedIn">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
-                  </svg>
-                </button>
+              {/* Share Section */}
+              <div style={{
+                paddingTop: '20px',
+                borderTop: '1px solid #E5E7EB'
+              }}>
+                <h4 style={{ 
+                  margin: 0, 
+                  marginBottom: '12px', 
+                  fontSize: '14px', 
+                  fontWeight: 600, 
+                  color: '#111827' 
+                }}>
+                  Share this project
+                </h4>
+                <div className="share-buttons">
+                  <button 
+                    className="share-btn" 
+                    title="Copy link"
+                    onClick={() => {
+                      navigator.clipboard.writeText(window.location.href)
+                      // Could add toast notification here
+                    }}
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+                      <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+                    </svg>
+                  </button>
+                  <button 
+                    className="share-btn" 
+                    title="Share on LinkedIn"
+                    onClick={() => {
+                      const url = encodeURIComponent(window.location.href)
+                      window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${url}`, '_blank')
+                    }}
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+                    </svg>
+                  </button>
+                  <button 
+                    className="share-btn" 
+                    title="Share on X (Twitter)"
+                    onClick={() => {
+                      const url = encodeURIComponent(window.location.href)
+                      const text = encodeURIComponent(`Check out this project: ${project.title}`)
+                      window.open(`https://twitter.com/intent/tweet?url=${url}&text=${text}`, '_blank')
+                    }}
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+                    </svg>
+                  </button>
+                </div>
               </div>
             </div>
           </div>

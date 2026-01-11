@@ -672,3 +672,6 @@ function EventDetailScreen() {
 export default EventDetailScreen
 
 
+
+
+

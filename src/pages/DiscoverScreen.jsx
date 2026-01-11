@@ -249,151 +249,205 @@ function DiscoverScreen() {
       
       {/* Tab Content */}
       {activeTab === 'projects' ? (
-        /* Projects Feed - Social Media Style */
+        /* Projects Feed - Nest Card Style */
         <div 
           style={{ 
             flex: 1, 
             overflowY: 'auto', 
-            paddingBottom: '100px'
+            paddingBottom: '100px',
+            padding: '16px'
           }}
         >
-          {projectsFeed.map(project => (
-            <div 
-              key={project.id}
+          {/* Search Projects (matching Nest search) */}
+          <div 
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              backgroundColor: '#F3F3F3',
+              borderRadius: '15px',
+              padding: '12px 16px',
+              gap: '12px',
+              marginBottom: '20px'
+            }}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ADAFBB" strokeWidth="2">
+              <circle cx="11" cy="11" r="8"/>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            <input 
+              type="text"
+              placeholder="Search projects..."
               style={{
-                borderBottom: '1px solid #E5E7EB'
+                flex: 1,
+                border: 'none',
+                backgroundColor: 'transparent',
+                outline: 'none',
+                fontSize: '14px',
+                color: '#231429'
               }}
-            >
-              {/* Author Header */}
+            />
+          </div>
+          
+          {/* Projects List */}
+          <div 
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '12px'
+            }}
+          >
+            {projectsFeed.map(project => (
               <div 
+                key={project.id}
+                onClick={() => navigate(`/projects/${project.id}`)}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  padding: '12px 16px',
-                  gap: '10px'
+                  padding: '16px',
+                  backgroundColor: '#FAFAFA',
+                  borderRadius: '15px',
+                  gap: '14px',
+                  cursor: 'pointer',
+                  transition: 'transform 0.15s ease, box-shadow 0.15s ease'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-1px)'
+                  e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.06)'
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)'
+                  e.currentTarget.style.boxShadow = 'none'
                 }}
               >
+                {/* Project Thumbnail */}
                 <div 
                   style={{
-                    width: '36px',
-                    height: '36px',
-                    borderRadius: '50%',
+                    width: '60px',
+                    height: '60px',
+                    borderRadius: '15px',
                     overflow: 'hidden',
+                    flexShrink: 0,
                     border: project.isUserProject ? '2px solid #5B4AE6' : 'none'
                   }}
                 >
                   <img 
-                    src={project.authorImage}
-                    alt={project.author}
+                    src={project.image}
+                    alt={project.title}
                     style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                   />
                 </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <p style={{ margin: 0, fontSize: '14px', fontWeight: 600, color: '#231429' }}>
-                      {project.author}
+                
+                {/* Project Info */}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '2px' }}>
+                    <p style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: '#231429' }}>
+                      {project.title}
                     </p>
                     {project.isUserProject && (
                       <span 
                         style={{
-                          padding: '2px 8px',
-                          backgroundColor: '#10B981',
-                          color: 'white',
                           fontSize: '10px',
-                          fontWeight: 700,
-                          borderRadius: '10px',
-                          textTransform: 'uppercase'
+                          color: '#5B4AE6',
+                          backgroundColor: 'rgba(109, 93, 246, 0.1)',
+                          padding: '2px 6px',
+                          borderRadius: '8px',
+                          fontWeight: 600
                         }}
                       >
                         Your Project
                       </span>
                     )}
                   </div>
-                  <p style={{ margin: 0, fontSize: '12px', color: '#ADAFBB' }}>
-                    {project.schools.join(' • ')}
-                  </p>
-                </div>
-                {!project.isUserProject && (
-                  <button 
-                    style={{
-                      padding: '6px 16px',
-                      backgroundColor: '#5B4AE6',
-                      color: 'white',
-                      fontSize: '12px',
-                      fontWeight: 600,
-                      borderRadius: '20px',
-                      border: 'none',
-                      cursor: 'pointer'
+                  <p 
+                    style={{ 
+                      margin: 0, 
+                      marginTop: '2px',
+                      fontSize: '12px', 
+                      color: '#ADAFBB',
+                      display: '-webkit-box',
+                      WebkitLineClamp: 1,
+                      WebkitBoxOrient: 'vertical',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis'
                     }}
                   >
-                    Join
-                  </button>
-                )}
-              </div>
-              
-              {/* Project Image */}
-              <div 
-                onClick={() => navigate(`/projects/${project.id}`)}
-                style={{
-                  position: 'relative',
-                  width: '100%',
-                  aspectRatio: '4/3',
-                  cursor: 'pointer'
-                }}
-              >
-                <img 
-                  src={project.image}
-                  alt={project.title}
-                  style={{
-                    width: '100%',
-                    height: '100%',
-                    objectFit: 'cover'
+                    {project.description || project.tagline || 'Building something awesome with fellow students'}
+                  </p>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px', flexWrap: 'wrap' }}>
+                    {/* Spots left count */}
+                    {project.spotsLeft !== undefined && project.spotsLeft > 0 && (
+                      <>
+                        <span style={{ fontSize: '11px', color: '#ADAFBB' }}>
+                          {project.spotsLeft} spots left
+                        </span>
+                        {(project.schools && project.schools.length > 0) || project.category ? (
+                          <span style={{ fontSize: '11px', color: '#ADAFBB' }}>•</span>
+                        ) : null}
+                      </>
+                    )}
+                    {/* Schools */}
+                    {project.schools && project.schools.length > 0 && (
+                      <>
+                        <span style={{ fontSize: '11px', color: '#ADAFBB' }}>
+                          {project.schools.slice(0, 2).join(', ')}
+                          {project.schools.length > 2 ? '...' : ''}
+                        </span>
+                        {project.category && (
+                          <span style={{ fontSize: '11px', color: '#ADAFBB' }}>•</span>
+                        )}
+                      </>
+                    )}
+                    {/* Category Tag */}
+                    {project.category && (
+                      <span 
+                        style={{
+                          fontSize: '10px',
+                          color: '#5B4AE6',
+                          backgroundColor: 'rgba(109, 93, 246, 0.1)',
+                          padding: '2px 6px',
+                          borderRadius: '8px'
+                        }}
+                      >
+                        {project.category}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                
+                {/* Join/View Button */}
+                <button 
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    navigate(`/projects/${project.id}`)
                   }}
-                />
-                {/* Category Badge */}
-                <div 
                   style={{
-                    position: 'absolute',
-                    top: '12px',
-                    left: '12px',
-                    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-                    backdropFilter: 'blur(4px)',
-                    borderRadius: '20px',
-                    padding: '4px 10px',
-                    fontSize: '11px',
+                    padding: '8px 18px',
+                    backgroundColor: project.isUserProject ? 'transparent' : '#5B4AE6',
+                    color: project.isUserProject ? '#5B4AE6' : 'white',
+                    fontSize: '13px',
                     fontWeight: 600,
-                    color: 'white'
+                    borderRadius: '20px',
+                    border: project.isUserProject ? '1px solid #5B4AE6' : 'none',
+                    cursor: 'pointer',
+                    flexShrink: 0,
+                    transition: 'background-color 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!project.isUserProject) {
+                      e.currentTarget.style.backgroundColor = '#4A3CD4'
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!project.isUserProject) {
+                      e.currentTarget.style.backgroundColor = '#5B4AE6'
+                    }
                   }}
                 >
-                  {project.category}
-                </div>
+                  {project.isUserProject ? 'View' : 'Join'}
+                </button>
               </div>
-              
-              {/* Title & Description */}
-              <div style={{ padding: '0 16px 16px 16px' }}>
-                <p style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: '#231429' }}>
-                  {project.title}
-                </p>
-                <div style={{ display: 'flex', gap: '6px', marginTop: '8px', flexWrap: 'wrap' }}>
-                  {project.schools.map((school, idx) => (
-                    <span 
-                      key={idx}
-                      style={{
-                        backgroundColor: 'rgba(109, 93, 246, 0.1)',
-                        color: '#5B4AE6',
-                        padding: '4px 8px',
-                        borderRadius: '12px',
-                        fontSize: '11px',
-                        fontWeight: 600
-                      }}
-                    >
-                      {school}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       ) : (
         /* Nests Discovery */

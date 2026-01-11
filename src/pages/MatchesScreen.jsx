@@ -56,51 +56,48 @@ function MatchesScreen() {
           paddingRight: '20px',
           display: 'flex',
           justifyContent: 'space-between',
-          alignItems: 'center'
+          alignItems: 'center',
+          marginBottom: '24px'
         }}
       >
         <h1 
           style={{ 
             margin: 0,
-            fontSize: '28px',
+            fontSize: '24px',
             fontWeight: 700,
-            color: '#5B4AE6'
+            color: '#111827'
           }}
         >
           My Projects
         </h1>
         
-        {/* Sort Icon */}
+        {/* New Project Button */}
         <button 
+          onClick={() => navigate('/create-project')}
           style={{
-            backgroundColor: 'transparent',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            padding: '10px 18px',
+            backgroundColor: '#5B4AE6',
+            color: 'white',
+            fontSize: '14px',
+            fontWeight: 600,
+            borderRadius: '12px',
             border: 'none',
             cursor: 'pointer',
-            padding: '8px'
+            transition: 'background-color 0.15s ease'
           }}
+          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#4A3CD4'}
+          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#5B4AE6'}
         >
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#5B4AE6" strokeWidth="2">
-            <path d="M3 6h18M3 12h12M3 18h6"/>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+            <line x1="12" y1="5" x2="12" y2="19"/>
+            <line x1="5" y1="12" x2="19" y2="12"/>
           </svg>
+          New Project
         </button>
       </div>
-      
-      {/* Description */}
-      <p 
-        style={{ 
-          margin: 0,
-          marginTop: '8px',
-          paddingLeft: '20px',
-          paddingRight: '20px',
-          fontSize: '14px',
-          color: '#ADAFBB',
-          lineHeight: 1.5
-        }}
-      >
-        Projects you've saved or joined.
-        <br />
-        Your collaboration hub.
-      </p>
       
       {/* Content - Scrollable */}
       <div 
@@ -112,291 +109,401 @@ function MatchesScreen() {
           paddingRight: '20px'
         }}
       >
-        {/* Active Section */}
-        <div style={{ marginTop: '24px' }}>
-          <p style={{ margin: 0, marginBottom: '12px', fontSize: '12px', color: '#ADAFBB', fontWeight: 600 }}>
-            Active
-          </p>
+        {/* Projects Grid */}
           <div 
             style={{ 
               display: 'grid', 
-              gridTemplateColumns: 'repeat(2, 1fr)', 
-              gap: '12px' 
+            gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+            gap: '16px'
+          }}
+        >
+          {/* Create Project Card - Always first */}
+          <div 
+            onClick={() => navigate('/create-project')}
+            style={{
+              backgroundColor: 'white',
+              borderRadius: '15px',
+              border: '2px dashed #E5E7EB',
+              padding: '20px',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '12px',
+              minHeight: '180px',
+              cursor: 'pointer',
+              transition: 'all 0.15s ease',
+              boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = '#5B4AE6'
+              e.currentTarget.style.backgroundColor = 'rgba(91, 74, 230, 0.02)'
+              e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.08)'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = '#E5E7EB'
+              e.currentTarget.style.backgroundColor = 'white'
+              e.currentTarget.style.boxShadow = '0 1px 2px rgba(0,0,0,0.05)'
             }}
           >
-            {/* Create Project Card - Always first */}
+            {/* Plus Icon */}
             <div 
-              onClick={() => navigate('/create-project')}
               style={{
-                position: 'relative',
-                borderRadius: '15px',
-                overflow: 'hidden',
-                cursor: 'pointer',
-                aspectRatio: '0.75',
-                backgroundColor: '#FAFAFA',
-                border: '2px dashed #E5E7EB',
+                width: '48px',
+                height: '48px',
+                borderRadius: '12px',
+                backgroundColor: 'rgba(91, 74, 230, 0.1)',
                 display: 'flex',
-                flexDirection: 'column',
                 alignItems: 'center',
-                justifyContent: 'center',
-                gap: '12px',
-                transition: 'all 0.2s ease'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = '#5B4AE6'
-                e.currentTarget.style.backgroundColor = 'rgba(91, 74, 230, 0.03)'
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = '#E5E7EB'
-                e.currentTarget.style.backgroundColor = '#FAFAFA'
+                justifyContent: 'center'
               }}
             >
-              {/* Plus Icon */}
-              <div 
-                style={{
-                  width: '48px',
-                  height: '48px',
-                  borderRadius: '50%',
-                  backgroundColor: 'rgba(91, 74, 230, 0.1)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                }}
-              >
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#5B4AE6" strokeWidth="2.5" strokeLinecap="round">
-                  <line x1="12" y1="5" x2="12" y2="19"/>
-                  <line x1="5" y1="12" x2="19" y2="12"/>
-                </svg>
-              </div>
-              
-              {/* Text */}
-              <div style={{ textAlign: 'center', padding: '0 12px' }}>
-                <p style={{ margin: 0, fontSize: '14px', fontWeight: 700, color: '#5B4AE6' }}>
-                  Create Project
-                </p>
-                <p style={{ margin: 0, marginTop: '4px', fontSize: '11px', color: '#9CA3AF' }}>
-                  Share your idea
-                </p>
-              </div>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#5B4AE6" strokeWidth="2.5" strokeLinecap="round">
+                <line x1="12" y1="5" x2="12" y2="19"/>
+                <line x1="5" y1="12" x2="19" y2="12"/>
+              </svg>
             </div>
+            
+            {/* Text */}
+            <div style={{ textAlign: 'center' }}>
+              <p style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: '#5B4AE6' }}>
+                Create Project
+              </p>
+              <p style={{ margin: 0, marginTop: '4px', fontSize: '12px', color: '#9CA3AF' }}>
+                Share your idea
+              </p>
+            </div>
+          </div>
 
+          {/* Project Cards */}
             {activeProjects.map(project => (
               <div 
                 key={project.id}
-                onClick={() => navigate(`/projects/${project.id}`)}
                 style={{
-                  position: 'relative',
+                backgroundColor: 'white',
                   borderRadius: '15px',
-                  overflow: 'hidden',
+                border: '1px solid #E5E7EB',
+                padding: '20px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '12px',
+                minHeight: '180px',
                   cursor: 'pointer',
-                  aspectRatio: '0.75'
-                }}
-              >
-                <img 
-                  src={project.image}
-                  alt={project.title}
-                  style={{
-                    width: '100%',
-                    height: '100%',
-                    objectFit: 'cover'
-                  }}
-                />
-                
-                {/* Badges */}
+                transition: 'all 0.15s ease',
+                boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                position: 'relative'
+              }}
+              onClick={() => navigate(`/projects/${project.id}`)}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.08)'
+                e.currentTarget.style.transform = 'translateY(-1px)'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.boxShadow = '0 1px 2px rgba(0,0,0,0.05)'
+                e.currentTarget.style.transform = 'translateY(0)'
+              }}
+            >
+              {/* Top Row: Icon + Title */}
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+                {/* Project Icon/Avatar */}
                 <div 
                   style={{
-                    position: 'absolute',
-                    top: '8px',
-                    left: '8px',
+                    width: '48px',
+                    height: '48px',
+                    borderRadius: '12px',
+                    backgroundColor: 'rgba(91, 74, 230, 0.1)',
                     display: 'flex',
-                    gap: '6px'
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0
                   }}
                 >
-                  {project.isOwner && (
-                    <div
-                      style={{
-                        backgroundColor: '#5B4AE6',
-                        padding: '4px 8px',
-                        borderRadius: '6px',
-                        fontSize: '10px',
-                        fontWeight: 600,
-                        color: 'white'
-                      }}
-                    >
-                      Owner
-                    </div>
-                  )}
-                  <div
-                    style={{
-                      backgroundColor: 'rgba(255,255,255,0.9)',
-                      padding: '4px 8px',
-                      borderRadius: '6px',
-                      fontSize: '10px',
-                      fontWeight: 600,
-                      color: '#5B4AE6'
-                    }}
-                  >
-                    {project.school}
-                  </div>
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#5B4AE6" strokeWidth="2">
+                    <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+                    <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
+                    <line x1="12" y1="22.08" x2="12" y2="12"/>
+                  </svg>
                 </div>
                 
-                {/* Gradient overlay */}
-                <div 
-                  style={{
-                    position: 'absolute',
-                    bottom: 0,
-                    left: 0,
-                    right: 0,
-                    height: '80px',
-                    background: '#5B4AE6 0%, rgba(0,0,0,0) 100%)'
-                  }}
-                />
-                
-                {/* Title & Category */}
-                <div 
-                  style={{
-                    position: 'absolute',
-                    bottom: '12px',
-                    left: '12px',
-                    right: '40px'
-                  }}
-                >
-                  <p style={{ margin: 0, fontSize: '13px', fontWeight: 700, color: 'white', lineHeight: 1.2 }}>
+                {/* Title + Description */}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: '#111827', lineHeight: 1.3 }}>
                     {project.title}
                   </p>
-                  <p style={{ margin: 0, marginTop: '2px', fontSize: '11px', color: 'rgba(255,255,255,0.8)' }}>
-                    {project.category}
-                  </p>
-                </div>
-                
-                {/* Join Indicator */}
-                <div 
-                  style={{
-                    position: 'absolute',
-                    bottom: '12px',
-                    right: '12px'
-                  }}
-                >
-                  <div 
-                    onClick={(e) => { e.stopPropagation(); if (!project.joined) setShowJoinModal(true) }}
-                    style={{
-                      width: '28px',
-                      height: '28px',
-                      borderRadius: '50%',
-                      backgroundColor: project.joined ? '#5B4AE6' : 'white',
-                      border: 'none',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      cursor: 'pointer'
+                  <p 
+                    style={{ 
+                      margin: 0, 
+                      marginTop: '4px',
+                      fontSize: '12px', 
+                      color: '#9CA3AF',
+                      display: '-webkit-box',
+                      WebkitLineClamp: 1,
+                      WebkitBoxOrient: 'vertical',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis'
                     }}
                   >
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill={project.joined ? 'white' : '#5B4AE6'}>
-                      <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
-                    </svg>
-                  </div>
+                    {project.description || project.tagline || 'Building something awesome'}
+                  </p>
                 </div>
               </div>
+              
+              {/* Metadata Row: Badges */}
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '4px' }}>
+                {/* Role Badge */}
+                {project.isOwner && (
+                  <span 
+                    style={{
+                      fontSize: '10px',
+                      fontWeight: 600,
+                      color: '#5B4AE6',
+                      backgroundColor: 'rgba(91, 74, 230, 0.1)',
+                      padding: '4px 10px',
+                      borderRadius: '12px'
+                    }}
+                  >
+                    Owner
+                  </span>
+                )}
+                {!project.isOwner && project.joined && (
+                  <span 
+                    style={{
+                      fontSize: '10px',
+                      fontWeight: 600,
+                      color: '#6B7280',
+                      backgroundColor: '#F3F4F6',
+                      padding: '4px 10px',
+                      borderRadius: '12px'
+                    }}
+                  >
+                    Member
+                  </span>
+                )}
+                
+                {/* School Badge */}
+                {(project.school || (project.schools && project.schools[0])) && (
+                  <span 
+                    style={{
+                      fontSize: '10px',
+                      fontWeight: 600,
+                      color: '#6B7280',
+                      backgroundColor: '#F3F4F6',
+                      padding: '4px 10px',
+                      borderRadius: '12px'
+                    }}
+                  >
+                    {project.school || project.schools[0]}
+                  </span>
+                )}
+                
+                {/* Status Badge */}
+                <span 
+                  style={{
+                    fontSize: '10px',
+                    fontWeight: 600,
+                    color: '#059669',
+                    backgroundColor: 'rgba(5, 150, 105, 0.1)',
+                    padding: '4px 10px',
+                    borderRadius: '12px'
+                  }}
+                >
+                  Active
+                </span>
+              </div>
+              
+              {/* Spacer to push button to bottom */}
+              <div style={{ flex: 1 }} />
+              
+              {/* Open Button - Bottom Right */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '8px' }}>
+                <button 
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    navigate(`/projects/${project.id}`)
+                  }}
+                    style={{
+                    padding: '8px 16px',
+                    backgroundColor: '#5B4AE6',
+                    color: 'white',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    borderRadius: '10px',
+                      border: 'none',
+                    cursor: 'pointer',
+                    transition: 'background-color 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.stopPropagation()
+                    e.currentTarget.style.backgroundColor = '#4A3CD4'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.stopPropagation()
+                    e.currentTarget.style.backgroundColor = '#5B4AE6'
+                  }}
+                >
+                  Open
+                </button>
+              </div>
+              </div>
             ))}
-          </div>
         </div>
         
-        {/* Saved Section */}
-        <div style={{ marginTop: '24px' }}>
-          <p style={{ margin: 0, marginBottom: '12px', fontSize: '12px', color: '#ADAFBB', fontWeight: 600 }}>
+        {/* Saved Section - Optional, can be removed or kept as is */}
+        {savedProjects.length > 0 && (
+          <div style={{ marginTop: '32px' }}>
+            <p style={{ margin: 0, marginBottom: '16px', fontSize: '14px', color: '#6B7280', fontWeight: 600 }}>
             Saved
           </p>
           <div 
             style={{ 
               display: 'grid', 
-              gridTemplateColumns: 'repeat(2, 1fr)', 
-              gap: '12px' 
+                gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+                gap: '16px' 
             }}
           >
             {savedProjects.map(project => (
               <div 
                 key={project.id}
-                onClick={() => navigate(`/projects/${project.id}`)}
-                style={{
-                  position: 'relative',
-                  borderRadius: '15px',
-                  overflow: 'hidden',
-                  cursor: 'pointer',
-                  aspectRatio: '0.75'
-                }}
-              >
-                <img 
-                  src={project.image}
-                  alt={project.title}
                   style={{
-                    width: '100%',
-                    height: '100%',
-                    objectFit: 'cover'
+                    backgroundColor: 'white',
+                    borderRadius: '15px',
+                    border: '1px solid #E5E7EB',
+                    padding: '20px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '12px',
+                    minHeight: '180px',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease',
+                    boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                    position: 'relative'
                   }}
-                />
-                
-                {/* School Badge */}
-                <div 
-                  style={{
-                    position: 'absolute',
-                    top: '8px',
-                    left: '8px',
-                    backgroundColor: 'rgba(255,255,255,0.9)',
-                    padding: '4px 8px',
-                    borderRadius: '6px',
-                    fontSize: '10px',
-                    fontWeight: 600,
-                    color: '#5B4AE6'
+                  onClick={() => navigate(`/projects/${project.id}`)}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.08)'
+                    e.currentTarget.style.transform = 'translateY(-1px)'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.boxShadow = '0 1px 2px rgba(0,0,0,0.05)'
+                    e.currentTarget.style.transform = 'translateY(0)'
                   }}
                 >
-                  {project.school}
-                </div>
-                
-                {/* Gradient overlay */}
-                <div 
-                  style={{
-                    position: 'absolute',
-                    bottom: 0,
-                    left: 0,
-                    right: 0,
-                    height: '80px',
-                    background: '#5B4AE6 0%, rgba(0,0,0,0) 100%)'
-                  }}
-                />
-                
-                {/* Title & Category */}
-                <div 
-                  style={{
-                    position: 'absolute',
-                    bottom: '12px',
-                    left: '12px',
-                    right: '40px'
-                  }}
-                >
-                  <p style={{ margin: 0, fontSize: '13px', fontWeight: 700, color: 'white', lineHeight: 1.2 }}>
-                    {project.title}
-                  </p>
-                  <p style={{ margin: 0, marginTop: '2px', fontSize: '11px', color: 'rgba(255,255,255,0.8)' }}>
-                    {project.category}
-                  </p>
-                </div>
-                
-                {/* Save indicator */}
-                <div 
-                  style={{
-                    position: 'absolute',
-                    bottom: '12px',
-                    right: '12px'
-                  }}
-                >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="#4A3CD4">
-                    <polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26"/>
-                  </svg>
-                </div>
+                  {/* Top Row: Icon + Title */}
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+                    {/* Project Icon/Avatar */}
+                    <div 
+                      style={{
+                        width: '48px',
+                        height: '48px',
+                        borderRadius: '12px',
+                        backgroundColor: 'rgba(91, 74, 230, 0.1)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0
+                      }}
+                    >
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#5B4AE6" strokeWidth="2">
+                        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+                        <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
+                        <line x1="12" y1="22.08" x2="12" y2="12"/>
+                      </svg>
+                    </div>
+                    
+                    {/* Title + Description */}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: '#111827', lineHeight: 1.3 }}>
+                        {project.title}
+                      </p>
+                      <p 
+                        style={{ 
+                          margin: 0, 
+                          marginTop: '4px',
+                          fontSize: '12px', 
+                          color: '#9CA3AF',
+                          display: '-webkit-box',
+                          WebkitLineClamp: 1,
+                          WebkitBoxOrient: 'vertical',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis'
+                        }}
+                      >
+                        {project.description || project.category || 'Saved project'}
+                      </p>
+                    </div>
+                  </div>
+                  
+                  {/* Metadata Row: Badges */}
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '4px' }}>
+                    {/* School Badge */}
+                    {project.school && (
+                      <span 
+                        style={{
+                          fontSize: '10px',
+                          fontWeight: 600,
+                          color: '#6B7280',
+                          backgroundColor: '#F3F4F6',
+                          padding: '4px 10px',
+                          borderRadius: '12px'
+                        }}
+                      >
+                        {project.school}
+                      </span>
+                    )}
+                    
+                    {/* Status Badge - Draft for saved */}
+                    <span 
+                      style={{
+                        fontSize: '10px',
+                        fontWeight: 600,
+                        color: '#9CA3AF',
+                        backgroundColor: '#F3F4F6',
+                        padding: '4px 10px',
+                        borderRadius: '12px'
+                      }}
+                    >
+                      Saved
+                    </span>
+                  </div>
+                  
+                  {/* Spacer to push button to bottom */}
+                  <div style={{ flex: 1 }} />
+                  
+                  {/* Open Button - Bottom Right */}
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '8px' }}>
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        navigate(`/projects/${project.id}`)
+                      }}
+                      style={{
+                        padding: '8px 16px',
+                        backgroundColor: '#5B4AE6',
+                        color: 'white',
+                        fontSize: '13px',
+                        fontWeight: 600,
+                        borderRadius: '10px',
+                        border: 'none',
+                        cursor: 'pointer',
+                        transition: 'background-color 0.15s ease'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.stopPropagation()
+                        e.currentTarget.style.backgroundColor = '#4A3CD4'
+                      }}
+                      onMouseLeave={(e) => {
+                        e.stopPropagation()
+                        e.currentTarget.style.backgroundColor = '#5B4AE6'
+                      }}
+                    >
+                      Open
+                    </button>
+                  </div>
               </div>
             ))}
           </div>
         </div>
+        )}
       </div>
       
       {/* Bottom Navigation */}
