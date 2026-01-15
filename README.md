@@ -55,3 +55,4 @@ Test that backend enforcement is working:
 - Tailwind CSS 3
 - Supabase Auth (with .edu email enforcement)
 
+// demo commit
