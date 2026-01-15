@@ -33,11 +33,12 @@ function BottomNav() {
     return null
   }
   
+  // Tabs (Messages hidden for MVP - feature preserved in code)
   const tabs = [
     { id: 'discover', path: '/discover', icon: CardsIcon, label: 'Discover projects' },
     { id: 'my-projects', path: '/matches', icon: HeartIcon, label: 'My Projects' },
-    { id: 'messages', path: '/messages', icon: ChatIcon, label: 'Nests & Messages' },
-    { id: 'profile', path: '/my-profile', icon: PersonIcon, label: 'Your Profile' },
+    // { id: 'messages', path: '/messages', icon: ChatIcon, label: 'Messages' }, // Hidden for MVP
+    { id: 'profile', path: '/profile/current-user', icon: PersonIcon, label: 'Your Profile' },
   ]
   
   const isActive = (path) => location.pathname === path
@@ -148,7 +149,7 @@ function HeartIcon({ active }) {
   )
 }
 
-// Nests & Messages Icon
+// Messages Icon
 function ChatIcon({ active }) {
   const color = active ? '#5B4AE6' : '#ADAFBB'
   return (

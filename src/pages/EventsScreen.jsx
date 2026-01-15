@@ -7,12 +7,45 @@ import { getUpcomingEvents, getPastEvents } from '../utils/eventData'
  * EventsScreen - Campus Events Discovery
  * Nested NYC – Student-only project network
  * 
- * Specs:
- * - Header: "Events" title with filter icon
- * - Tab bar: Upcoming | Past
- * - Event cards with image, title, date, location, attendees (clickable)
- * - Bottom navigation
+ * Text-first, compact card layout for MVP
+ * No stock images – clean, scannable event dashboard
  */
+
+// Event type icons/emojis
+const EVENT_ICONS = {
+  'Networking': '🤝',
+  'Tech': '💻',
+  'Design': '🎨',
+  'Workshop': '🛠',
+  'Demo': '🎤',
+  'Showcase': '✨',
+  'Social': '🎉',
+  'Career': '💼',
+  'Hackathon': '⚡',
+  'default': '📅'
+}
+
+function getEventIcon(tags) {
+  if (!tags || tags.length === 0) return EVENT_ICONS.default
+  for (const tag of tags) {
+    if (EVENT_ICONS[tag]) return EVENT_ICONS[tag]
+  }
+  return EVENT_ICONS.default
+}
+
+// Placeholder attendee avatars
+const ATTENDEE_AVATARS = [
+  'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop',
+  'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop',
+  'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100&h=100&fit=crop',
+  'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100&h=100&fit=crop',
+]
+
+// Get attendee avatars for facepile (use placeholder for demo)
+function getAttendeeAvatars(count) {
+  const numAvatars = Math.min(count, 4)
+  return ATTENDEE_AVATARS.slice(0, Math.max(numAvatars, 3))
+}
 
 function EventsScreen() {
   const navigate = useNavigate()
@@ -130,65 +163,49 @@ function EventsScreen() {
           padding: '16px'
         }}
       >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           {events.map(event => (
             <div 
               key={event.id}
               onClick={() => navigate(`/events/${event.id}`)}
               style={{
-                backgroundColor: '#FAFAFA',
-                borderRadius: '16px',
-                overflow: 'hidden',
+                backgroundColor: '#FFFFFF',
+                borderRadius: '14px',
+                border: '1px solid #E5E7EB',
+                borderLeft: '4px solid #5B4AE6',
+                padding: '14px',
                 cursor: 'pointer',
-                transition: 'transform 0.15s ease, box-shadow 0.15s ease'
+                transition: 'all 0.15s ease'
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.transform = 'translateY(-2px)'
-                e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.08)'
+                e.currentTarget.style.borderColor = '#5B4AE6'
+                e.currentTarget.style.boxShadow = '0 2px 8px rgba(91, 74, 230, 0.1)'
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'translateY(0)'
+                e.currentTarget.style.borderColor = '#E5E7EB'
+                e.currentTarget.style.borderLeftColor = '#5B4AE6'
                 e.currentTarget.style.boxShadow = 'none'
               }}
             >
-              {/* Event Image - Clickable */}
-              <div 
-                style={{
-                  width: '100%',
-                  height: '140px',
-                  position: 'relative'
-                }}
-              >
-                <img 
-                  src={event.image}
-                  alt={event.title}
-                  style={{
-                    width: '100%',
-                    height: '100%',
-                    objectFit: 'cover'
-                  }}
-                />
+              {/* Top Row: Icon + Tags */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
+                {/* Event Icon */}
+                <span style={{ fontSize: '24px', lineHeight: 1 }}>
+                  {getEventIcon(event.tags)}
+                </span>
+                
                 {/* Tags */}
-                <div 
-                  style={{
-                    position: 'absolute',
-                    top: '12px',
-                    left: '12px',
-                    display: 'flex',
-                    gap: '6px'
-                  }}
-                >
+                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                   {event.tags.map((tag, idx) => (
                     <span 
                       key={idx}
                       style={{
-                        backgroundColor: 'rgba(0, 0, 0, 0.6)',
-                        backdropFilter: 'blur(4px)',
-                        color: 'white',
+                        backgroundColor: 'rgba(91, 74, 230, 0.1)',
+                        color: '#5B4AE6',
                         fontSize: '11px',
                         fontWeight: 600,
                         padding: '4px 10px',
-                        borderRadius: '20px'
+                        borderRadius: '12px'
                       }}
                     >
                       {tag}
@@ -197,26 +214,27 @@ function EventsScreen() {
                 </div>
               </div>
 
-              {/* Event Info */}
-              <div style={{ padding: '16px' }}>
+              {/* Event Title */}
                 <h3 
                   style={{
                     margin: 0,
                     fontSize: '16px',
                     fontWeight: 700,
-                    color: '#231429'
+                  color: '#111827',
+                  lineHeight: 1.3
                   }}
                 >
                   {event.title}
                 </h3>
                 
+              {/* Description */}
                 <p 
                   style={{
                     margin: 0,
                     marginTop: '6px',
                     fontSize: '13px',
                     color: '#6B7280',
-                    lineHeight: 1.4,
+                  lineHeight: 1.5,
                     display: '-webkit-box',
                     WebkitLineClamp: 2,
                     WebkitBoxOrient: 'vertical',
@@ -226,17 +244,18 @@ function EventsScreen() {
                   {event.description}
                 </p>
 
+              {/* Metadata Row */}
                 <div 
                   style={{
                     marginTop: '12px',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '16px',
+                  gap: '14px',
                     flexWrap: 'wrap'
                   }}
                 >
                   {/* Date */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5B4AE6" strokeWidth="2">
                       <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
                       <line x1="16" y1="2" x2="16" y2="6"/>
@@ -249,7 +268,7 @@ function EventsScreen() {
                   </div>
 
                   {/* Location */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2">
                       <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
                       <circle cx="12" cy="10" r="3"/>
@@ -260,7 +279,7 @@ function EventsScreen() {
                   </div>
 
                   {/* Attendees */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2">
                       <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
                       <circle cx="9" cy="7" r="4"/>
@@ -271,37 +290,180 @@ function EventsScreen() {
                       {event.attendees} going
                     </span>
                   </div>
+              </div>
+
+              {/* Attendee Facepile + RSVP */}
+              {activeTab === 'upcoming' && (
+                <div style={{ 
+                  marginTop: '14px', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'space-between',
+                  gap: '12px'
+                }}>
+                  {/* Facepile + Attending Text */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center' }}>
+                      {getAttendeeAvatars(event.attendees).map((avatar, idx) => (
+                        <div
+                          key={idx}
+                          style={{
+                            width: '26px',
+                            height: '26px',
+                            borderRadius: '50%',
+                            border: '2px solid white',
+                            backgroundColor: '#E5E7EB',
+                            marginLeft: idx > 0 ? '-8px' : 0,
+                            overflow: 'hidden',
+                            position: 'relative',
+                            zIndex: 4 - idx
+                          }}
+                        >
+                          <img 
+                            src={avatar}
+                            alt=""
+                            style={{
+                              width: '100%',
+                              height: '100%',
+                              objectFit: 'cover'
+                            }}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                    <span style={{ fontSize: '12px', color: '#6B7280' }}>
+                      {event.attendees} attending
+                    </span>
                 </div>
 
                 {/* RSVP Button */}
-                {activeTab === 'upcoming' && (
                   <button 
                     onClick={(e) => {
                       e.stopPropagation()
                       navigate(`/events/${event.id}`)
                     }}
                     style={{
-                      marginTop: '16px',
-                      width: '100%',
-                      height: '44px',
+                      padding: '10px 20px',
                       backgroundColor: '#5B4AE6',
                       color: 'white',
-                      fontSize: '14px',
+                      fontSize: '13px',
                       fontWeight: 600,
-                      borderRadius: '12px',
+                      borderRadius: '20px',
                       border: 'none',
                       cursor: 'pointer',
-                      transition: 'background-color 0.15s ease'
+                      transition: 'background-color 0.15s ease',
+                      flexShrink: 0
                     }}
                     onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#4A3CD4'}
                     onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#5B4AE6'}
                   >
                     RSVP
                   </button>
+                </div>
                 )}
+
+              {/* Past event - Facepile + Ended indicator */}
+              {activeTab === 'past' && (
+                <div style={{ 
+                  marginTop: '14px', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'space-between',
+                  gap: '12px'
+                }}>
+                  {/* Facepile + Attended Text */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center' }}>
+                      {getAttendeeAvatars(event.attendees).map((avatar, idx) => (
+                        <div
+                          key={idx}
+                          style={{
+                            width: '26px',
+                            height: '26px',
+                            borderRadius: '50%',
+                            border: '2px solid white',
+                            backgroundColor: '#E5E7EB',
+                            marginLeft: idx > 0 ? '-8px' : 0,
+                            overflow: 'hidden',
+                            position: 'relative',
+                            zIndex: 4 - idx,
+                            filter: 'grayscale(30%)',
+                            opacity: 0.8
+                          }}
+                        >
+                          <img 
+                            src={avatar}
+                            alt=""
+                            style={{
+                              width: '100%',
+                              height: '100%',
+                              objectFit: 'cover'
+                            }}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                    <span style={{ fontSize: '12px', color: '#9CA3AF' }}>
+                      {event.attendees} attended
+                    </span>
+                  </div>
+
+                  {/* Ended Badge */}
+                  <div 
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      padding: '8px 14px',
+                      backgroundColor: '#F3F4F6',
+                      borderRadius: '20px',
+                      flexShrink: 0
+                    }}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="2">
+                      <circle cx="12" cy="12" r="10"/>
+                      <polyline points="12 6 12 12 16 14"/>
+                    </svg>
+                    <span style={{ fontSize: '12px', color: '#9CA3AF', fontWeight: 500 }}>
+                      Ended
+                    </span>
+                  </div>
               </div>
+              )}
             </div>
           ))}
+
+          {/* Empty State */}
+          {events.length === 0 && (
+            <div 
+              style={{
+                textAlign: 'center',
+                padding: '40px 20px',
+                color: '#9CA3AF'
+              }}
+            >
+              <svg 
+                width="48" 
+                height="48" 
+                viewBox="0 0 24 24" 
+                fill="none" 
+                stroke="currentColor" 
+                strokeWidth="1.5"
+                style={{ margin: '0 auto 16px' }}
+              >
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                <line x1="16" y1="2" x2="16" y2="6"/>
+                <line x1="8" y1="2" x2="8" y2="6"/>
+                <line x1="3" y1="10" x2="21" y2="10"/>
+              </svg>
+              <p style={{ margin: 0, fontSize: '15px', fontWeight: 500 }}>
+                {activeTab === 'upcoming' ? 'No upcoming events' : 'No past events'}
+              </p>
+              <p style={{ margin: '8px 0 0 0', fontSize: '13px' }}>
+                Check back soon for new events!
+              </p>
+            </div>
+          )}
         </div>
       </div>
 
@@ -312,4 +474,3 @@ function EventsScreen() {
 }
 
 export default EventsScreen
-

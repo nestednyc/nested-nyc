@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { getProjectById } from '../utils/projectData'
+import { getProjectById, DEMO_CURRENT_USER_ID } from '../utils/projectData'
 
 /**
  * ProfileDetailScreen - Project Detail View
@@ -10,13 +10,56 @@ import { getProjectById } from '../utils/projectData'
  * Mobile: Single column with sticky bottom CTA
  */
 
+// Mock pending join requests (for demo/MVP)
+const MOCK_PENDING_REQUESTS = [
+  {
+    id: 'req-1',
+    name: 'Jordan Lee',
+    school: 'NYU Tandon',
+    role: 'Frontend Developer',
+    avatar: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=100&h=100&fit=crop',
+    requestedAt: '2 days ago'
+  },
+  {
+    id: 'req-2',
+    name: 'Samantha Wright',
+    school: 'Columbia Engineering',
+    role: 'UI/UX Designer',
+    avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop',
+    requestedAt: '3 days ago'
+  },
+  {
+    id: 'req-3',
+    name: 'Alex Chen',
+    school: 'Parsons',
+    role: 'Product Manager',
+    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop',
+    requestedAt: '1 week ago'
+  }
+]
+
 function ProfileDetailScreen() {
   const navigate = useNavigate()
   const { projectId } = useParams()
   const [isDesktop, setIsDesktop] = useState(false)
   const [isSaved, setIsSaved] = useState(false)
+  const [isRequested, setIsRequested] = useState(false)
   const [project, setProject] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [pendingRequests, setPendingRequests] = useState(MOCK_PENDING_REQUESTS)
+
+  // Handle accept/decline actions (UI only)
+  const handleAcceptRequest = (requestId) => {
+    setPendingRequests(prev => prev.filter(r => r.id !== requestId))
+    // In production, this would call an API
+    console.log('Accepted request:', requestId)
+  }
+
+  const handleDeclineRequest = (requestId) => {
+    setPendingRequests(prev => prev.filter(r => r.id !== requestId))
+    // In production, this would call an API
+    console.log('Declined request:', requestId)
+  }
 
   // Responsive check
   useEffect(() => {
@@ -56,6 +99,9 @@ function ProfileDetailScreen() {
       </div>
     )
   }
+
+  // Check if current user is the project owner
+  const isOwner = project?.isOwner || project?.ownerId === DEMO_CURRENT_USER_ID
 
   // Project not found state
   if (!project) {
@@ -165,7 +211,32 @@ function ProfileDetailScreen() {
                 </div>
                 
                 <div style={{ flex: 1 }}>
-                  <h1 className="project-detail-title-text">{project.title}</h1>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <h1 className="project-detail-title-text" style={{ margin: 0 }}>{project.title}</h1>
+                    
+                    {/* Owner Badge */}
+                    {isOwner && (
+                      <span 
+                        style={{
+                          fontSize: '11px',
+                          fontWeight: 700,
+                          color: '#059669',
+                          backgroundColor: 'rgba(5, 150, 105, 0.1)',
+                          padding: '4px 10px',
+                          borderRadius: '8px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          flexShrink: 0
+                        }}
+                      >
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                          <polyline points="20 6 9 17 4 12"/>
+                        </svg>
+                        Owner
+                      </span>
+                    )}
+                  </div>
                   
                   {/* Inline Badges */}
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '12px' }}>
@@ -215,30 +286,24 @@ function ProfileDetailScreen() {
                   </div>
                 </div>
               </div>
-              
-              {/* Tagline/One-line Description */}
-              {(project.tagline || project.description) && (
-                <p 
-                  style={{
-                    margin: 0,
-                    fontSize: '16px',
-                    lineHeight: 1.6,
-                    color: '#6B7280',
-                    marginTop: '8px'
-                  }}
-                >
-                  {project.tagline || project.description?.split('.')[0] || 'Building something awesome'}
-                </p>
-              )}
             </div>
 
-            {/* About Section */}
-            <div className="project-detail-section">
-              <h3 className="section-title-desktop">About this project</h3>
-              <p className="project-description-desktop" style={{ lineHeight: '1.8', marginBottom: 0 }}>
-                {project.description || 'No description provided yet.'}
-              </p>
-            </div>
+            {/* About Section - Single source of truth for description */}
+            {project.description ? (
+              <div className="project-detail-section">
+                <h3 className="section-title-desktop">About this project</h3>
+                <p className="project-description-desktop" style={{ lineHeight: '1.8', marginBottom: 0 }}>
+                  {project.description}
+                </p>
+              </div>
+            ) : (
+              <div className="project-detail-section">
+                <h3 className="section-title-desktop">About this project</h3>
+                <p style={{ fontSize: '14px', color: '#9CA3AF', margin: 0, fontStyle: 'italic' }}>
+                  No project description provided yet.
+                </p>
+              </div>
+            )}
 
             {/* Looking For Section */}
             <div className="project-detail-section">
@@ -330,6 +395,242 @@ function ProfileDetailScreen() {
                 </div>
               </div>
             )}
+
+            {/* Pending Requests Section - Owner Only */}
+            {isOwner && pendingRequests.length > 0 && (
+              <div className="project-detail-section">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                  <h3 className="section-title-desktop" style={{ margin: 0 }}>Pending Requests</h3>
+                  <span style={{
+                    padding: '4px 10px',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    color: '#F59E0B',
+                    backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                    borderRadius: '12px'
+                  }}>
+                    {pendingRequests.length} pending
+                  </span>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {pendingRequests.map((request) => (
+                    <div 
+                      key={request.id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        padding: '14px',
+                        backgroundColor: '#FAFAFA',
+                        borderRadius: '12px',
+                        border: '1px solid #F3F4F6',
+                        gap: '14px'
+                      }}
+                    >
+                      {/* Clickable Avatar + Info - navigates to user profile */}
+                      <div
+                        onClick={() => navigate(`/profile/${request.id}`)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '14px',
+                          flex: 1,
+                          minWidth: 0,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        {/* Avatar */}
+                        <img 
+                          src={request.avatar}
+                          alt={request.name}
+                          style={{
+                            width: '48px',
+                            height: '48px',
+                            borderRadius: '12px',
+                            objectFit: 'cover',
+                            flexShrink: 0,
+                            transition: 'transform 0.15s ease'
+                          }}
+                          onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
+                          onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                        />
+                        
+                        {/* Info */}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <p style={{ 
+                            margin: 0, 
+                            fontSize: '14px', 
+                            fontWeight: 600, 
+                            color: '#111827',
+                            transition: 'color 0.15s ease'
+                          }}
+                            onMouseEnter={(e) => e.currentTarget.style.color = '#5B4AE6'}
+                            onMouseLeave={(e) => e.currentTarget.style.color = '#111827'}
+                          >
+                            {request.name}
+                          </p>
+                          <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: '#6B7280' }}>
+                            {request.school}
+                          </p>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px' }}>
+                            <span style={{
+                              padding: '2px 8px',
+                              fontSize: '11px',
+                              fontWeight: 500,
+                              borderRadius: '6px',
+                              backgroundColor: '#E0E7FF',
+                              color: '#4338CA'
+                            }}>
+                              {request.role}
+                            </span>
+                          <span style={{ fontSize: '11px', color: '#9CA3AF' }}>
+                            {request.requestedAt}
+                          </span>
+                        </div>
+                        </div>
+                      </div>
+                      
+                      {/* Action Buttons */}
+                      <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
+                        <button
+                          onClick={() => handleDeclineRequest(request.id)}
+                          style={{
+                            padding: '8px 14px',
+                            fontSize: '13px',
+                            fontWeight: 600,
+                            color: '#6B7280',
+                            backgroundColor: 'white',
+                            border: '1px solid #E5E7EB',
+                            borderRadius: '8px',
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.backgroundColor = '#FEE2E2'
+                            e.currentTarget.style.borderColor = '#FECACA'
+                            e.currentTarget.style.color = '#DC2626'
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.backgroundColor = 'white'
+                            e.currentTarget.style.borderColor = '#E5E7EB'
+                            e.currentTarget.style.color = '#6B7280'
+                          }}
+                        >
+                          Decline
+                        </button>
+                        <button
+                          onClick={() => handleAcceptRequest(request.id)}
+                          style={{
+                            padding: '8px 14px',
+                            fontSize: '13px',
+                            fontWeight: 600,
+                            color: 'white',
+                            backgroundColor: '#059669',
+                            border: 'none',
+                            borderRadius: '8px',
+                            cursor: 'pointer',
+                            transition: 'background-color 0.15s ease'
+                          }}
+                          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#047857'}
+                          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#059669'}
+                        >
+                          Accept
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Team Communication Section - MVP */}
+            <div className="project-detail-section">
+              <h3 className="section-title-desktop">Team Communication</h3>
+              <p style={{ fontSize: '14px', color: '#6B7280', marginBottom: '16px', lineHeight: 1.5 }}>
+                Primary communication happens off-platform for now. Join the team's preferred channels to collaborate.
+              </p>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+                {/* Discord Link */}
+                <a
+                  href="https://discord.gg/nested-nyc"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '10px 16px',
+                    backgroundColor: '#5865F2',
+                    color: 'white',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    borderRadius: '10px',
+                    textDecoration: 'none',
+                    transition: 'opacity 0.15s'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.opacity = '0.9'}
+                  onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03z"/>
+                  </svg>
+                  Open Discord
+                </a>
+
+                {/* GitHub Link */}
+                <a
+                  href="https://github.com/nested-nyc"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '10px 16px',
+                    backgroundColor: '#24292F',
+                    color: 'white',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    borderRadius: '10px',
+                    textDecoration: 'none',
+                    transition: 'opacity 0.15s'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.opacity = '0.9'}
+                  onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/>
+                  </svg>
+                  View GitHub Repo
+                </a>
+
+                {/* Slack Link (secondary style) */}
+                <a
+                  href="#"
+                  onClick={(e) => { e.preventDefault(); alert('Slack invite link would go here') }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '10px 16px',
+                    backgroundColor: '#F3F4F6',
+                    color: '#374151',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    borderRadius: '10px',
+                    textDecoration: 'none',
+                    border: '1px solid #E5E7EB',
+                    transition: 'background-color 0.15s'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#E5E7EB'}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#F3F4F6'}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52zM6.313 15.165a2.527 2.527 0 0 1 2.521-2.52 2.527 2.527 0 0 1 2.521 2.52v6.313A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.521-2.522v-6.313zM8.834 5.042a2.528 2.528 0 0 1-2.521-2.52A2.528 2.528 0 0 1 8.834 0a2.528 2.528 0 0 1 2.521 2.522v2.52H8.834zM8.834 6.313a2.528 2.528 0 0 1 2.521 2.521 2.528 2.528 0 0 1-2.521 2.521H2.522A2.528 2.528 0 0 1 0 8.834a2.528 2.528 0 0 1 2.522-2.521h6.312zM18.956 8.834a2.528 2.528 0 0 1 2.522-2.521A2.528 2.528 0 0 1 24 8.834a2.528 2.528 0 0 1-2.522 2.521h-2.522V8.834zM17.688 8.834a2.528 2.528 0 0 1-2.523 2.521 2.527 2.527 0 0 1-2.52-2.521V2.522A2.527 2.527 0 0 1 15.165 0a2.528 2.528 0 0 1 2.523 2.522v6.312zM15.165 18.956a2.528 2.528 0 0 1 2.523 2.522A2.528 2.528 0 0 1 15.165 24a2.527 2.527 0 0 1-2.52-2.522v-2.522h2.52zM15.165 17.688a2.527 2.527 0 0 1-2.52-2.523 2.526 2.526 0 0 1 2.52-2.52h6.313A2.527 2.527 0 0 1 24 15.165a2.528 2.528 0 0 1-2.522 2.523h-6.313z"/>
+                  </svg>
+                  Join Slack
+                </a>
+              </div>
+            </div>
           </div>
 
           {/* Right Column - Action Card */}
@@ -369,37 +670,122 @@ function ProfileDetailScreen() {
                 </div>
               </div>
 
-              {/* Primary CTA Button */}
-              <button 
-                className="join-btn-desktop"
-                style={{
-                  width: '100%',
-                  marginBottom: '12px'
-                }}
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                  <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-                  <circle cx="8.5" cy="7" r="4"/>
-                  <line x1="20" y1="8" x2="20" y2="14"/>
-                  <line x1="23" y1="11" x2="17" y2="11"/>
-                </svg>
-                Request to Join
-              </button>
+              {isOwner ? (
+                /* Owner Actions */
+                <>
+                  {/* Primary: Edit Project */}
+                  <button 
+                    className="join-btn-desktop"
+                    onClick={() => navigate(`/projects/${projectId}/edit`)}
+                    style={{
+                      width: '100%',
+                      marginBottom: '12px'
+                    }}
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                    </svg>
+                    Edit Project
+                  </button>
 
-              {/* Secondary Button */}
-              <button 
-                className={`save-btn-desktop ${isSaved ? 'saved' : ''}`}
-                onClick={() => setIsSaved(!isSaved)}
-                style={{
-                  width: '100%',
-                  marginBottom: '24px'
-                }}
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill={isSaved ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2">
-                  <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
-                </svg>
-                {isSaved ? 'Saved' : 'Save for later'}
-              </button>
+                  {/* Secondary Actions */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '24px' }}>
+                    <button 
+                      className="save-btn-desktop"
+                      onClick={() => navigate(`/projects/${projectId}/invite`)}
+                      style={{ width: '100%' }}
+                    >
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                        <circle cx="8.5" cy="7" r="4"/>
+                        <line x1="20" y1="8" x2="20" y2="14"/>
+                        <line x1="23" y1="11" x2="17" y2="11"/>
+                      </svg>
+                      Invite Members
+                    </button>
+                    
+                    <button 
+                      className="save-btn-desktop"
+                      onClick={() => navigate(`/projects/${projectId}/requests`)}
+                      style={{ width: '100%' }}
+                    >
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                        <circle cx="9" cy="7" r="4"/>
+                        <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                        <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                      </svg>
+                      View Requests
+                    </button>
+                  </div>
+                </>
+              ) : (
+                /* Non-Owner Actions */
+                <>
+                  {/* Primary CTA Button */}
+                  <button 
+                    className={`join-btn-desktop ${isRequested ? 'requested' : ''}`}
+                    onClick={() => !isRequested && setIsRequested(true)}
+                    disabled={isRequested}
+                    style={{
+                      width: '100%',
+                      marginBottom: isRequested ? '8px' : '12px',
+                      opacity: isRequested ? 0.7 : 1,
+                      cursor: isRequested ? 'default' : 'pointer',
+                      backgroundColor: isRequested ? '#9CA3AF' : undefined
+                    }}
+                  >
+                    {isRequested ? (
+                      <>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                          <polyline points="20 6 9 17 4 12"/>
+                        </svg>
+                        Request sent
+                      </>
+                    ) : (
+                      <>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                          <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                          <circle cx="8.5" cy="7" r="4"/>
+                          <line x1="20" y1="8" x2="20" y2="14"/>
+                          <line x1="23" y1="11" x2="17" y2="11"/>
+                        </svg>
+                        Request to Join
+                      </>
+                    )}
+                  </button>
+                  
+                  {/* Helper text after request sent */}
+                  {isRequested && (
+                    <p style={{
+                      margin: 0,
+                      marginBottom: '12px',
+                      fontSize: '12px',
+                      color: '#6B7280',
+                      textAlign: 'center',
+                      lineHeight: 1.4
+                    }}>
+                      The project owner will review your request.
+                    </p>
+                  )}
+
+                  {/* Secondary Button */}
+                  <button 
+                    className={`save-btn-desktop ${isSaved ? 'saved' : ''}`}
+                    onClick={() => setIsSaved(!isSaved)}
+                    style={{
+                      width: '100%',
+                      marginBottom: '24px'
+                    }}
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill={isSaved ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2">
+                      <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
+                    </svg>
+                    {isSaved ? 'Saved' : 'Save for later'}
+                  </button>
+                </>
+              )}
 
               {/* Metadata Section */}
               <div style={{ 
@@ -588,16 +974,40 @@ function ProfileDetailScreen() {
               right: '20px'
             }}
           >
-            <h1 
-              style={{ 
-                margin: 0,
-                fontSize: '24px',
-                fontWeight: 700,
-                color: 'white'
-              }}
-            >
-              {project.title}
-            </h1>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+              <h1 
+                style={{ 
+                  margin: 0,
+                  fontSize: '24px',
+                  fontWeight: 700,
+                  color: 'white'
+                }}
+              >
+                {project.title}
+              </h1>
+              
+              {/* Owner Badge - Mobile */}
+              {isOwner && (
+                <span 
+                  style={{
+                    fontSize: '10px',
+                    fontWeight: 700,
+                    color: 'white',
+                    backgroundColor: 'rgba(5, 150, 105, 0.9)',
+                    padding: '4px 8px',
+                    borderRadius: '6px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '3px'
+                  }}
+                >
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                    <polyline points="20 6 9 17 4 12"/>
+                  </svg>
+                  Owner
+                </span>
+              )}
+            </div>
           </div>
         </div>
         
@@ -636,20 +1046,32 @@ function ProfileDetailScreen() {
             </span>
           </div>
           
-          {/* Description */}
+          {/* About Section - Single source of truth for description */}
           <div style={{ marginTop: '20px' }}>
             <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: '#231429' }}>
-              About
+              About this project
             </h3>
-            <p style={{ 
-              margin: 0, 
-              marginTop: '8px', 
-              fontSize: '14px', 
-              color: '#666', 
-              lineHeight: 1.6 
-            }}>
-              {project.description}
-            </p>
+            {project.description ? (
+              <p style={{ 
+                margin: 0, 
+                marginTop: '8px', 
+                fontSize: '14px', 
+                color: '#666', 
+                lineHeight: 1.6 
+              }}>
+                {project.description}
+              </p>
+            ) : (
+              <p style={{ 
+                margin: 0, 
+                marginTop: '8px', 
+                fontSize: '14px', 
+                color: '#9CA3AF', 
+                fontStyle: 'italic'
+              }}>
+                No project description provided yet.
+              </p>
+            )}
           </div>
           
           {/* Skills Needed */}
@@ -747,6 +1169,188 @@ function ProfileDetailScreen() {
               ))}
             </div>
           </div>
+
+          {/* Pending Requests Section - Owner Only (Mobile) */}
+          {isOwner && pendingRequests.length > 0 && (
+            <div style={{ marginTop: '24px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: '#231429' }}>
+                  Pending Requests
+                </h3>
+                <span style={{
+                  padding: '4px 10px',
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  color: '#F59E0B',
+                  backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                  borderRadius: '10px'
+                }}>
+                  {pendingRequests.length} pending
+                </span>
+              </div>
+              
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {pendingRequests.map((request) => (
+                  <div 
+                    key={request.id}
+                    style={{
+                      padding: '12px',
+                      backgroundColor: '#FAFAFA',
+                      borderRadius: '14px',
+                      border: '1px solid #F3F4F6'
+                    }}
+                  >
+                    {/* Top Row: Avatar + Info - clickable to navigate to profile */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '10px' }}>
+                      <div
+                        onClick={() => navigate(`/profile/${request.id}`)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '12px',
+                          flex: 1,
+                          minWidth: 0,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <img 
+                          src={request.avatar}
+                          alt={request.name}
+                          style={{
+                            width: '44px',
+                            height: '44px',
+                            borderRadius: '12px',
+                            objectFit: 'cover',
+                            flexShrink: 0
+                          }}
+                        />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <p style={{ margin: 0, fontSize: '14px', fontWeight: 600, color: '#231429' }}>
+                            {request.name}
+                          </p>
+                          <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: '#ADAFBB' }}>
+                            {request.school}
+                          </p>
+                        </div>
+                      </div>
+                      <span style={{
+                        padding: '3px 8px',
+                        fontSize: '10px',
+                        fontWeight: 600,
+                        borderRadius: '8px',
+                        backgroundColor: '#E0E7FF',
+                        color: '#4338CA',
+                        flexShrink: 0
+                      }}>
+                        {request.role}
+                      </span>
+                    </div>
+                    
+                    {/* Action Buttons */}
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button
+                        onClick={() => handleDeclineRequest(request.id)}
+                        style={{
+                          flex: 1,
+                          padding: '10px',
+                          fontSize: '13px',
+                          fontWeight: 600,
+                          color: '#6B7280',
+                          backgroundColor: 'white',
+                          border: '1px solid #E5E7EB',
+                          borderRadius: '10px',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Decline
+                      </button>
+                      <button
+                        onClick={() => handleAcceptRequest(request.id)}
+                        style={{
+                          flex: 1,
+                          padding: '10px',
+                          fontSize: '13px',
+                          fontWeight: 600,
+                          color: 'white',
+                          backgroundColor: '#059669',
+                          border: 'none',
+                          borderRadius: '10px',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Accept
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Team Communication Section - MVP (Mobile) */}
+          <div style={{ marginTop: '24px' }}>
+            <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: '#231429' }}>
+              Team Communication
+            </h3>
+            <p style={{ 
+              margin: 0, 
+              marginTop: '8px', 
+              marginBottom: '14px',
+              fontSize: '13px', 
+              color: '#6B7280', 
+              lineHeight: 1.5 
+            }}>
+              Primary communication happens off-platform for now.
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {/* Discord */}
+              <a
+                href="https://discord.gg/nested-nyc"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  padding: '12px 14px',
+                  backgroundColor: '#5865F2',
+                  color: 'white',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  borderRadius: '12px',
+                  textDecoration: 'none'
+                }}
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03z"/>
+                </svg>
+                Open Discord
+              </a>
+              {/* GitHub */}
+              <a
+                href="https://github.com/nested-nyc"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  padding: '12px 14px',
+                  backgroundColor: '#24292F',
+                  color: 'white',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  borderRadius: '12px',
+                  textDecoration: 'none'
+                }}
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/>
+                </svg>
+                View GitHub Repo
+              </a>
+            </div>
+          </div>
         </div>
       </div>
       
@@ -766,53 +1370,113 @@ function ProfileDetailScreen() {
           alignItems: 'center'
         }}
       >
-        {/* Save Button */}
-        <button 
-          onClick={() => setIsSaved(!isSaved)}
-          style={{
-            width: '52px',
-            height: '52px',
-            borderRadius: '14px',
-            border: '1.5px solid #E5E7EB',
-            backgroundColor: isSaved ? 'rgba(91, 74, 230, 0.1)' : 'white',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer',
-            flexShrink: 0
-          }}
-        >
-          <svg width="22" height="22" viewBox="0 0 24 24" fill={isSaved ? '#5B4AE6' : 'none'} stroke={isSaved ? '#5B4AE6' : '#231429'} strokeWidth="2">
-            <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
-          </svg>
-        </button>
-        
-        {/* Request to Join Button */}
-        <button 
-          style={{
-            flex: 1,
-            height: '52px',
-            backgroundColor: '#5B4AE6',
-            color: 'white',
-            fontSize: '16px',
-            fontWeight: 600,
-            borderRadius: '14px',
-            border: 'none',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '8px'
-          }}
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
-            <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-            <circle cx="8.5" cy="7" r="4"/>
-            <line x1="20" y1="8" x2="20" y2="14"/>
-            <line x1="23" y1="11" x2="17" y2="11"/>
-          </svg>
-          Request to Join
-        </button>
+        {isOwner ? (
+          /* Owner Actions - Mobile */
+          <>
+            {/* Edit Project Button - Full Width */}
+            <button 
+              onClick={() => navigate(`/projects/${projectId}/edit`)}
+              style={{
+                flex: 1,
+                height: '52px',
+                backgroundColor: '#5B4AE6',
+                color: 'white',
+                fontSize: '16px',
+                fontWeight: 600,
+                borderRadius: '14px',
+                border: 'none',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px'
+              }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+              </svg>
+              Edit Project
+            </button>
+          </>
+        ) : (
+          /* Non-Owner Actions - Mobile */
+          <>
+            {/* Save Button */}
+            <button 
+              onClick={() => setIsSaved(!isSaved)}
+              style={{
+                width: '52px',
+                height: '52px',
+                borderRadius: '14px',
+                border: '1.5px solid #E5E7EB',
+                backgroundColor: isSaved ? 'rgba(91, 74, 230, 0.1)' : 'white',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                flexShrink: 0
+              }}
+            >
+              <svg width="22" height="22" viewBox="0 0 24 24" fill={isSaved ? '#5B4AE6' : 'none'} stroke={isSaved ? '#5B4AE6' : '#231429'} strokeWidth="2">
+                <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
+              </svg>
+            </button>
+            
+            {/* Request to Join Button */}
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <button 
+                onClick={() => !isRequested && setIsRequested(true)}
+                disabled={isRequested}
+                style={{
+                  width: '100%',
+                  height: '52px',
+                  backgroundColor: isRequested ? '#9CA3AF' : '#5B4AE6',
+                  color: 'white',
+                  fontSize: '16px',
+                  fontWeight: 600,
+                  borderRadius: '14px',
+                  border: 'none',
+                  cursor: isRequested ? 'default' : 'pointer',
+                  opacity: isRequested ? 0.85 : 1,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px'
+                }}
+              >
+                {isRequested ? (
+                  <>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
+                      <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                    Request sent
+                  </>
+                ) : (
+                  <>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
+                      <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                      <circle cx="8.5" cy="7" r="4"/>
+                      <line x1="20" y1="8" x2="20" y2="14"/>
+                      <line x1="23" y1="11" x2="17" y2="11"/>
+                    </svg>
+                    Request to Join
+                  </>
+                )}
+              </button>
+              {isRequested && (
+                <p style={{
+                  margin: 0,
+                  fontSize: '11px',
+                  color: '#6B7280',
+                  textAlign: 'center'
+                }}>
+                  The project owner will review your request.
+                </p>
+              )}
+            </div>
+          </>
+        )}
       </div>
       
       {/* Home Indicator - Mobile Only */}

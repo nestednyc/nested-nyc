@@ -1,4 +1,5 @@
 import { useLocation, useNavigate } from 'react-router-dom'
+import { SHOW_PEOPLE_SECTION } from '../config/features'
 
 /**
  * ContextSidebar - Contextual sidebar that renders based on current route
@@ -9,6 +10,8 @@ import { useLocation, useNavigate } from 'react-router-dom'
  * - /events: Hide Upcoming Events (redundant), show People to Connect only
  * - /messages: Hide entire sidebar (handled in WebLayout)
  * - /onboarding/*: Never render (handled in WebLayout)
+ * 
+ * Note: People section is hidden for MVP (SHOW_PEOPLE_SECTION flag)
  */
 function ContextSidebar() {
   const location = useLocation()
@@ -16,7 +19,8 @@ function ContextSidebar() {
 
   // Determine what to show based on route
   const showEvents = pathname === '/discover' || pathname === '/matches'
-  const showPeople = pathname === '/discover' || pathname === '/matches' || pathname === '/events'
+  // People section hidden for MVP via feature flag
+  const showPeople = SHOW_PEOPLE_SECTION && (pathname === '/discover' || pathname === '/matches' || pathname === '/events')
   const isDeEmphasized = pathname === '/matches'
   const isEventsPage = pathname === '/events'
 
@@ -27,7 +31,7 @@ function ContextSidebar() {
         <UpcomingEventsSection deEmphasized={isDeEmphasized} />
       )}
 
-      {/* People to Connect Section */}
+      {/* People to Connect Section - Hidden for MVP */}
       {showPeople && (
         <PeopleToConnectSection 
           deEmphasized={isDeEmphasized} 
@@ -39,38 +43,35 @@ function ContextSidebar() {
 }
 
 /**
- * UpcomingEventsSection - Shows upcoming events
+ * UpcomingEventsSection - Shows upcoming events (text-first layout)
  */
 function UpcomingEventsSection({ deEmphasized = false }) {
   const navigate = useNavigate()
   
   const events = [
     {
-      id: 1,
+      id: 'event-1',
       title: 'NYC Tech Meetup',
       date: 'Jan 15',
       time: '6:00 PM',
       location: 'WeWork SoHo',
-      attendees: 45,
-      image: 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=200&h=120&fit=crop'
+      attendees: 45
     },
     {
-      id: 2,
+      id: 'event-2',
       title: 'Design Systems Workshop',
       date: 'Jan 18',
       time: '2:00 PM',
       location: 'Parsons',
-      attendees: 28,
-      image: 'https://images.unsplash.com/photo-1558655146-9f40138edfeb?w=200&h=120&fit=crop'
+      attendees: 28
     },
     {
-      id: 3,
+      id: 'event-3',
       title: 'Startup Pitch Night',
       date: 'Jan 22',
       time: '7:30 PM',
       location: 'NYU Stern',
-      attendees: 62,
-      image: 'https://images.unsplash.com/photo-1552664730-d307ca884978?w=200&h=120&fit=crop'
+      attendees: 62
     }
   ]
 
@@ -88,16 +89,29 @@ function UpcomingEventsSection({ deEmphasized = false }) {
       
       <div className="sidebar-events-list">
         {events.map(event => (
-          <div key={event.id} className="sidebar-event-card">
-            <div className="sidebar-event-image">
-              <img src={event.image} alt={event.title} />
+          <div 
+            key={event.id} 
+            className="sidebar-event-card-text"
+            onClick={() => navigate(`/events/${event.id}`)}
+            style={{ cursor: 'pointer' }}
+          >
+            {/* Calendar Icon */}
+            <div className="sidebar-event-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5B4AE6" strokeWidth="2">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                <line x1="16" y1="2" x2="16" y2="6"/>
+                <line x1="8" y1="2" x2="8" y2="6"/>
+                <line x1="3" y1="10" x2="21" y2="10"/>
+              </svg>
             </div>
-            <div className="sidebar-event-info">
-              <h4 className="sidebar-event-title">{event.title}</h4>
-              <p className="sidebar-event-meta">
+            
+            {/* Event Info */}
+            <div className="sidebar-event-info-text">
+              <h4 className="sidebar-event-title-text">{event.title}</h4>
+              <p className="sidebar-event-datetime">
                 {event.date} • {event.time}
               </p>
-              <p className="sidebar-event-location">{event.location}</p>
+              <p className="sidebar-event-location-text">{event.location}</p>
             </div>
           </div>
         ))}
@@ -116,7 +130,6 @@ function PeopleToConnectSection({ deEmphasized = false, label = 'People to Conne
       name: 'Sofia Rodriguez',
       school: 'Columbia',
       role: 'Data Science',
-      image: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop',
       mutualProjects: 2
     },
     {
@@ -124,7 +137,6 @@ function PeopleToConnectSection({ deEmphasized = false, label = 'People to Conne
       name: 'David Kim',
       school: 'NYU',
       role: 'Full Stack Dev',
-      image: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100&h=100&fit=crop',
       mutualProjects: 1
     },
     {
@@ -132,7 +144,6 @@ function PeopleToConnectSection({ deEmphasized = false, label = 'People to Conne
       name: 'Emma Wilson',
       school: 'Parsons',
       role: 'UI/UX Designer',
-      image: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&h=100&fit=crop',
       mutualProjects: 3
     },
     {
@@ -140,7 +151,6 @@ function PeopleToConnectSection({ deEmphasized = false, label = 'People to Conne
       name: 'Marcus Chen',
       school: 'Columbia',
       role: 'Backend Engineer',
-      image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop',
       mutualProjects: 1
     }
   ]
@@ -154,11 +164,13 @@ function PeopleToConnectSection({ deEmphasized = false, label = 'People to Conne
       <div className="sidebar-people-list">
         {people.map(person => (
           <div key={person.id} className="sidebar-person-card">
-            <img 
-              src={person.image} 
-              alt={person.name}
-              className="sidebar-person-image"
-            />
+            {/* Person Icon */}
+            <div className="sidebar-person-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5B4AE6" strokeWidth="2">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                <circle cx="12" cy="7" r="4"/>
+              </svg>
+            </div>
             <div className="sidebar-person-info">
               <h4 className="sidebar-person-name">{person.name}</h4>
               <p className="sidebar-person-role">{person.role}</p>
@@ -177,8 +189,3 @@ function PeopleToConnectSection({ deEmphasized = false, label = 'People to Conne
 }
 
 export default ContextSidebar
-
-
-
-
-

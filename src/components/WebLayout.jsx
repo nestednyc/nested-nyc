@@ -1,5 +1,7 @@
+import { useState, useRef, useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import ContextSidebar from './ContextSidebar'
+import { logoutUser } from '../utils/auth'
 
 /**
  * WebLayout - Desktop layout wrapper with header navigation and contextual sidebar
@@ -22,12 +24,12 @@ function WebLayout({ children, layoutType = 'app' }) {
   // Never show sidebar on onboarding routes
   const showSidebar = shouldShowSidebar && !isOnboardingRoute
 
-  // Navigation items
+  // Navigation items (Messages hidden for MVP - feature preserved in code)
   const navItems = [
     { path: '/discover', label: 'Discover', icon: 'discover' },
     { path: '/events', label: 'Events', icon: 'events' },
     { path: '/matches', label: 'My Projects', icon: 'projects' },
-    { path: '/messages', label: 'Messages', icon: 'messages' },
+    // { path: '/messages', label: 'Messages', icon: 'messages' }, // Hidden for MVP
   ]
 
   return (
@@ -40,7 +42,6 @@ function WebLayout({ children, layoutType = 'app' }) {
             className="web-logo"
             onClick={() => navigate('/discover')}
           >
-            <NestedLogoSmall />
             <span className="web-logo-text">NESTED</span>
           </div>
 
@@ -60,19 +61,10 @@ function WebLayout({ children, layoutType = 'app' }) {
             </nav>
           )}
 
-          {/* Right side - Profile */}
+          {/* Right side - Profile with Dropdown */}
           <div className="web-header-right">
             {layoutType === 'app' && (
-              <button 
-                className="web-profile-btn"
-                onClick={() => navigate('/my-profile')}
-              >
-                <img 
-                  src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop"
-                  alt="Profile"
-                  className="web-profile-img"
-                />
-              </button>
+              <ProfileDropdown navigate={navigate} />
             )}
           </div>
         </div>
@@ -99,22 +91,99 @@ function WebLayout({ children, layoutType = 'app' }) {
 }
 
 /**
- * NestedLogoSmall - Compact logo for header
+ * ProfileDropdown - Avatar with dropdown menu
  */
-function NestedLogoSmall() {
+function ProfileDropdown({ navigate }) {
+  const [isOpen, setIsOpen] = useState(false)
+  const dropdownRef = useRef(null)
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  const handleLogout = () => {
+    logoutUser()
+    setIsOpen(false)
+    navigate('/auth')
+  }
+
+  const menuItems = [
+    { label: 'Profile', onClick: () => { navigate('/profile/current-user'); setIsOpen(false) } },
+    { label: 'Edit Profile', onClick: () => { navigate('/profile/edit'); setIsOpen(false) } },
+    { label: 'Log out', onClick: handleLogout, isDanger: true },
+  ]
+
   return (
-    <svg width="32" height="28" viewBox="0 0 100 90" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path d="M50 20L25 8L8 25L15 45L50 75L50 20Z" fill="#E94057"/>
-      <path d="M50 20L75 8L92 25L85 45L50 75L50 20Z" fill="#F27281"/>
-      <path d="M8 25L15 45L25 35L20 20L8 25Z" fill="#8A2387"/>
-      <path d="M92 25L85 45L75 35L80 20L92 25Z" fill="#EE6B7D"/>
-      <path d="M25 8L20 20L35 30L50 20L25 8Z" fill="#C73E5E"/>
-      <path d="M75 8L80 20L65 30L50 20L75 8Z" fill="#F8A4B0"/>
-      <path d="M35 30L50 20L65 30L50 45L35 30Z" fill="#F4929F"/>
-      <path d="M15 45L35 50L50 75L15 45Z" fill="#B83B5E"/>
-      <path d="M85 45L65 50L50 75L85 45Z" fill="#F67280"/>
-      <path d="M35 50L50 45L65 50L50 75L35 50Z" fill="#FCCDD3"/>
-    </svg>
+    <div ref={dropdownRef} style={{ position: 'relative' }}>
+      <button 
+        className="web-profile-btn"
+        onClick={() => setIsOpen(!isOpen)}
+        style={{ cursor: 'pointer' }}
+      >
+        <img 
+          src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop"
+          alt="Profile"
+          className="web-profile-img"
+        />
+      </button>
+
+      {/* Dropdown Menu */}
+      {isOpen && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 'calc(100% + 8px)',
+            right: 0,
+            minWidth: '160px',
+            backgroundColor: '#FFFFFF',
+            borderRadius: '12px',
+            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.12)',
+            border: '1px solid #E5E7EB',
+            padding: '6px',
+            zIndex: 1000,
+            animation: 'fadeIn 0.15s ease-out'
+          }}
+        >
+          <style>{`
+            @keyframes fadeIn {
+              from { opacity: 0; transform: translateY(-4px); }
+              to { opacity: 1; transform: translateY(0); }
+            }
+          `}</style>
+          {menuItems.map((item, idx) => (
+            <button
+              key={idx}
+              onClick={item.onClick}
+              style={{
+                display: 'block',
+                width: '100%',
+                padding: '10px 14px',
+                fontSize: '14px',
+                fontWeight: 500,
+                color: item.isDanger ? '#EF4444' : '#374151',
+                backgroundColor: 'transparent',
+                border: 'none',
+                borderRadius: '8px',
+                textAlign: 'left',
+                cursor: 'pointer',
+                transition: 'background-color 0.15s ease'
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = item.isDanger ? '#FEF2F2' : '#F3F4F6'}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   )
 }
 

@@ -3,7 +3,71 @@
  * Centralized data for all projects - both default and user-created
  */
 
-import { getProjects } from './projectStorage'
+import { getProjects, updateProject } from './projectStorage'
+
+// Demo current user ID (for MVP/demo purposes)
+export const DEMO_CURRENT_USER_ID = 'demo-user-1'
+
+// Storage key for project edits (for default projects)
+const PROJECT_EDITS_KEY = 'nested_project_edits'
+
+/**
+ * Get stored edits for all projects
+ */
+function getProjectEdits() {
+  try {
+    const data = localStorage.getItem(PROJECT_EDITS_KEY)
+    return data ? JSON.parse(data) : {}
+  } catch (e) {
+    return {}
+  }
+}
+
+/**
+ * Save edits for a project (works for both user-created and default projects)
+ */
+export function saveProjectEdits(projectId, edits) {
+  // Check if it's a user-created project
+  const userProjects = getProjects()
+  const userProject = userProjects.find(p => `user-${p.id}` === projectId || String(p.id) === projectId)
+  
+  if (userProject) {
+    // Update user-created project directly
+    const rawId = projectId.startsWith('user-') ? projectId.replace('user-', '') : projectId
+    updateProject(parseInt(rawId) || rawId, {
+      description: edits.description,
+      roles: edits.skillsNeeded, // Store as roles for user projects
+      commitment: edits.commitment,
+    })
+  } else {
+    // Store edits for default projects
+    const allEdits = getProjectEdits()
+    allEdits[projectId] = {
+      ...allEdits[projectId],
+      ...edits,
+      updatedAt: new Date().toISOString()
+    }
+    localStorage.setItem(PROJECT_EDITS_KEY, JSON.stringify(allEdits))
+  }
+}
+
+/**
+ * Apply stored edits to a project
+ */
+function applyProjectEdits(project) {
+  if (!project) return project
+  const edits = getProjectEdits()
+  const projectEdits = edits[project.id]
+  if (projectEdits) {
+    return {
+      ...project,
+      description: projectEdits.description ?? project.description,
+      skillsNeeded: projectEdits.skillsNeeded ?? project.skillsNeeded,
+      commitment: projectEdits.commitment ?? project.commitment,
+    }
+  }
+  return project
+}
 
 // Default projects data (mock data)
 export const DEFAULT_PROJECTS = [
@@ -18,6 +82,7 @@ export const DEFAULT_PROJECTS = [
     description: 'Building an interactive dashboard to visualize NYC climate data and track sustainability initiatives across campuses. We want to help students understand their environmental impact and find ways to reduce it together.',
     skillsNeeded: ['React', 'D3.js', 'Python', 'Data Viz'],
     spotsLeft: 3,
+    ownerId: 'demo-user-1', // Demo: This project is owned by the current user
     team: [
       { name: 'Marcus Chen', school: 'NYU', role: 'Lead / Backend', image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop' },
       { name: 'Sofia Rodriguez', school: 'Columbia', role: 'Data Science', image: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=200&fit=crop' },
@@ -200,7 +265,6 @@ const ROLE_LABELS = {
 const CATEGORY_LABELS = {
   'startup': 'Startup',
   'class-project': 'Class Project',
-  'hackathon': 'Hackathon',
   'side-project': 'Side Project',
   'research': 'Research',
 }
@@ -239,7 +303,8 @@ function transformUserProject(p) {
  */
 export function getAllProjects() {
   const userProjects = getProjects().map(transformUserProject)
-  return [...userProjects, ...DEFAULT_PROJECTS]
+  const defaultWithEdits = DEFAULT_PROJECTS.map(applyProjectEdits)
+  return [...userProjects, ...defaultWithEdits]
 }
 
 /**
@@ -255,17 +320,17 @@ export function getProjectById(projectId) {
     return transformUserProject(userProject)
   }
   
-  // Check default projects
+  // Check default projects (apply any stored edits)
   const defaultProject = DEFAULT_PROJECTS.find(p => p.id === projectId)
-  if (defaultProject) return defaultProject
+  if (defaultProject) return applyProjectEdits(defaultProject)
   
-  // Check My Projects defaults
+  // Check My Projects defaults (apply any stored edits)
   const myProject = MY_PROJECTS_DEFAULT.find(p => p.id === projectId)
-  if (myProject) return myProject
+  if (myProject) return applyProjectEdits(myProject)
   
-  // Check saved projects
+  // Check saved projects (apply any stored edits)
   const savedProject = SAVED_PROJECTS.find(p => p.id === projectId)
-  if (savedProject) return savedProject
+  if (savedProject) return applyProjectEdits(savedProject)
   
   return null
 }
@@ -277,7 +342,8 @@ export function getDiscoverProjects() {
   const userProjects = getProjects()
     .filter(p => p.publishToDiscover)
     .map(transformUserProject)
-  return [...userProjects, ...DEFAULT_PROJECTS]
+  const defaultWithEdits = DEFAULT_PROJECTS.map(applyProjectEdits)
+  return [...userProjects, ...defaultWithEdits]
 }
 
 /**
@@ -285,7 +351,8 @@ export function getDiscoverProjects() {
  */
 export function getMyProjects() {
   const userProjects = getProjects().map(transformUserProject)
-  return [...userProjects, ...MY_PROJECTS_DEFAULT]
+  const myProjectsWithEdits = MY_PROJECTS_DEFAULT.map(applyProjectEdits)
+  return [...userProjects, ...myProjectsWithEdits]
 }
 
 /**

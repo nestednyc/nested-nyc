@@ -79,7 +79,7 @@ function Onboarding3() {
         
         {/* Get Started Button */}
         <button 
-          onClick={() => navigate('/signup')}
+          onClick={() => navigate('/auth')}
           style={{
             width: '100%',
             height: '56px',
@@ -98,7 +98,7 @@ function Onboarding3() {
         {/* Sign In Link */}
         <div style={{ height: '16px' }} />
         <button 
-          onClick={() => navigate('/signin')}
+          onClick={() => navigate('/login')}
           style={{
             backgroundColor: 'transparent',
             color: '#5B4AE6',
