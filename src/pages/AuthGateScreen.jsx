@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 
 /**
  * AuthGateScreen - Modern 2-step signup + login
@@ -6,6 +7,7 @@ import { useState, useMemo } from 'react'
  */
 
 function AuthGateScreen() {
+  const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState('signup') // 'signup' | 'login'
   const [signupStep, setSignupStep] = useState(1) // 1 | 2
 
@@ -17,21 +19,77 @@ function AuthGateScreen() {
   return (
     <div style={{
       minHeight: '100%',
-      backgroundColor: '#FAFAFA',
+      background: 'linear-gradient(135deg, #FAFBFF 0%, #FFFFFF 50%, #F8F9FF 100%)',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      padding: '24px 16px'
+      padding: '24px 16px',
+      position: 'relative',
+      overflow: 'hidden'
     }}>
-      {/* Card */}
+      {/* Purple Circle Background Accents - Behind everything */}
+      <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 0 }}>
+        {/* Top-left large blur circle */}
+        <div style={{
+          position: 'absolute',
+          top: '-120px',
+          left: '-100px',
+          width: '350px',
+          height: '350px',
+          borderRadius: '50%',
+          background: 'radial-gradient(circle at 40% 40%, rgba(139, 124, 246, 0.15), rgba(91, 74, 230, 0.04))',
+          filter: 'blur(40px)'
+        }} />
+
+        {/* Top-right circle */}
+        <div style={{
+          position: 'absolute',
+          top: '-80px',
+          right: '-120px',
+          width: '320px',
+          height: '320px',
+          borderRadius: '50%',
+          background: 'radial-gradient(circle at 30% 30%, rgba(167, 139, 250, 0.1), rgba(139, 124, 246, 0.02))',
+          filter: 'blur(50px)'
+        }} />
+
+        {/* Bottom-left circle */}
+        <div style={{
+          position: 'absolute',
+          bottom: '-140px',
+          left: '-80px',
+          width: '300px',
+          height: '300px',
+          borderRadius: '50%',
+          background: 'radial-gradient(circle at 50% 50%, rgba(91, 74, 230, 0.1), rgba(167, 139, 250, 0.03))',
+          filter: 'blur(45px)'
+        }} />
+
+        {/* Bottom-right small accent */}
+        <div style={{
+          position: 'absolute',
+          bottom: '-60px',
+          right: '-50px',
+          width: '200px',
+          height: '200px',
+          borderRadius: '50%',
+          background: 'radial-gradient(circle at 40% 40%, rgba(139, 124, 246, 0.12), rgba(91, 74, 230, 0.03))',
+          filter: 'blur(35px)'
+        }} />
+      </div>
+
+      {/* Card - Clean, minimal shadow */}
       <div style={{
         width: '100%',
         maxWidth: '400px',
         backgroundColor: '#FFFFFF',
-        borderRadius: '20px',
-        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.08)',
+        borderRadius: '16px',
+        boxShadow: '0 4px 16px rgba(0, 0, 0, 0.06)',
         padding: '32px 28px',
-        animation: 'fadeUp 0.4s ease-out'
+        animation: 'fadeUp 0.4s ease-out',
+        position: 'relative',
+        zIndex: 10,
+        backdropFilter: 'blur(10px)'
       }}>
         <style>{`
           @keyframes fadeUp {
@@ -112,9 +170,9 @@ function AuthGateScreen() {
 
         {/* Forms */}
         {activeTab === 'signup' ? (
-          <SignUpForm step={signupStep} setStep={setSignupStep} />
+          <SignUpForm step={signupStep} setStep={setSignupStep} navigate={navigate} />
         ) : (
-          <LoginForm />
+          <LoginForm navigate={navigate} />
         )}
       </div>
     </div>
@@ -124,7 +182,7 @@ function AuthGateScreen() {
 /**
  * SignUpForm - 2-step signup
  */
-function SignUpForm({ step, setStep }) {
+function SignUpForm({ step, setStep, navigate }) {
   const [form, setForm] = useState({
     email: '',
     firstName: '',
@@ -165,6 +223,7 @@ function SignUpForm({ step, setStep }) {
   const handleCreateAccount = (e) => {
     e.preventDefault()
     console.log('Account created:', form)
+    navigate('/discover')
   }
 
   if (step === 1) {
@@ -299,7 +358,7 @@ function SignUpForm({ step, setStep }) {
 /**
  * LoginForm - Simple login
  */
-function LoginForm() {
+function LoginForm({ navigate }) {
   const [form, setForm] = useState({ email: '', password: '' })
   const [touched, setTouched] = useState({})
 
@@ -322,6 +381,7 @@ function LoginForm() {
   const handleSubmit = (e) => {
     e.preventDefault()
     console.log('Login clicked:', form)
+    navigate('/discover')
   }
 
   return (
