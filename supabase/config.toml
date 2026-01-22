@@ -1,5 +1,5 @@
 # Supabase Configuration
-# For remote project: upaphmckhicnavihsaam
+# For remote project: fkiyjxxiysbvmflbibsu
 
 [api]
 enabled = true
@@ -30,11 +30,3 @@ enable_signup = true
 double_confirm_changes = true
 enable_confirmations = true
 
-[functions.validate-email]
-verify_jwt = false
-
-[functions.send-email]
-verify_jwt = false
-
-[functions.username-login]
-verify_jwt = false

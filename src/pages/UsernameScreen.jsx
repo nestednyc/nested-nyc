@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { authService } from '../lib/supabase'
-import { profileService } from '../lib/profileService'
 import { validateUsername } from '../utils/usernameValidation'
 
 /**
@@ -48,25 +47,43 @@ function UsernameScreen() {
   }, [])
 
   // Debounced availability check
+  // TODO: Re-enable when database is connected
+  // const checkAvailability = useMemo(
+  //   () => debounce(async (usernameToCheck) => {
+  //     // Don't check if format is invalid
+  //     if (validateUsername(usernameToCheck)) {
+  //       setIsAvailable(null)
+  //       setIsChecking(false)
+  //       return
+  //     }
+
+  //     try {
+  //       setIsChecking(true)
+  //       const available = await profileService.isUsernameAvailable(usernameToCheck)
+  //       setIsAvailable(available)
+  //     } catch (err) {
+  //       console.error('Username check failed:', err)
+  //       setIsAvailable(null)
+  //     } finally {
+  //       setIsChecking(false)
+  //     }
+  //   }, 400),
+  //   []
+  // )
+
+  // Temporary: Assume username is available for frontend testing
   const checkAvailability = useMemo(
-    () => debounce(async (usernameToCheck) => {
-      // Don't check if format is invalid
+    () => debounce((usernameToCheck) => {
       if (validateUsername(usernameToCheck)) {
         setIsAvailable(null)
         setIsChecking(false)
         return
       }
-
-      try {
-        setIsChecking(true)
-        const available = await profileService.isUsernameAvailable(usernameToCheck)
-        setIsAvailable(available)
-      } catch (err) {
-        console.error('Username check failed:', err)
-        setIsAvailable(null)
-      } finally {
+      setIsChecking(true)
+      setTimeout(() => {
+        setIsAvailable(true) // Assume available for now
         setIsChecking(false)
-      }
+      }, 400)
     }, 400),
     []
   )
@@ -115,23 +132,14 @@ function UsernameScreen() {
     setSubmitError('')
 
     try {
-      // Upsert the profile with the username (creates if doesn't exist)
-      const { error: updateError } = await profileService.upsertProfile(user.id, {
-        username: username.trim()
-      })
+      // TODO: Connect to database when ready
+      // Save username to database when backend is connected
+      // const { error: updateError } = await profileService.upsertProfile(user.id, {
+      //   username: username.trim()
+      // })
+      // if (updateError) { ... handle error ... }
 
-      if (updateError) {
-        if (updateError.code === 'USERNAME_TAKEN' || updateError.code === '23505') {
-          setSubmitError('Username was just taken. Please choose another.')
-          setIsAvailable(false)
-        } else {
-          setSubmitError(updateError.message || 'Failed to save username')
-        }
-        setIsSubmitting(false)
-        return
-      }
-
-      // Success - navigate to notifications
+      // For now, just navigate to notifications
       navigate('/notifications')
     } catch (err) {
       console.error('Username submit error:', err)

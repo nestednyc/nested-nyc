@@ -23,28 +23,11 @@ This app enforces **university-only authentication** using .edu email addresses.
    cp .env.example .env
    ```
 3. **Add your Supabase credentials** to `.env`
-4. **Set up backend enforcement** (required for production):
-   - See **[BACKEND_ENFORCEMENT_SETUP.md](./BACKEND_ENFORCEMENT_SETUP.md)** for complete instructions
-   - This ensures non-.edu emails cannot be used even if frontend validation is bypassed
-
-### Documentation
-
-- **[SUPABASE_SETUP.md](./SUPABASE_SETUP.md)** - Initial Supabase setup guide
-- **[BACKEND_ENFORCEMENT_SETUP.md](./BACKEND_ENFORCEMENT_SETUP.md)** - Backend email validation enforcement
-- **[AUTH_IMPLEMENTATION.md](./AUTH_IMPLEMENTATION.md)** - Authentication implementation details
 
 ## Build
 
 ```bash
 npm run build
-```
-
-## Testing Backend Validation
-
-Test that backend enforcement is working:
-
-```bash
-./scripts/test-backend-validation.sh
 ```
 
 ## Tech Stack

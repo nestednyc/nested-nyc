@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useOnboarding } from '../context/OnboardingContext'
 import { authService } from '../lib/supabase'
-import { profileService } from '../lib/profileService'
 
 /**
  * NotificationsScreen - "Enable notifications" Permission Screen
@@ -38,16 +37,16 @@ function NotificationsScreen() {
 
   const handleComplete = async () => {
     setIsCompleting(true)
-    
+
     try {
-      // Mark onboarding as complete in DB (if user exists)
-      if (user) {
-        await profileService.completeOnboarding(user.id)
-      }
-      
+      // TODO: Mark onboarding as complete in DB when database is connected
+      // if (user) {
+      //   await profileService.completeOnboarding(user.id)
+      // }
+
       // Mark onboarding as complete in React state + localStorage
       await setHasOnboarded(true)
-      
+
       // Navigate to main app
       navigate('/discover', { replace: true })
     } catch (err) {

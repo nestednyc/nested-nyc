@@ -1,6 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import { supabase, isSupabaseConfigured } from '../lib/supabase'
-import { profileService } from '../lib/profileService'
 
 /**
  * OnboardingContext
@@ -91,35 +90,32 @@ export function OnboardingProvider({ children }) {
   }, [])
 
   // Fetch profile from DB and sync onboarding state
+  // TODO: Re-enable when database is connected
   const fetchProfile = async (userId) => {
     try {
-      const { data: profileData } = await profileService.getProfile(userId)
-      
-      if (profileData) {
-        setProfile(profileData)
-        
-        // Sync onboarding state with DB
-        if (profileData.onboarding_completed) {
-          setHasOnboardedState(true)
-          try {
-            localStorage.setItem(STORAGE_KEY, 'true')
-          } catch (e) {
-            console.warn('Failed to persist to localStorage:', e)
-          }
-        }
-        
-        // Populate in-memory data from profile
-        setOnboardingDataState({
-          firstName: profileData.first_name || '',
-          lastName: profileData.last_name || '',
-          school: profileData.university || '',
-          major: profileData.major || '',
-          lookingFor: profileData.looking_for || [],
-          rolePreference: profileData.role_preference || '',
-          skills: profileData.skills || []
-        })
-      }
-      
+      // const { data: profileData } = await profileService.getProfile(userId)
+      // if (profileData) {
+      //   setProfile(profileData)
+      //   if (profileData.onboarding_completed) {
+      //     setHasOnboardedState(true)
+      //     try {
+      //       localStorage.setItem(STORAGE_KEY, 'true')
+      //     } catch (e) {
+      //       console.warn('Failed to persist to localStorage:', e)
+      //     }
+      //   }
+      //   setOnboardingDataState({
+      //     firstName: profileData.first_name || '',
+      //     lastName: profileData.last_name || '',
+      //     school: profileData.university || '',
+      //     major: profileData.major || '',
+      //     lookingFor: profileData.looking_for || [],
+      //     rolePreference: profileData.role_preference || '',
+      //     skills: profileData.skills || []
+      //   })
+      // }
+
+      // For now, just mark as initialized (using localStorage only)
       setIsInitialized(true)
     } catch (err) {
       console.error('Failed to fetch profile:', err)
@@ -143,18 +139,17 @@ export function OnboardingProvider({ children }) {
       console.warn('Failed to persist onboarding state:', e)
     }
     
-    // Update DB if we have a user
-    if (currentUserId && isSupabaseConfigured()) {
-      try {
-        await profileService.updateProfile(currentUserId, {
-          onboarding_completed: boolValue
-        })
-        // Refresh profile
-        await fetchProfile(currentUserId)
-      } catch (err) {
-        console.error('Failed to update onboarding in DB:', err)
-      }
-    }
+    // TODO: Update DB if we have a user when database is connected
+    // if (currentUserId && isSupabaseConfigured()) {
+    //   try {
+    //     await profileService.updateProfile(currentUserId, {
+    //       onboarding_completed: boolValue
+    //     })
+    //     await fetchProfile(currentUserId)
+    //   } catch (err) {
+    //     console.error('Failed to update onboarding in DB:', err)
+    //   }
+    // }
   }, [currentUserId])
 
   // Update onboarding data (in-memory + optionally sync to DB)
@@ -164,28 +159,26 @@ export function OnboardingProvider({ children }) {
       ...data
     }))
     
-    // Optionally sync to DB
-    if (syncToDb && currentUserId && isSupabaseConfigured()) {
-      try {
-        // Map onboarding field names to profile column names
-        const profileUpdates = {}
-        if (data.firstName !== undefined) profileUpdates.first_name = data.firstName
-        if (data.lastName !== undefined) profileUpdates.last_name = data.lastName
-        if (data.school !== undefined) profileUpdates.university = data.school
-        if (data.major !== undefined) profileUpdates.major = data.major
-        if (data.lookingFor !== undefined) profileUpdates.looking_for = data.lookingFor
-        if (data.rolePreference !== undefined) profileUpdates.role_preference = data.rolePreference
-        if (data.skills !== undefined) profileUpdates.skills = data.skills
-        
-        if (Object.keys(profileUpdates).length > 0) {
-          await profileService.upsertProfile(currentUserId, profileUpdates)
-          // Refresh profile
-          await fetchProfile(currentUserId)
-        }
-      } catch (err) {
-        console.error('Failed to sync onboarding data to DB:', err)
-      }
-    }
+    // TODO: Optionally sync to DB when database is connected
+    // if (syncToDb && currentUserId && isSupabaseConfigured()) {
+    //   try {
+    //     const profileUpdates = {}
+    //     if (data.firstName !== undefined) profileUpdates.first_name = data.firstName
+    //     if (data.lastName !== undefined) profileUpdates.last_name = data.lastName
+    //     if (data.school !== undefined) profileUpdates.university = data.school
+    //     if (data.major !== undefined) profileUpdates.major = data.major
+    //     if (data.lookingFor !== undefined) profileUpdates.looking_for = data.lookingFor
+    //     if (data.rolePreference !== undefined) profileUpdates.role_preference = data.rolePreference
+    //     if (data.skills !== undefined) profileUpdates.skills = data.skills
+    //
+    //     if (Object.keys(profileUpdates).length > 0) {
+    //       await profileService.upsertProfile(currentUserId, profileUpdates)
+    //       await fetchProfile(currentUserId)
+    //     }
+    //   } catch (err) {
+    //     console.error('Failed to sync onboarding data to DB:', err)
+    //   }
+    // }
   }, [currentUserId])
 
   // Reset function for testing/debugging
@@ -207,16 +200,16 @@ export function OnboardingProvider({ children }) {
       console.warn('Failed to clear localStorage:', e)
     }
     
-    // Reset in DB if we have a user
-    if (currentUserId && isSupabaseConfigured()) {
-      try {
-        await profileService.updateProfile(currentUserId, {
-          onboarding_completed: false
-        })
-      } catch (err) {
-        console.error('Failed to reset onboarding in DB:', err)
-      }
-    }
+    // TODO: Reset in DB if we have a user when database is connected
+    // if (currentUserId && isSupabaseConfigured()) {
+    //   try {
+    //     await profileService.updateProfile(currentUserId, {
+    //       onboarding_completed: false
+    //     })
+    //   } catch (err) {
+    //     console.error('Failed to reset onboarding in DB:', err)
+    //   }
+    // }
   }, [currentUserId])
 
   // Refresh profile from DB
