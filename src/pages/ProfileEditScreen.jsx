@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { isLoggedIn, isProfileComplete, markProfileComplete, getCurrentUser } from '../utils/auth'
 
 /**
  * ProfileEditScreen - Compact form-only edit experience
@@ -42,17 +41,9 @@ function ProfileEditScreen() {
   const [isFirstTimeSetup, setIsFirstTimeSetup] = useState(false)
 
   useEffect(() => {
-    setIsFirstTimeSetup(!isProfileComplete())
-    
-    // Pre-fill name from user data if available
-    const user = getCurrentUser()
-    if (user && !loadProfile().firstName) {
-      const profile = loadProfile()
-      profile.firstName = user.firstName || ''
-      profile.lastName = user.lastName || ''
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(profile))
-      setProfile(profile)
-    }
+    // Check if profile is already set up (localStorage)
+    const saved = localStorage.getItem(STORAGE_KEY)
+    setIsFirstTimeSetup(!saved)
   }, [])
 
   const loadProfile = () => {
@@ -60,17 +51,15 @@ function ProfileEditScreen() {
       const saved = localStorage.getItem(STORAGE_KEY)
       if (saved) return JSON.parse(saved)
     } catch (e) {}
-    
-    // Get user data to pre-fill name
-    const user = getCurrentUser()
+
     return {
-      firstName: user?.firstName || '', 
-      lastName: user?.lastName || '', 
-      university: '', 
-      fields: [], 
+      firstName: '',
+      lastName: '',
+      university: '',
+      fields: [],
       bio: '',
-      lookingFor: [], 
-      skills: [], 
+      lookingFor: [],
+      skills: [],
       projects: [],
       links: { github: '', portfolio: '', linkedin: '', discord: '' }
     }
@@ -133,10 +122,8 @@ function ProfileEditScreen() {
 
     setSaving(true)
     localStorage.setItem(STORAGE_KEY, JSON.stringify(profile))
-    
-    // Mark profile as complete
-    markProfileComplete()
-    
+
+    // Profile marked as complete via localStorage
     setTimeout(() => navigate(`/profile/${USER_ID}`), 400)
   }
 

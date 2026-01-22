@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import ContextSidebar from './ContextSidebar'
-import { logoutUser } from '../utils/auth'
+import { authService } from '../lib/supabase'
 
 /**
  * WebLayout - Desktop layout wrapper with header navigation and contextual sidebar
@@ -108,8 +108,8 @@ function ProfileDropdown({ navigate }) {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  const handleLogout = () => {
-    logoutUser()
+  const handleLogout = async () => {
+    await authService.signOut()
     setIsOpen(false)
     navigate('/auth')
   }
