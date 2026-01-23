@@ -47,6 +47,7 @@ function ProfileDetailScreen() {
   const [project, setProject] = useState(null)
   const [loading, setLoading] = useState(true)
   const [pendingRequests, setPendingRequests] = useState(MOCK_PENDING_REQUESTS)
+  const [showJoinModal, setShowJoinModal] = useState(false)
 
   // Handle accept/decline actions (UI only)
   const handleAcceptRequest = (requestId) => {
@@ -170,6 +171,7 @@ function ProfileDetailScreen() {
     const commitment = getCommitmentLevel()
 
     return (
+      <>
       <div className="project-detail-desktop">
         {/* Back Button - Desktop */}
         <div className="project-detail-back">
@@ -724,9 +726,9 @@ function ProfileDetailScreen() {
                 /* Non-Owner Actions */
                 <>
                   {/* Primary CTA Button */}
-                  <button 
+                  <button
                     className={`join-btn-desktop ${isRequested ? 'requested' : ''}`}
-                    onClick={() => !isRequested && setIsRequested(true)}
+                    onClick={() => !isRequested && setShowJoinModal(true)}
                     disabled={isRequested}
                     style={{
                       width: '100%',
@@ -885,6 +887,19 @@ function ProfileDetailScreen() {
           </div>
         </div>
       </div>
+
+      {/* Join Request Modal - Desktop */}
+      {showJoinModal && (
+        <JoinRequestModal
+          project={project}
+          onClose={() => setShowJoinModal(false)}
+          onSubmit={(formData) => {
+            setIsRequested(true)
+            setShowJoinModal(false)
+          }}
+        />
+      )}
+      </>
     )
   }
 
@@ -1425,8 +1440,8 @@ function ProfileDetailScreen() {
             
             {/* Request to Join Button */}
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <button 
-                onClick={() => !isRequested && setIsRequested(true)}
+              <button
+                onClick={() => !isRequested && setShowJoinModal(true)}
                 disabled={isRequested}
                 style={{
                   width: '100%',
@@ -1493,6 +1508,295 @@ function ProfileDetailScreen() {
           }}
         />
       </div>
+
+      {/* Join Request Modal - Mobile */}
+      {showJoinModal && (
+        <JoinRequestModal
+          project={project}
+          onClose={() => setShowJoinModal(false)}
+          onSubmit={(formData) => {
+            setIsRequested(true)
+            setShowJoinModal(false)
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+/**
+ * JoinRequestModal - Fresh, Gen Z-focused modal for joining projects
+ * Clean, spacious design with project name as hero element
+ */
+function JoinRequestModal({ project, onClose, onSubmit }) {
+  const [selectedRole, setSelectedRole] = useState('')
+  const [aboutYourself, setAboutYourself] = useState('')
+  const [isRoleFocused, setIsRoleFocused] = useState(false)
+  const [isTextareaFocused, setIsTextareaFocused] = useState(false)
+
+  const isValid = selectedRole && aboutYourself.length >= 20 && aboutYourself.length <= 300
+  const charCount = aboutYourself.length
+
+  const handleSubmit = () => {
+    if (isValid) {
+      onSubmit({
+        role: selectedRole,
+        aboutYourself,
+      })
+    }
+  }
+
+  const handleBackdropClick = (e) => {
+    if (e.target === e.currentTarget) {
+      onClose()
+    }
+  }
+
+  return (
+    <div
+      onClick={handleBackdropClick}
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: 'rgba(0, 0, 0, 0.6)',
+        backdropFilter: 'blur(12px)',
+        WebkitBackdropFilter: 'blur(12px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 100,
+        padding: '24px',
+        animation: 'modalFadeIn 0.2s ease-out',
+      }}
+    >
+      <div
+        style={{
+          backgroundColor: '#FFFFFF',
+          borderRadius: '28px',
+          width: '100%',
+          maxWidth: '420px',
+          maxHeight: '85vh',
+          overflow: 'hidden',
+          position: 'relative',
+          boxShadow: '0 24px 48px -12px rgba(0, 0, 0, 0.25)',
+          animation: 'modalSlideUp 0.3s ease-out',
+        }}
+      >
+        {/* Close Button - Minimal ghost style */}
+        <button
+          onClick={onClose}
+          style={{
+            position: 'absolute',
+            top: '24px',
+            right: '24px',
+            width: '32px',
+            height: '32px',
+            borderRadius: '50%',
+            border: 'none',
+            backgroundColor: 'transparent',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            transition: 'background-color 0.15s ease',
+            zIndex: 10,
+          }}
+          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#F3F4F6'}
+          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="2.5" strokeLinecap="round">
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
+        </button>
+
+        {/* Content with generous padding */}
+        <div style={{ padding: '40px 36px 36px', overflowY: 'auto', maxHeight: '85vh' }}>
+
+          {/* Hero Header - Project name is the star */}
+          <div style={{ marginBottom: '32px', paddingRight: '32px' }}>
+            <h2 style={{
+              margin: 0,
+              fontSize: '28px',
+              fontWeight: 700,
+              color: '#18181B',
+              letterSpacing: '-0.025em',
+              lineHeight: 1.15,
+            }}>
+              Join {project?.title}
+            </h2>
+            <p style={{
+              margin: '10px 0 0 0',
+              fontSize: '15px',
+              color: '#71717A',
+              fontWeight: 400,
+            }}>
+              Pitch yourself to the team
+            </p>
+          </div>
+
+          {/* Role Selection - Chunky dropdown */}
+          <div style={{ marginBottom: '24px' }}>
+            <label style={{
+              display: 'block',
+              marginBottom: '10px',
+              fontSize: '14px',
+              fontWeight: 500,
+              color: '#71717A',
+            }}>
+              Select a role
+            </label>
+            <div style={{ position: 'relative' }}>
+              <select
+                value={selectedRole}
+                onChange={(e) => setSelectedRole(e.target.value)}
+                onFocus={() => setIsRoleFocused(true)}
+                onBlur={() => setIsRoleFocused(false)}
+                style={{
+                  width: '100%',
+                  height: '56px',
+                  padding: '0 52px 0 20px',
+                  fontSize: '16px',
+                  fontWeight: 500,
+                  border: 'none',
+                  borderRadius: '16px',
+                  backgroundColor: '#F4F4F5',
+                  color: selectedRole ? '#18181B' : '#A1A1AA',
+                  cursor: 'pointer',
+                  appearance: 'none',
+                  transition: 'all 0.2s ease',
+                  boxShadow: isRoleFocused
+                    ? '0 0 0 3px rgba(91, 74, 230, 0.2), inset 0 0 0 1px #5B4AE6'
+                    : 'inset 0 0 0 1px transparent',
+                  outline: 'none',
+                }}
+              >
+                <option value="" disabled>Choose your role...</option>
+                {(project?.roles || ['Frontend Developer', 'Backend Developer', 'UI/UX Designer', 'Product Manager', 'Marketing']).map((role, i) => (
+                  <option key={i} value={role}>{role}</option>
+                ))}
+              </select>
+              {/* Dropdown chevron */}
+              <div
+                style={{
+                  position: 'absolute',
+                  right: '20px',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  pointerEvents: 'none',
+                }}
+              >
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <path
+                    d="M4 6L8 10L12 6"
+                    stroke={isRoleFocused ? '#5B4AE6' : '#A1A1AA'}
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </div>
+            </div>
+          </div>
+
+          {/* Pitch Textarea - Inviting and spacious */}
+          <div style={{ marginBottom: '32px' }}>
+            <label style={{
+              display: 'block',
+              marginBottom: '10px',
+              fontSize: '14px',
+              fontWeight: 500,
+              color: '#71717A',
+            }}>
+              Your pitch
+            </label>
+            <div style={{ position: 'relative' }}>
+              <textarea
+                value={aboutYourself}
+                onChange={(e) => setAboutYourself(e.target.value)}
+                onFocus={() => setIsTextareaFocused(true)}
+                onBlur={() => setIsTextareaFocused(false)}
+                placeholder="What excites you about this project? What would you bring to the team?"
+                maxLength={300}
+                style={{
+                  width: '100%',
+                  height: '140px',
+                  padding: '18px 20px',
+                  fontSize: '15px',
+                  lineHeight: 1.6,
+                  border: 'none',
+                  borderRadius: '16px',
+                  backgroundColor: '#F4F4F5',
+                  color: '#18181B',
+                  resize: 'none',
+                  fontFamily: 'inherit',
+                  transition: 'all 0.2s ease',
+                  boxShadow: isTextareaFocused
+                    ? '0 0 0 3px rgba(91, 74, 230, 0.2), inset 0 0 0 1px #5B4AE6'
+                    : 'inset 0 0 0 1px transparent',
+                  outline: 'none',
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Submit Button - Full width pill with structure in disabled state */}
+          <button
+            onClick={handleSubmit}
+            disabled={!isValid}
+            style={{
+              width: '100%',
+              height: '56px',
+              backgroundColor: isValid ? '#5B4AE6' : 'rgba(91, 74, 230, 0.12)',
+              color: isValid ? '#FFFFFF' : 'rgba(91, 74, 230, 0.4)',
+              fontSize: '16px',
+              fontWeight: 600,
+              borderRadius: '9999px',
+              border: 'none',
+              cursor: isValid ? 'pointer' : 'not-allowed',
+              transition: 'all 0.2s ease',
+              boxShadow: isValid ? '0 4px 14px rgba(91, 74, 230, 0.4)' : 'none',
+            }}
+            onMouseEnter={(e) => {
+              if (isValid) {
+                e.currentTarget.style.backgroundColor = '#4F3ED9'
+                e.currentTarget.style.boxShadow = '0 6px 20px rgba(91, 74, 230, 0.5)'
+                e.currentTarget.style.transform = 'translateY(-1px)'
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (isValid) {
+                e.currentTarget.style.backgroundColor = '#5B4AE6'
+                e.currentTarget.style.boxShadow = '0 4px 14px rgba(91, 74, 230, 0.4)'
+                e.currentTarget.style.transform = 'translateY(0)'
+              }
+            }}
+          >
+            Send Request
+          </button>
+        </div>
+      </div>
+
+      {/* CSS Keyframes */}
+      <style>{`
+        @keyframes modalFadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        @keyframes modalSlideUp {
+          from {
+            opacity: 0;
+            transform: translateY(16px) scale(0.98);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+          }
+        }
+      `}</style>
     </div>
   )
 }
