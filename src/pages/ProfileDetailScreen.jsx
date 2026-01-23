@@ -368,9 +368,22 @@ function ProfileDetailScreen() {
                 </div>
                 <div className="team-grid-desktop">
                   {project.team.map((member, index) => (
-                    <div key={index} className="team-card-desktop">
+                    <div
+                      key={index}
+                      className="team-card-desktop"
+                      onClick={() => navigate(`/profile/${member.id || `req-${index + 1}`}`)}
+                      style={{ cursor: 'pointer', transition: 'transform 0.15s ease, box-shadow 0.15s ease' }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.transform = 'translateY(-2px)'
+                        e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.08)'
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.transform = 'translateY(0)'
+                        e.currentTarget.style.boxShadow = 'none'
+                      }}
+                    >
                       {/* Use icon instead of image for builder-focused design */}
-                      <div 
+                      <div
                         style={{
                           width: '56px',
                           height: '56px',
@@ -1128,19 +1141,22 @@ function ProfileDetailScreen() {
             {/* Team Member Cards */}
             <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
               {project.team?.map((member, index) => (
-                <div 
+                <div
                   key={index}
+                  onClick={() => navigate(`/profile/${member.id || `req-${index + 1}`}`)}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
                     padding: '12px',
                     backgroundColor: '#FAFAFA',
                     borderRadius: '14px',
-                    gap: '12px'
+                    gap: '12px',
+                    cursor: 'pointer',
+                    transition: 'background-color 0.15s ease'
                   }}
                 >
                   {/* Member Photo */}
-                  <div 
+                  <div
                     style={{
                       width: '48px',
                       height: '48px',
@@ -1149,13 +1165,13 @@ function ProfileDetailScreen() {
                       flexShrink: 0
                     }}
                   >
-                    <img 
+                    <img
                       src={member.image}
                       alt={member.name}
                       style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                     />
                   </div>
-                  
+
                   {/* Member Info */}
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <p style={{ margin: 0, fontSize: '14px', fontWeight: 600, color: '#231429' }}>
@@ -1165,9 +1181,9 @@ function ProfileDetailScreen() {
                       {member.school}
                     </p>
                   </div>
-                  
+
                   {/* Role Badge */}
-                  <span 
+                  <span
                     style={{
                       backgroundColor: 'rgba(109, 93, 246, 0.1)',
                       color: '#5B4AE6',
