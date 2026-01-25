@@ -6,38 +6,10 @@ import { projectService } from '../services/projectService'
 /**
  * ProfileDetailScreen - Project Detail View
  * Nested NYC – Student-only project network
- * 
+ *
  * Desktop: Two-column layout (content left, CTA right)
  * Mobile: Single column with sticky bottom CTA
  */
-
-// Mock pending join requests (for demo/MVP)
-const MOCK_PENDING_REQUESTS = [
-  {
-    id: 'req-1',
-    name: 'Jordan Lee',
-    school: 'NYU Tandon',
-    role: 'Frontend Developer',
-    avatar: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=100&h=100&fit=crop',
-    requestedAt: '2 days ago'
-  },
-  {
-    id: 'req-2',
-    name: 'Samantha Wright',
-    school: 'Columbia Engineering',
-    role: 'UI/UX Designer',
-    avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop',
-    requestedAt: '3 days ago'
-  },
-  {
-    id: 'req-3',
-    name: 'Alex Chen',
-    school: 'Parsons',
-    role: 'Product Manager',
-    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop',
-    requestedAt: '1 week ago'
-  }
-]
 
 function ProfileDetailScreen() {
   const navigate = useNavigate()
@@ -47,23 +19,37 @@ function ProfileDetailScreen() {
   const [isRequested, setIsRequested] = useState(false)
   const [project, setProject] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [pendingRequests, setPendingRequests] = useState(MOCK_PENDING_REQUESTS)
+  const [pendingRequests, setPendingRequests] = useState([])
   const [showJoinModal, setShowJoinModal] = useState(false)
+  const [membershipStatus, setMembershipStatus] = useState(null)
   const [joinLoading, setJoinLoading] = useState(false)
   const [hasJoined, setHasJoined] = useState(false)
   const [leaveLoading, setLeaveLoading] = useState(false)
 
-  // Handle accept/decline actions (UI only)
-  const handleAcceptRequest = (requestId) => {
+  // Handle accept request - approve the join request
+  const handleAcceptRequest = async (requestId) => {
+    const { error } = await projectService.approveRequest(requestId)
+    if (error) {
+      console.error('Failed to approve request:', error)
+      alert('Failed to approve request. Please try again.')
+      return
+    }
+    // Remove from pending list and refresh project data to show new team member
     setPendingRequests(prev => prev.filter(r => r.id !== requestId))
-    // In production, this would call an API
-    console.log('Accepted request:', requestId)
+    // Refresh project to get updated team list
+    const foundProject = await getProjectByIdAsync(projectId)
+    setProject(foundProject)
   }
 
-  const handleDeclineRequest = (requestId) => {
+  // Handle decline request - reject/delete the join request
+  const handleDeclineRequest = async (requestId) => {
+    const { error } = await projectService.rejectRequest(requestId)
+    if (error) {
+      console.error('Failed to decline request:', error)
+      alert('Failed to decline request. Please try again.')
+      return
+    }
     setPendingRequests(prev => prev.filter(r => r.id !== requestId))
-    // In production, this would call an API
-    console.log('Declined request:', requestId)
   }
 
   // Responsive check
@@ -84,15 +70,54 @@ function ProfileDetailScreen() {
 
         // Check if user has already joined (only for Supabase projects)
         if (foundProject?.isSupabaseProject) {
-          const joined = await projectService.hasJoinedProject(projectId)
-          setHasJoined(joined)
-          if (joined) setIsRequested(true)
+          const { joined, status } = await projectService.hasJoinedProject(projectId)
+          setMembershipStatus(status)
+          if (status === 'approved') {
+            setHasJoined(true)
+            setIsRequested(true)
+          } else if (status === 'pending') {
+            setHasJoined(false)
+            setIsRequested(true)
+          } else {
+            setHasJoined(false)
+            setIsRequested(false)
+          }
+
+          // Load pending requests if user is the owner
+          if (foundProject?.isOwner) {
+            const { data: requests } = await projectService.getPendingRequests(projectId)
+            // Format requests to match expected UI structure
+            const formattedRequests = (requests || []).map(req => ({
+              id: req.id,
+              name: req.name || 'Team Member',
+              school: req.school || '',
+              role: req.role || 'Team Member',
+              avatar: req.image || `https://ui-avatars.com/api/?name=${encodeURIComponent(req.name || 'TM')}&background=5B4AE6&color=fff`,
+              requestedAt: formatTimeAgo(req.created_at)
+            }))
+            setPendingRequests(formattedRequests)
+          }
         }
         setLoading(false)
       }
     }
     loadProject()
   }, [projectId])
+
+  // Helper function to format timestamps as relative time
+  function formatTimeAgo(dateString) {
+    if (!dateString) return 'Recently'
+    const date = new Date(dateString)
+    const now = new Date()
+    const diffMs = now - date
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+
+    if (diffDays === 0) return 'Today'
+    if (diffDays === 1) return '1 day ago'
+    if (diffDays < 7) return `${diffDays} days ago`
+    if (diffDays < 14) return '1 week ago'
+    return `${Math.floor(diffDays / 7)} weeks ago`
+  }
 
   // Handle join request submission (calls Supabase for real projects)
   const handleJoinSubmit = async (formData) => {
@@ -108,15 +133,17 @@ function ProfileDetailScreen() {
       const { error } = await projectService.joinProject(projectId, formData.role)
       if (error) {
         console.error('Failed to join:', error)
-        alert(error.message || 'Failed to join project. Please try again.')
+        alert(error.message || 'Failed to send request. Please try again.')
       } else {
+        // Request was sent, now in pending state (not joined yet)
         setIsRequested(true)
-        setHasJoined(true)
+        setHasJoined(false) // Not joined until approved
+        setMembershipStatus('pending')
         setShowJoinModal(false)
       }
     } catch (err) {
       console.error('Join error:', err)
-      alert('Failed to join project. Please try again.')
+      alert('Failed to send request. Please try again.')
     } finally {
       setJoinLoading(false)
     }
