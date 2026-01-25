@@ -87,8 +87,8 @@ export const DEFAULT_PROJECTS = [
     spotsLeft: 3,
     ownerId: 'demo-user-1', // Demo: This project is owned by the current user
     team: [
-      { name: 'Marcus Chen', school: 'NYU', role: 'Lead / Backend', image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop' },
-      { name: 'Sofia Rodriguez', school: 'Columbia', role: 'Data Science', image: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=200&fit=crop' },
+      { id: 'mock-marcus', name: 'Marcus Chen', school: 'NYU', role: 'Lead / Backend', image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop' },
+      { id: 'mock-sofia', name: 'Sofia Rodriguez', school: 'Columbia', role: 'Data Science', image: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=200&fit=crop' },
     ]
   },
   {
@@ -103,9 +103,9 @@ export const DEFAULT_PROJECTS = [
     skillsNeeded: ['Python', 'ML/AI', 'React Native', 'UI/UX'],
     spotsLeft: 2,
     team: [
-      { name: 'Priya Sharma', school: 'Columbia', role: 'Lead / ML', image: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=200&fit=crop' },
-      { name: 'David Kim', school: 'Columbia', role: 'Backend', image: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200&h=200&fit=crop' },
-      { name: 'Emma Wilson', school: 'Columbia', role: 'Design', image: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&h=200&fit=crop' },
+      { id: 'mock-priya', name: 'Priya Sharma', school: 'Columbia', role: 'Lead / ML', image: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=200&fit=crop' },
+      { id: 'mock-david', name: 'David Kim', school: 'Columbia', role: 'Backend', image: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200&h=200&fit=crop' },
+      { id: 'mock-emma', name: 'Emma Wilson', school: 'Columbia', role: 'Design', image: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&h=200&fit=crop' },
     ]
   },
   {
@@ -120,8 +120,8 @@ export const DEFAULT_PROJECTS = [
     skillsNeeded: ['React Native', 'Node.js', 'APIs', 'UI/UX'],
     spotsLeft: 4,
     team: [
-      { name: 'Jake Morrison', school: 'NYU', role: 'Lead / Mobile', image: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200&h=200&fit=crop' },
-      { name: 'Lily Chen', school: 'Parsons', role: 'Design', image: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=200&h=200&fit=crop' },
+      { id: 'mock-jake', name: 'Jake Morrison', school: 'NYU', role: 'Lead / Mobile', image: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200&h=200&fit=crop' },
+      { id: 'mock-lily', name: 'Lily Chen', school: 'Parsons', role: 'Design', image: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=200&h=200&fit=crop' },
     ]
   },
   {
@@ -136,21 +136,21 @@ export const DEFAULT_PROJECTS = [
     skillsNeeded: ['React Native', 'Firebase', 'UI/UX', 'Marketing'],
     spotsLeft: 2,
     team: [
-      { name: 'Aisha Patel', school: 'Parsons', role: 'Lead / Design', image: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&h=200&fit=crop' },
-      { name: 'Tom Richards', school: 'The New School', role: 'Frontend', image: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200&h=200&fit=crop' },
-      { name: 'Nina Santos', school: 'Parsons', role: 'Marketing', image: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=200&h=200&fit=crop' },
+      { id: 'mock-aisha', name: 'Aisha Patel', school: 'Parsons', role: 'Lead / Design', image: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&h=200&fit=crop' },
+      { id: 'mock-tom', name: 'Tom Richards', school: 'The New School', role: 'Frontend', image: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200&h=200&fit=crop' },
+      { id: 'mock-nina', name: 'Nina Santos', school: 'Parsons', role: 'Marketing', image: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=200&h=200&fit=crop' },
     ]
   },
 ]
 
 // My Projects default data (saved/joined projects)
 export const MY_PROJECTS_DEFAULT = [
-  { 
-    id: 'my-1', 
-    title: 'ClimateTech Dashboard', 
-    category: 'Sustainability', 
-    school: 'NYU', 
-    image: 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=200&h=280&fit=crop', 
+  {
+    id: 'my-1',
+    title: 'ClimateTech Dashboard',
+    category: 'Sustainability',
+    school: 'NYU',
+    image: 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=200&h=280&fit=crop',
     joined: true,
     schools: ['NYU'],
     description: 'Building an interactive dashboard to visualize NYC climate data.',
@@ -159,15 +159,15 @@ export const MY_PROJECTS_DEFAULT = [
     author: 'Marcus Chen',
     authorImage: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop',
     team: [
-      { name: 'Marcus Chen', school: 'NYU', role: 'Lead', image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop' },
+      { id: 'mock-marcus', name: 'Marcus Chen', school: 'NYU', role: 'Lead', image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop' },
     ]
   },
-  { 
-    id: 'my-2', 
-    title: 'AI Study Buddy', 
-    category: 'EdTech', 
-    school: 'Columbia', 
-    image: 'https://images.unsplash.com/photo-1620712943543-bcc4688e7485?w=200&h=280&fit=crop', 
+  {
+    id: 'my-2',
+    title: 'AI Study Buddy',
+    category: 'EdTech',
+    school: 'Columbia',
+    image: 'https://images.unsplash.com/photo-1620712943543-bcc4688e7485?w=200&h=280&fit=crop',
     joined: true,
     schools: ['Columbia'],
     description: 'An AI-powered study companion for students.',
@@ -176,15 +176,15 @@ export const MY_PROJECTS_DEFAULT = [
     author: 'Priya Sharma',
     authorImage: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop',
     team: [
-      { name: 'Priya Sharma', school: 'Columbia', role: 'Lead', image: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=200&fit=crop' },
+      { id: 'mock-priya', name: 'Priya Sharma', school: 'Columbia', role: 'Lead', image: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=200&fit=crop' },
     ]
   },
-  { 
-    id: 'my-3', 
-    title: 'NYC Transit App', 
-    category: 'Civic Tech', 
-    school: 'NYU', 
-    image: 'https://images.unsplash.com/photo-1517048676732-d65bc937f952?w=200&h=280&fit=crop', 
+  {
+    id: 'my-3',
+    title: 'NYC Transit App',
+    category: 'Civic Tech',
+    school: 'NYU',
+    image: 'https://images.unsplash.com/photo-1517048676732-d65bc937f952?w=200&h=280&fit=crop',
     joined: false,
     schools: ['NYU', 'Parsons'],
     description: 'Real-time NYC subway and bus tracking.',
@@ -193,15 +193,15 @@ export const MY_PROJECTS_DEFAULT = [
     author: 'Jake Morrison',
     authorImage: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100&h=100&fit=crop',
     team: [
-      { name: 'Jake Morrison', school: 'NYU', role: 'Lead', image: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200&h=200&fit=crop' },
+      { id: 'mock-jake', name: 'Jake Morrison', school: 'NYU', role: 'Lead', image: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200&h=200&fit=crop' },
     ]
   },
-  { 
-    id: 'my-4', 
-    title: 'Campus Events', 
-    category: 'Social', 
-    school: 'Parsons', 
-    image: 'https://images.unsplash.com/photo-1558655146-9f40138edfeb?w=200&h=280&fit=crop', 
+  {
+    id: 'my-4',
+    title: 'Campus Events',
+    category: 'Social',
+    school: 'Parsons',
+    image: 'https://images.unsplash.com/photo-1558655146-9f40138edfeb?w=200&h=280&fit=crop',
     joined: true,
     schools: ['Parsons'],
     description: 'Discover events happening across NYC campuses.',
@@ -210,17 +210,17 @@ export const MY_PROJECTS_DEFAULT = [
     author: 'Aisha Patel',
     authorImage: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&h=100&fit=crop',
     team: [
-      { name: 'Aisha Patel', school: 'Parsons', role: 'Lead', image: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&h=200&fit=crop' },
+      { id: 'mock-aisha', name: 'Aisha Patel', school: 'Parsons', role: 'Lead', image: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&h=200&fit=crop' },
     ]
   },
 ]
 
 export const SAVED_PROJECTS = [
-  { 
-    id: 'saved-1', 
-    title: 'Startup Pitch Deck', 
-    category: 'Business', 
-    school: 'Stern', 
+  {
+    id: 'saved-1',
+    title: 'Startup Pitch Deck',
+    category: 'Business',
+    school: 'Stern',
     image: 'https://images.unsplash.com/photo-1552664730-d307ca884978?w=200&h=280&fit=crop',
     schools: ['Stern'],
     description: 'Building the perfect pitch deck for startup fundraising.',
@@ -229,14 +229,14 @@ export const SAVED_PROJECTS = [
     author: 'Alex Johnson',
     authorImage: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop',
     team: [
-      { name: 'Alex Johnson', school: 'Stern', role: 'Lead', image: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200&h=200&fit=crop' },
+      { id: 'mock-alex-j', name: 'Alex Johnson', school: 'Stern', role: 'Lead', image: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200&h=200&fit=crop' },
     ]
   },
-  { 
-    id: 'saved-2', 
-    title: 'Music Collab Platform', 
-    category: 'Creative', 
-    school: 'Tisch', 
+  {
+    id: 'saved-2',
+    title: 'Music Collab Platform',
+    category: 'Creative',
+    school: 'Tisch',
     image: 'https://images.unsplash.com/photo-1511379938547-c1f69419868d?w=200&h=280&fit=crop',
     schools: ['Tisch'],
     description: 'A platform for musicians to collaborate remotely.',
@@ -245,7 +245,7 @@ export const SAVED_PROJECTS = [
     author: 'Maya Thompson',
     authorImage: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=100&h=100&fit=crop',
     team: [
-      { name: 'Maya Thompson', school: 'Tisch', role: 'Lead', image: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=200&h=200&fit=crop' },
+      { id: 'mock-maya', name: 'Maya Thompson', school: 'Tisch', role: 'Lead', image: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=200&h=200&fit=crop' },
     ]
   },
 ]
