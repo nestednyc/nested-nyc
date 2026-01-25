@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import BottomNav from '../components/BottomNav'
-import { getDiscoverProjects } from '../utils/projectData'
-import { getDiscoverNests, DEMO_CURRENT_USER_ID } from '../utils/nestData'
+import { getDiscoverProjects, getDiscoverProjectsAsync, getCurrentUserId } from '../utils/projectData'
+import { getDiscoverNests, getDiscoverNestsAsync, DEMO_CURRENT_USER_ID } from '../utils/nestData'
 import { SHOW_NESTS, SHOW_FILTERS } from '../config/features'
 
 /**
@@ -67,11 +67,44 @@ function DiscoverScreen() {
   const [activeTab, setActiveTab] = useState('projects')
   const [projectsFeed, setProjectsFeed] = useState([])
   const [nestsFeed, setNestsFeed] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [currentUserId, setCurrentUserId] = useState(null)
 
-  // Load projects and nests from centralized store
+  // Load projects and nests from centralized store (with Supabase support)
   useEffect(() => {
-    setProjectsFeed(getDiscoverProjects())
-    setNestsFeed(getDiscoverNests())
+    const loadData = async () => {
+      setLoading(true)
+
+      // Get current user ID
+      const userId = await getCurrentUserId()
+      setCurrentUserId(userId)
+
+      // Load projects from Supabase or localStorage
+      try {
+        const projects = await getDiscoverProjectsAsync()
+        setProjectsFeed(projects)
+      } catch (err) {
+        console.error('Error loading projects:', err)
+        setProjectsFeed(getDiscoverProjects())
+      }
+
+      // Load nests (async if available)
+      try {
+        if (typeof getDiscoverNestsAsync === 'function') {
+          const nests = await getDiscoverNestsAsync()
+          setNestsFeed(nests)
+        } else {
+          setNestsFeed(getDiscoverNests())
+        }
+      } catch (err) {
+        console.error('Error loading nests:', err)
+        setNestsFeed(getDiscoverNests())
+      }
+
+      setLoading(false)
+    }
+
+    loadData()
   }, [])
   
   // Legacy static nests (now using dynamic nestsFeed)

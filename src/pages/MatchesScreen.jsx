@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import BottomNav from '../components/BottomNav'
-import { getMyProjects, getSavedProjects } from '../utils/projectData'
+import { getMyProjects, getMyProjectsAsync, getSavedProjects } from '../utils/projectData'
 
 /**
  * MatchesScreen - My Projects (Saved/Joined)
@@ -24,11 +24,24 @@ function MatchesScreen() {
   const [successMessage, setSuccessMessage] = useState('')
   const [activeProjects, setActiveProjects] = useState([])
   const [savedProjects, setSavedProjects] = useState([])
+  const [loading, setLoading] = useState(true)
 
-  // Load projects from centralized store
+  // Load projects from Supabase (with localStorage fallback)
   useEffect(() => {
-    setActiveProjects(getMyProjects())
-    setSavedProjects(getSavedProjects())
+    const loadProjects = async () => {
+      setLoading(true)
+      try {
+        const projects = await getMyProjectsAsync()
+        setActiveProjects(projects)
+      } catch (err) {
+        console.error('Error loading projects:', err)
+        // Fallback to sync version
+        setActiveProjects(getMyProjects())
+      }
+      setSavedProjects(getSavedProjects())
+      setLoading(false)
+    }
+    loadProjects()
   }, [])
 
   // Show success toast if coming from project creation
@@ -38,8 +51,8 @@ function MatchesScreen() {
       setShowSuccessToast(true)
       // Clear state to prevent showing again on refresh
       window.history.replaceState({}, document.title)
-      // Refresh projects list
-      setActiveProjects(getMyProjects())
+      // Refresh projects list from Supabase
+      getMyProjectsAsync().then(projects => setActiveProjects(projects))
       // Hide toast after 3 seconds
       const timer = setTimeout(() => setShowSuccessToast(false), 3000)
       return () => clearTimeout(timer)

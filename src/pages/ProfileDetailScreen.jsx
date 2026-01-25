@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { getProjectById, DEMO_CURRENT_USER_ID } from '../utils/projectData'
+import { projectService } from '../services/projectService'
 
 /**
  * ProfileDetailScreen - Project Detail View
@@ -44,6 +45,8 @@ function ProfileDetailScreen() {
   const [isDesktop, setIsDesktop] = useState(false)
   const [isSaved, setIsSaved] = useState(false)
   const [isRequested, setIsRequested] = useState(false)
+  const [joinLoading, setJoinLoading] = useState(false)
+  const [hasJoined, setHasJoined] = useState(false)
   const [project, setProject] = useState(null)
   const [loading, setLoading] = useState(true)
   const [pendingRequests, setPendingRequests] = useState(MOCK_PENDING_REQUESTS)
@@ -71,12 +74,45 @@ function ProfileDetailScreen() {
   
   // Load project by ID
   useEffect(() => {
-    if (projectId) {
-      const foundProject = getProjectById(projectId)
-      setProject(foundProject)
+    async function loadProject() {
+      if (projectId) {
+        setLoading(true)
+        const foundProject = getProjectById(projectId)
+        setProject(foundProject)
+
+        // Check if user has already joined this project
+        const joined = await projectService.hasJoinedProject(projectId)
+        setHasJoined(joined)
+        if (joined) {
+          setIsRequested(true)
+        }
+        setLoading(false)
+      }
     }
-    setLoading(false)
+    loadProject()
   }, [projectId])
+
+  // Handle join request
+  const handleJoinRequest = async () => {
+    if (joinLoading || hasJoined) return
+
+    setJoinLoading(true)
+    try {
+      const { data, error } = await projectService.joinProject(projectId)
+      if (error) {
+        console.error('Failed to join:', error)
+        alert(error.message || 'Failed to join project. Please try again.')
+      } else {
+        setIsRequested(true)
+        setHasJoined(true)
+      }
+    } catch (err) {
+      console.error('Join error:', err)
+      alert('Failed to join project. Please try again.')
+    } finally {
+      setJoinLoading(false)
+    }
+  }
 
   // Loading state
   if (loading) {
@@ -724,19 +760,28 @@ function ProfileDetailScreen() {
                 /* Non-Owner Actions */
                 <>
                   {/* Primary CTA Button */}
-                  <button 
+                  <button
                     className={`join-btn-desktop ${isRequested ? 'requested' : ''}`}
-                    onClick={() => !isRequested && setIsRequested(true)}
-                    disabled={isRequested}
+                    onClick={handleJoinRequest}
+                    disabled={isRequested || joinLoading}
                     style={{
                       width: '100%',
                       marginBottom: isRequested ? '8px' : '12px',
-                      opacity: isRequested ? 0.7 : 1,
-                      cursor: isRequested ? 'default' : 'pointer',
-                      backgroundColor: isRequested ? '#9CA3AF' : undefined
+                      opacity: isRequested || joinLoading ? 0.7 : 1,
+                      cursor: isRequested || joinLoading ? 'default' : 'pointer',
+                      backgroundColor: isRequested ? '#9CA3AF' : joinLoading ? '#7C6FE6' : undefined
                     }}
                   >
-                    {isRequested ? (
+                    {joinLoading ? (
+                      'Joining...'
+                    ) : hasJoined ? (
+                      <>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                          <polyline points="20 6 9 17 4 12"/>
+                        </svg>
+                        Joined!
+                      </>
+                    ) : isRequested ? (
                       <>
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                           <polyline points="20 6 9 17 4 12"/>
@@ -756,17 +801,17 @@ function ProfileDetailScreen() {
                     )}
                   </button>
                   
-                  {/* Helper text after request sent */}
-                  {isRequested && (
+                  {/* Helper text after joining */}
+                  {(isRequested || hasJoined) && (
                     <p style={{
                       margin: 0,
                       marginBottom: '12px',
                       fontSize: '12px',
-                      color: '#6B7280',
+                      color: hasJoined ? '#10B981' : '#6B7280',
                       textAlign: 'center',
                       lineHeight: 1.4
                     }}>
-                      The project owner will review your request.
+                      {hasJoined ? "You're now part of the team!" : 'The project owner will review your request.'}
                     </p>
                   )}
 
@@ -1425,27 +1470,36 @@ function ProfileDetailScreen() {
             
             {/* Request to Join Button */}
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <button 
-                onClick={() => !isRequested && setIsRequested(true)}
-                disabled={isRequested}
+              <button
+                onClick={handleJoinRequest}
+                disabled={isRequested || joinLoading}
                 style={{
                   width: '100%',
                   height: '52px',
-                  backgroundColor: isRequested ? '#9CA3AF' : '#5B4AE6',
+                  backgroundColor: hasJoined ? '#10B981' : isRequested ? '#9CA3AF' : joinLoading ? '#7C6FE6' : '#5B4AE6',
                   color: 'white',
                   fontSize: '16px',
                   fontWeight: 600,
                   borderRadius: '14px',
                   border: 'none',
-                  cursor: isRequested ? 'default' : 'pointer',
-                  opacity: isRequested ? 0.85 : 1,
+                  cursor: isRequested || joinLoading ? 'default' : 'pointer',
+                  opacity: isRequested || joinLoading ? 0.85 : 1,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   gap: '8px'
                 }}
               >
-                {isRequested ? (
+                {joinLoading ? (
+                  'Joining...'
+                ) : hasJoined ? (
+                  <>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
+                      <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                    Joined!
+                  </>
+                ) : isRequested ? (
                   <>
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
                       <polyline points="20 6 9 17 4 12"/>
@@ -1464,14 +1518,14 @@ function ProfileDetailScreen() {
                   </>
                 )}
               </button>
-              {isRequested && (
+              {(isRequested || hasJoined) && (
                 <p style={{
                   margin: 0,
                   fontSize: '11px',
-                  color: '#6B7280',
+                  color: hasJoined ? '#10B981' : '#6B7280',
                   textAlign: 'center'
                 }}>
-                  The project owner will review your request.
+                  {hasJoined ? "You're now part of the team!" : 'The project owner will review your request.'}
                 </p>
               )}
             </div>

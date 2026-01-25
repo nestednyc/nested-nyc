@@ -1,7 +1,11 @@
 import { useState, useRef, useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import ContextSidebar from './ContextSidebar'
-import { authService } from '../lib/supabase'
+import { authService, supabase, isSupabaseConfigured } from '../lib/supabase'
+import { profileService } from '../services/profileService'
+
+// Default avatar for users without a profile picture
+const DEFAULT_AVATAR = 'https://ui-avatars.com/api/?background=5B4AE6&color=fff&name=N&size=100'
 
 /**
  * WebLayout - Desktop layout wrapper with header navigation and contextual sidebar
@@ -95,7 +99,44 @@ function WebLayout({ children, layoutType = 'app' }) {
  */
 function ProfileDropdown({ navigate }) {
   const [isOpen, setIsOpen] = useState(false)
+  const [avatarUrl, setAvatarUrl] = useState(DEFAULT_AVATAR)
   const dropdownRef = useRef(null)
+
+  // Fetch user's avatar on mount
+  useEffect(() => {
+    const fetchAvatar = async () => {
+      // Helper to get avatar from localStorage
+      const getLocalStorageAvatar = () => {
+        try {
+          const saved = localStorage.getItem('nested_user_profile')
+          if (saved) {
+            const profile = JSON.parse(saved)
+            return profile.avatar || null
+          }
+        } catch (e) {}
+        return null
+      }
+
+      // Try localStorage first for immediate display
+      const localAvatar = getLocalStorageAvatar()
+      if (localAvatar) {
+        setAvatarUrl(localAvatar)
+      }
+
+      // Then try Supabase for the most up-to-date avatar
+      if (isSupabaseConfigured()) {
+        try {
+          const { data, error } = await profileService.getCurrentProfile()
+          if (!error && data?.avatar) {
+            setAvatarUrl(data.avatar)
+          }
+        } catch (err) {
+          // Silently fail, we already have localStorage fallback
+        }
+      }
+    }
+    fetchAvatar()
+  }, [])
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -127,8 +168,8 @@ function ProfileDropdown({ navigate }) {
         onClick={() => setIsOpen(!isOpen)}
         style={{ cursor: 'pointer' }}
       >
-        <img 
-          src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop"
+        <img
+          src={avatarUrl}
           alt="Profile"
           className="web-profile-img"
         />

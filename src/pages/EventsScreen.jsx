@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import BottomNav from '../components/BottomNav'
-import { getUpcomingEvents, getPastEvents } from '../utils/eventData'
+import { getUpcomingEventsAsync, getPastEventsAsync } from '../utils/eventData'
 
 /**
  * EventsScreen - Campus Events Discovery
@@ -52,11 +52,26 @@ function EventsScreen() {
   const [activeTab, setActiveTab] = useState('upcoming')
   const [upcomingEvents, setUpcomingEvents] = useState([])
   const [pastEvents, setPastEvents] = useState([])
+  const [loading, setLoading] = useState(true)
 
-  // Load events from centralized store
+  // Load events from Supabase (with mock fallback)
   useEffect(() => {
-    setUpcomingEvents(getUpcomingEvents())
-    setPastEvents(getPastEvents())
+    async function loadEvents() {
+      setLoading(true)
+      try {
+        const [upcoming, past] = await Promise.all([
+          getUpcomingEventsAsync(),
+          getPastEventsAsync()
+        ])
+        setUpcomingEvents(upcoming)
+        setPastEvents(past)
+      } catch (err) {
+        console.error('Failed to load events:', err)
+      } finally {
+        setLoading(false)
+      }
+    }
+    loadEvents()
   }, [])
 
   const events = activeTab === 'upcoming' ? upcomingEvents : pastEvents
@@ -85,28 +100,29 @@ function EventsScreen() {
           Events
         </h1>
         
-        {/* Filter Icon */}
-        <button 
+        {/* Create Event Button */}
+        <button
+          onClick={() => navigate('/create-event')}
           style={{
-            width: '44px',
-            height: '44px',
-            borderRadius: '12px',
-            border: '1px solid #E5E7EB',
-            backgroundColor: 'transparent',
+            height: '40px',
+            padding: '0 16px',
+            borderRadius: '20px',
+            border: 'none',
+            backgroundColor: '#5B4AE6',
+            color: 'white',
+            fontSize: '14px',
+            fontWeight: 600,
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center',
+            gap: '6px',
             cursor: 'pointer'
           }}
         >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#5B4AE6" strokeWidth="2">
-            <line x1="4" y1="6" x2="20" y2="6"/>
-            <line x1="8" y1="12" x2="20" y2="12"/>
-            <line x1="4" y1="18" x2="20" y2="18"/>
-            <circle cx="6" cy="6" r="2" fill="#5B4AE6"/>
-            <circle cx="10" cy="12" r="2" fill="#5B4AE6"/>
-            <circle cx="6" cy="18" r="2" fill="#5B4AE6"/>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <line x1="12" y1="5" x2="12" y2="19"/>
+            <line x1="5" y1="12" x2="19" y2="12"/>
           </svg>
+          Create
         </button>
       </div>
 
@@ -155,14 +171,35 @@ function EventsScreen() {
       </div>
 
       {/* Events List */}
-      <div 
-        style={{ 
-          flex: 1, 
-          overflowY: 'auto', 
+      <div
+        style={{
+          flex: 1,
+          overflowY: 'auto',
           paddingBottom: '100px',
           padding: '16px'
         }}
       >
+        {/* Loading State */}
+        {loading && (
+          <div style={{
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            padding: '40px 0'
+          }}>
+            <div style={{
+              width: '32px',
+              height: '32px',
+              border: '3px solid #E5E7EB',
+              borderTopColor: '#5B4AE6',
+              borderRadius: '50%',
+              animation: 'spin 1s linear infinite'
+            }} />
+            <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+          </div>
+        )}
+
+        {!loading && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           {events.map(event => (
             <div 
@@ -465,6 +502,7 @@ function EventsScreen() {
             </div>
           )}
         </div>
+        )}
       </div>
 
       {/* Bottom Navigation */}

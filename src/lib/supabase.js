@@ -572,6 +572,22 @@ export const authService = {
       }
     }
 
+    // Username constraint violation (duplicate username)
+    if (msg.includes('username') && (msg.includes('unique') || msg.includes('duplicate') || msg.includes('already'))) {
+      return {
+        message: 'This username was just taken. Please choose another.',
+        code: 'USERNAME_TAKEN'
+      }
+    }
+
+    // Username format constraint violation
+    if (msg.includes('username_format_check') || (msg.includes('username') && msg.includes('check'))) {
+      return {
+        message: 'Username must be 3-30 characters, start with a letter, and contain only letters, numbers, and underscores.',
+        code: 'INVALID_USERNAME_FORMAT'
+      }
+    }
+
     // Invalid credentials (wrong password or user not found)
     if (msg.includes('invalid login credentials') || msg.includes('invalid credentials')) {
       return {
@@ -682,6 +698,15 @@ export function getErrorMessage(error) {
   // Handle user exists error
   if (error.code === 'USER_EXISTS') {
     return error.message || 'This email is already registered. Please sign in instead.'
+  }
+
+  // Handle username errors
+  if (error.code === 'USERNAME_TAKEN') {
+    return error.message || 'This username was just taken. Please choose another.'
+  }
+
+  if (error.code === 'INVALID_USERNAME_FORMAT') {
+    return error.message || 'Username must be 3-30 characters, start with a letter, and contain only letters, numbers, and underscores.'
   }
 
   // Handle email confirmation

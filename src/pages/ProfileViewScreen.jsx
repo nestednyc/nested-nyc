@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { getMyProjects, DEMO_CURRENT_USER_ID } from '../utils/projectData'
+import { getMyProjects, getMyProjectsAsync, DEMO_CURRENT_USER_ID } from '../utils/projectData'
+import { supabase, isSupabaseConfigured } from '../lib/supabase'
+import { profileService } from '../services/profileService'
 
 /**
  * ProfileViewScreen - Public read-only profile view
@@ -65,47 +67,129 @@ function ProfileViewScreen() {
   const { userId } = useParams()
   const [profile, setProfile] = useState(null)
   const [nestedProjects, setNestedProjects] = useState([])
-  
+  const [loading, setLoading] = useState(true)
+
   const isOwner = userId === CURRENT_USER_ID || userId === 'me'
 
   useEffect(() => {
-    // Check if viewing current user or another user
-    if (userId === CURRENT_USER_ID || userId === 'me') {
-      // Load current user from localStorage
+    const fetchProfile = async () => {
+      setLoading(true)
+
+      // Check if viewing current user or another user
+      if (userId === CURRENT_USER_ID || userId === 'me') {
+        // Try to fetch from Supabase first
+        if (isSupabaseConfigured()) {
+          try {
+            const { data: { user } } = await supabase.auth.getUser()
+            if (user) {
+              const { data, error } = await profileService.getProfile(user.id)
+
+              if (!error && data) {
+                // Transform DB format to component format
+                const transformedProfile = {
+                  firstName: data.first_name || '',
+                  lastName: data.last_name || '',
+                  university: data.university || '',
+                  fields: data.fields || [],
+                  bio: data.bio || '',
+                  lookingFor: data.looking_for || [],
+                  skills: data.skills || [],
+                  projects: data.projects || [],
+                  avatar: data.avatar || '',
+                  links: data.links || { github: '', portfolio: '', linkedin: '', discord: '' }
+                }
+                setProfile(transformedProfile)
+
+                // Also update localStorage as cache
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(transformedProfile))
+
+                setLoading(false)
+                loadNestedProjects()
+                return
+              }
+            }
+          } catch (err) {
+            console.error('Failed to fetch profile from Supabase:', err)
+          }
+        }
+
+        // Fall back to localStorage if Supabase fetch failed
+        try {
+          const saved = localStorage.getItem(STORAGE_KEY)
+          if (saved) setProfile(JSON.parse(saved))
+        } catch (e) {}
+
+        loadNestedProjects()
+      } else {
+        // Load mock profile for other users (or could fetch from Supabase by userId)
+        const mockProfile = MOCK_USER_PROFILES[userId]
+        if (mockProfile) {
+          setProfile(mockProfile)
+          // Other users don't show nested projects for now (demo)
+          setNestedProjects([])
+        }
+      }
+
+      setLoading(false)
+    }
+
+    const loadNestedProjects = async () => {
+      // Load Nested projects from Supabase (with localStorage fallback)
+      let allProjects
       try {
-        const saved = localStorage.getItem(STORAGE_KEY)
-        if (saved) setProfile(JSON.parse(saved))
-      } catch (e) {}
-      
-      // Load Nested projects (same source as My Projects page)
-      const allProjects = getMyProjects()
-      
+        allProjects = await getMyProjectsAsync()
+      } catch (err) {
+        console.error('Error loading projects:', err)
+        allProjects = getMyProjects()
+      }
+
       // Prioritize: Owner projects first, then by joined status (active), then most recent
       const prioritized = allProjects.sort((a, b) => {
         const aIsOwner = a.isOwner || a.ownerId === DEMO_CURRENT_USER_ID ? 1 : 0
         const bIsOwner = b.isOwner || b.ownerId === DEMO_CURRENT_USER_ID ? 1 : 0
         if (bIsOwner !== aIsOwner) return bIsOwner - aIsOwner
-        
+
         const aJoined = a.joined ? 1 : 0
         const bJoined = b.joined ? 1 : 0
         if (bJoined !== aJoined) return bJoined - aJoined
-        
+
         const aIsUser = a.isUserProject ? 1 : 0
         const bIsUser = b.isUserProject ? 1 : 0
         return bIsUser - aIsUser
       })
-      
+
       setNestedProjects(prioritized)
-    } else {
-      // Load mock profile for other users
-      const mockProfile = MOCK_USER_PROFILES[userId]
-      if (mockProfile) {
-        setProfile(mockProfile)
-        // Other users don't show nested projects for now (demo)
-        setNestedProjects([])
-      }
     }
+
+    fetchProfile()
   }, [userId])
+
+  // Show loading state
+  if (loading) {
+    return (
+      <div style={{
+        height: '100%',
+        backgroundColor: '#F9FAFB',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center'
+      }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{
+            width: '32px',
+            height: '32px',
+            border: '3px solid #E5E7EB',
+            borderTopColor: '#5B4AE6',
+            borderRadius: '50%',
+            animation: 'spin 0.8s linear infinite',
+            margin: '0 auto 12px'
+          }} />
+          <p style={{ color: '#6B7280', fontSize: '14px' }}>Loading profile...</p>
+          <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+        </div>
+      </div>
+    )
+  }
 
   if (!profile) {
     return (
