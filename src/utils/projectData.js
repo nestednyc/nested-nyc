@@ -483,25 +483,14 @@ export async function getMyProjectsAsync() {
 }
 
 /**
- * Async: Get a single project by ID (Supabase + localStorage fallback)
+ * Async: Get a single project by ID (Supabase first, then localStorage/mock fallback)
  */
 export async function getProjectByIdAsync(projectId) {
   if (!projectId) return null
 
-  // First try localStorage/default
-  const localProject = getProjectById(projectId)
-
-  if (!isSupabaseConfigured()) {
-    return localProject
-  }
-
-  // Check if it looks like a Supabase UUID
-  const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(projectId)
-
-  if (isUUID) {
+  if (isSupabaseConfigured()) {
     try {
       const { data, error } = await projectService.getProject(projectId)
-
       if (!error && data) {
         const currentUserId = await getCurrentUserId()
         return transformSupabaseProject(data, data.owner_id === currentUserId)
@@ -511,7 +500,7 @@ export async function getProjectByIdAsync(projectId) {
     }
   }
 
-  return localProject
+  return getProjectById(projectId)
 }
 
 /**

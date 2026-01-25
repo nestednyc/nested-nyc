@@ -506,9 +506,9 @@ function SignUpForm({ step, setStep, navigate, onSwitchToLogin }) {
       }
       localStorage.setItem('nested_user_profile', JSON.stringify(profileData))
 
-      // Try to save to Supabase if we have a user
+      // Try to save to Supabase if we have a user (upsert in case trigger hasn't run yet)
       if (userId) {
-        await profileService.updateProfile(userId, {
+        const { error: saveErr } = await profileService.upsertProfile(userId, {
           first_name: form.firstName,
           last_name: form.lastName,
           username: form.username || null,
@@ -519,6 +519,7 @@ function SignUpForm({ step, setStep, navigate, onSwitchToLogin }) {
           avatar: avatarUrl,
           onboarding_completed: true
         })
+        if (saveErr) console.error('Profile save error:', saveErr)
       }
 
       // Navigate to app

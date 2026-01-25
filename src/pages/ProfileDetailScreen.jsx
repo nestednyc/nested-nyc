@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { getProjectById, DEMO_CURRENT_USER_ID } from '../utils/projectData'
+import { getProjectByIdAsync, DEMO_CURRENT_USER_ID } from '../utils/projectData'
 import { projectService } from '../services/projectService'
 
 /**
@@ -45,11 +45,13 @@ function ProfileDetailScreen() {
   const [isDesktop, setIsDesktop] = useState(false)
   const [isSaved, setIsSaved] = useState(false)
   const [isRequested, setIsRequested] = useState(false)
-  const [joinLoading, setJoinLoading] = useState(false)
-  const [hasJoined, setHasJoined] = useState(false)
   const [project, setProject] = useState(null)
   const [loading, setLoading] = useState(true)
   const [pendingRequests, setPendingRequests] = useState(MOCK_PENDING_REQUESTS)
+  const [showJoinModal, setShowJoinModal] = useState(false)
+  const [joinLoading, setJoinLoading] = useState(false)
+  const [hasJoined, setHasJoined] = useState(false)
+  const [leaveLoading, setLeaveLoading] = useState(false)
 
   // Handle accept/decline actions (UI only)
   const handleAcceptRequest = (requestId) => {
@@ -72,19 +74,19 @@ function ProfileDetailScreen() {
     return () => window.removeEventListener('resize', check)
   }, [])
   
-  // Load project by ID
+  // Load project by ID (async - supports Supabase projects)
   useEffect(() => {
     async function loadProject() {
       if (projectId) {
         setLoading(true)
-        const foundProject = getProjectById(projectId)
+        const foundProject = await getProjectByIdAsync(projectId)
         setProject(foundProject)
 
-        // Check if user has already joined this project
-        const joined = await projectService.hasJoinedProject(projectId)
-        setHasJoined(joined)
-        if (joined) {
-          setIsRequested(true)
+        // Check if user has already joined (only for Supabase projects)
+        if (foundProject?.isSupabaseProject) {
+          const joined = await projectService.hasJoinedProject(projectId)
+          setHasJoined(joined)
+          if (joined) setIsRequested(true)
         }
         setLoading(false)
       }
@@ -92,25 +94,56 @@ function ProfileDetailScreen() {
     loadProject()
   }, [projectId])
 
-  // Handle join request
-  const handleJoinRequest = async () => {
-    if (joinLoading || hasJoined) return
+  // Handle join request submission (calls Supabase for real projects)
+  const handleJoinSubmit = async (formData) => {
+    // Demo projects don't support real join
+    if (!project?.isSupabaseProject) {
+      alert('This is a demo project. Join is only available for projects created on Nested.')
+      setShowJoinModal(false)
+      return
+    }
 
     setJoinLoading(true)
     try {
-      const { data, error } = await projectService.joinProject(projectId)
+      const { error } = await projectService.joinProject(projectId, formData.role)
       if (error) {
         console.error('Failed to join:', error)
         alert(error.message || 'Failed to join project. Please try again.')
       } else {
         setIsRequested(true)
         setHasJoined(true)
+        setShowJoinModal(false)
       }
     } catch (err) {
       console.error('Join error:', err)
       alert('Failed to join project. Please try again.')
     } finally {
       setJoinLoading(false)
+    }
+  }
+
+  // Handle leave project
+  const handleLeaveProject = async () => {
+    if (leaveLoading || !hasJoined) return
+
+    const confirmed = window.confirm('Are you sure you want to leave this project?')
+    if (!confirmed) return
+
+    setLeaveLoading(true)
+    try {
+      const { error } = await projectService.leaveProject(projectId)
+      if (error) {
+        console.error('Failed to leave:', error)
+        alert(error.message || 'Failed to leave project. Please try again.')
+      } else {
+        setHasJoined(false)
+        setIsRequested(false)
+      }
+    } catch (err) {
+      console.error('Leave error:', err)
+      alert('Failed to leave project. Please try again.')
+    } finally {
+      setLeaveLoading(false)
     }
   }
 
@@ -206,6 +239,7 @@ function ProfileDetailScreen() {
     const commitment = getCommitmentLevel()
 
     return (
+      <>
       <div className="project-detail-desktop">
         {/* Back Button - Desktop */}
         <div className="project-detail-back">
@@ -402,9 +436,22 @@ function ProfileDetailScreen() {
                 </div>
                 <div className="team-grid-desktop">
                   {project.team.map((member, index) => (
-                    <div key={index} className="team-card-desktop">
+                    <div
+                      key={index}
+                      className="team-card-desktop"
+                      onClick={() => navigate(`/profile/${member.id || `req-${index + 1}`}`)}
+                      style={{ cursor: 'pointer', transition: 'transform 0.15s ease, box-shadow 0.15s ease' }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.transform = 'translateY(-2px)'
+                        e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.08)'
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.transform = 'translateY(0)'
+                        e.currentTarget.style.boxShadow = 'none'
+                      }}
+                    >
                       {/* Use icon instead of image for builder-focused design */}
-                      <div 
+                      <div
                         style={{
                           width: '56px',
                           height: '56px',
@@ -762,19 +809,17 @@ function ProfileDetailScreen() {
                   {/* Primary CTA Button */}
                   <button
                     className={`join-btn-desktop ${isRequested ? 'requested' : ''}`}
-                    onClick={handleJoinRequest}
-                    disabled={isRequested || joinLoading}
+                    onClick={() => !isRequested && !hasJoined && setShowJoinModal(true)}
+                    disabled={isRequested || hasJoined}
                     style={{
                       width: '100%',
                       marginBottom: isRequested ? '8px' : '12px',
-                      opacity: isRequested || joinLoading ? 0.7 : 1,
-                      cursor: isRequested || joinLoading ? 'default' : 'pointer',
-                      backgroundColor: isRequested ? '#9CA3AF' : joinLoading ? '#7C6FE6' : undefined
+                      opacity: isRequested || hasJoined ? 0.7 : 1,
+                      cursor: isRequested || hasJoined ? 'default' : 'pointer',
+                      backgroundColor: hasJoined ? '#10B981' : isRequested ? '#9CA3AF' : undefined
                     }}
                   >
-                    {joinLoading ? (
-                      'Joining...'
-                    ) : hasJoined ? (
+                    {hasJoined ? (
                       <>
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                           <polyline points="20 6 9 17 4 12"/>
@@ -800,19 +845,39 @@ function ProfileDetailScreen() {
                       </>
                     )}
                   </button>
-                  
-                  {/* Helper text after joining */}
+
+                  {/* Helper text after request sent / joined */}
                   {(isRequested || hasJoined) && (
-                    <p style={{
-                      margin: 0,
-                      marginBottom: '12px',
-                      fontSize: '12px',
-                      color: hasJoined ? '#10B981' : '#6B7280',
-                      textAlign: 'center',
-                      lineHeight: 1.4
-                    }}>
-                      {hasJoined ? "You're now part of the team!" : 'The project owner will review your request.'}
-                    </p>
+                    <div style={{ marginBottom: '12px', textAlign: 'center' }}>
+                      <p style={{
+                        margin: 0,
+                        fontSize: '12px',
+                        color: hasJoined ? '#10B981' : '#6B7280',
+                        lineHeight: 1.4
+                      }}>
+                        {hasJoined ? "You're now part of the team!" : 'The project owner will review your request.'}
+                      </p>
+                      {hasJoined && (
+                        <button
+                          onClick={handleLeaveProject}
+                          disabled={leaveLoading}
+                          style={{
+                            marginTop: '8px',
+                            padding: '6px 12px',
+                            fontSize: '12px',
+                            fontWeight: 500,
+                            color: leaveLoading ? '#9CA3AF' : '#DC2626',
+                            backgroundColor: 'transparent',
+                            border: 'none',
+                            cursor: leaveLoading ? 'not-allowed' : 'pointer',
+                            textDecoration: 'underline',
+                            opacity: leaveLoading ? 0.6 : 1
+                          }}
+                        >
+                          {leaveLoading ? 'Leaving...' : 'Leave project'}
+                        </button>
+                      )}
+                    </div>
                   )}
 
                   {/* Secondary Button */}
@@ -930,6 +995,17 @@ function ProfileDetailScreen() {
           </div>
         </div>
       </div>
+
+      {/* Join Request Modal - Desktop */}
+      {showJoinModal && (
+        <JoinRequestModal
+          project={project}
+          onClose={() => setShowJoinModal(false)}
+          onSubmit={handleJoinSubmit}
+          isLoading={joinLoading}
+        />
+      )}
+      </>
     )
   }
 
@@ -1158,19 +1234,22 @@ function ProfileDetailScreen() {
             {/* Team Member Cards */}
             <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
               {project.team?.map((member, index) => (
-                <div 
+                <div
                   key={index}
+                  onClick={() => navigate(`/profile/${member.id || `req-${index + 1}`}`)}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
                     padding: '12px',
                     backgroundColor: '#FAFAFA',
                     borderRadius: '14px',
-                    gap: '12px'
+                    gap: '12px',
+                    cursor: 'pointer',
+                    transition: 'background-color 0.15s ease'
                   }}
                 >
                   {/* Member Photo */}
-                  <div 
+                  <div
                     style={{
                       width: '48px',
                       height: '48px',
@@ -1179,13 +1258,13 @@ function ProfileDetailScreen() {
                       flexShrink: 0
                     }}
                   >
-                    <img 
+                    <img
                       src={member.image}
                       alt={member.name}
                       style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                     />
                   </div>
-                  
+
                   {/* Member Info */}
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <p style={{ margin: 0, fontSize: '14px', fontWeight: 600, color: '#231429' }}>
@@ -1195,9 +1274,9 @@ function ProfileDetailScreen() {
                       {member.school}
                     </p>
                   </div>
-                  
+
                   {/* Role Badge */}
-                  <span 
+                  <span
                     style={{
                       backgroundColor: 'rgba(109, 93, 246, 0.1)',
                       color: '#5B4AE6',
@@ -1471,28 +1550,26 @@ function ProfileDetailScreen() {
             {/* Request to Join Button */}
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
               <button
-                onClick={handleJoinRequest}
-                disabled={isRequested || joinLoading}
+                onClick={() => !isRequested && !hasJoined && setShowJoinModal(true)}
+                disabled={isRequested || hasJoined}
                 style={{
                   width: '100%',
                   height: '52px',
-                  backgroundColor: hasJoined ? '#10B981' : isRequested ? '#9CA3AF' : joinLoading ? '#7C6FE6' : '#5B4AE6',
+                  backgroundColor: hasJoined ? '#10B981' : isRequested ? '#9CA3AF' : '#5B4AE6',
                   color: 'white',
                   fontSize: '16px',
                   fontWeight: 600,
                   borderRadius: '14px',
                   border: 'none',
-                  cursor: isRequested || joinLoading ? 'default' : 'pointer',
-                  opacity: isRequested || joinLoading ? 0.85 : 1,
+                  cursor: isRequested || hasJoined ? 'default' : 'pointer',
+                  opacity: isRequested || hasJoined ? 0.85 : 1,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   gap: '8px'
                 }}
               >
-                {joinLoading ? (
-                  'Joining...'
-                ) : hasJoined ? (
+                {hasJoined ? (
                   <>
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
                       <polyline points="20 6 9 17 4 12"/>
@@ -1519,14 +1596,35 @@ function ProfileDetailScreen() {
                 )}
               </button>
               {(isRequested || hasJoined) && (
-                <p style={{
-                  margin: 0,
-                  fontSize: '11px',
-                  color: hasJoined ? '#10B981' : '#6B7280',
-                  textAlign: 'center'
-                }}>
-                  {hasJoined ? "You're now part of the team!" : 'The project owner will review your request.'}
-                </p>
+                <div style={{ textAlign: 'center' }}>
+                  <p style={{
+                    margin: 0,
+                    fontSize: '11px',
+                    color: hasJoined ? '#10B981' : '#6B7280'
+                  }}>
+                    {hasJoined ? "You're now part of the team!" : 'The project owner will review your request.'}
+                  </p>
+                  {hasJoined && (
+                    <button
+                      onClick={handleLeaveProject}
+                      disabled={leaveLoading}
+                      style={{
+                        marginTop: '4px',
+                        padding: '4px 8px',
+                        fontSize: '11px',
+                        fontWeight: 500,
+                        color: leaveLoading ? '#9CA3AF' : '#DC2626',
+                        backgroundColor: 'transparent',
+                        border: 'none',
+                        cursor: leaveLoading ? 'not-allowed' : 'pointer',
+                        textDecoration: 'underline',
+                        opacity: leaveLoading ? 0.6 : 1
+                      }}
+                    >
+                      {leaveLoading ? 'Leaving...' : 'Leave project'}
+                    </button>
+                  )}
+                </div>
               )}
             </div>
           </>
@@ -1547,6 +1645,296 @@ function ProfileDetailScreen() {
           }}
         />
       </div>
+
+      {/* Join Request Modal - Mobile */}
+      {showJoinModal && (
+        <JoinRequestModal
+          project={project}
+          onClose={() => setShowJoinModal(false)}
+          onSubmit={handleJoinSubmit}
+          isLoading={joinLoading}
+        />
+      )}
+    </div>
+  )
+}
+
+/**
+ * JoinRequestModal - Fresh, Gen Z-focused modal for joining projects
+ * Clean, spacious design with project name as hero element
+ */
+function JoinRequestModal({ project, onClose, onSubmit, isLoading = false }) {
+  const [selectedRole, setSelectedRole] = useState('')
+  const [aboutYourself, setAboutYourself] = useState('')
+  const [isRoleFocused, setIsRoleFocused] = useState(false)
+  const [isTextareaFocused, setIsTextareaFocused] = useState(false)
+
+  const isValid = selectedRole && aboutYourself.length >= 20 && aboutYourself.length <= 300
+
+  const handleSubmit = () => {
+    if (isValid && !isLoading) {
+      onSubmit({
+        role: selectedRole,
+        aboutYourself,
+      })
+    }
+  }
+
+  const handleBackdropClick = (e) => {
+    if (e.target === e.currentTarget) {
+      onClose()
+    }
+  }
+
+  return (
+    <div
+      onClick={handleBackdropClick}
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: 'rgba(0, 0, 0, 0.6)',
+        backdropFilter: 'blur(12px)',
+        WebkitBackdropFilter: 'blur(12px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 100,
+        padding: '24px',
+        animation: 'modalFadeIn 0.2s ease-out',
+      }}
+    >
+      <div
+        style={{
+          backgroundColor: '#FFFFFF',
+          borderRadius: '28px',
+          width: '100%',
+          maxWidth: '420px',
+          maxHeight: '85vh',
+          overflow: 'hidden',
+          position: 'relative',
+          boxShadow: '0 24px 48px -12px rgba(0, 0, 0, 0.25)',
+          animation: 'modalSlideUp 0.3s ease-out',
+        }}
+      >
+        {/* Close Button - Minimal ghost style */}
+        <button
+          onClick={onClose}
+          style={{
+            position: 'absolute',
+            top: '24px',
+            right: '24px',
+            width: '32px',
+            height: '32px',
+            borderRadius: '50%',
+            border: 'none',
+            backgroundColor: 'transparent',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            transition: 'background-color 0.15s ease',
+            zIndex: 10,
+          }}
+          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#F3F4F6'}
+          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="2.5" strokeLinecap="round">
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
+        </button>
+
+        {/* Content with generous padding */}
+        <div style={{ padding: '40px 36px 36px', overflowY: 'auto', maxHeight: '85vh' }}>
+
+          {/* Hero Header - Project name is the star */}
+          <div style={{ marginBottom: '32px', paddingRight: '32px' }}>
+            <h2 style={{
+              margin: 0,
+              fontSize: '28px',
+              fontWeight: 700,
+              color: '#18181B',
+              letterSpacing: '-0.025em',
+              lineHeight: 1.15,
+            }}>
+              Join {project?.title}
+            </h2>
+            <p style={{
+              margin: '10px 0 0 0',
+              fontSize: '15px',
+              color: '#71717A',
+              fontWeight: 400,
+            }}>
+              Pitch yourself to the team
+            </p>
+          </div>
+
+          {/* Role Selection - Chunky dropdown */}
+          <div style={{ marginBottom: '24px' }}>
+            <label style={{
+              display: 'block',
+              marginBottom: '10px',
+              fontSize: '14px',
+              fontWeight: 500,
+              color: '#71717A',
+            }}>
+              Select a role
+            </label>
+            <div style={{ position: 'relative' }}>
+              <select
+                value={selectedRole}
+                onChange={(e) => setSelectedRole(e.target.value)}
+                onFocus={() => setIsRoleFocused(true)}
+                onBlur={() => setIsRoleFocused(false)}
+                style={{
+                  width: '100%',
+                  height: '56px',
+                  padding: '0 52px 0 20px',
+                  fontSize: '16px',
+                  fontWeight: 500,
+                  border: 'none',
+                  borderRadius: '16px',
+                  backgroundColor: '#F4F4F5',
+                  color: selectedRole ? '#18181B' : '#A1A1AA',
+                  cursor: 'pointer',
+                  appearance: 'none',
+                  transition: 'all 0.2s ease',
+                  boxShadow: isRoleFocused
+                    ? '0 0 0 3px rgba(91, 74, 230, 0.2), inset 0 0 0 1px #5B4AE6'
+                    : 'inset 0 0 0 1px transparent',
+                  outline: 'none',
+                }}
+              >
+                <option value="" disabled>Choose your role...</option>
+                {(project?.roles || ['Frontend Developer', 'Backend Developer', 'UI/UX Designer', 'Product Manager', 'Marketing']).map((role, i) => (
+                  <option key={i} value={role}>{role}</option>
+                ))}
+              </select>
+              {/* Dropdown chevron */}
+              <div
+                style={{
+                  position: 'absolute',
+                  right: '20px',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  pointerEvents: 'none',
+                }}
+              >
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <path
+                    d="M4 6L8 10L12 6"
+                    stroke={isRoleFocused ? '#5B4AE6' : '#A1A1AA'}
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </div>
+            </div>
+          </div>
+
+          {/* Pitch Textarea - Inviting and spacious */}
+          <div style={{ marginBottom: '32px' }}>
+            <label style={{
+              display: 'block',
+              marginBottom: '10px',
+              fontSize: '14px',
+              fontWeight: 500,
+              color: '#71717A',
+            }}>
+              Your pitch
+            </label>
+            <div style={{ position: 'relative' }}>
+              <textarea
+                value={aboutYourself}
+                onChange={(e) => setAboutYourself(e.target.value)}
+                onFocus={() => setIsTextareaFocused(true)}
+                onBlur={() => setIsTextareaFocused(false)}
+                placeholder="What excites you about this project? What would you bring to the team?"
+                maxLength={300}
+                style={{
+                  width: '100%',
+                  height: '140px',
+                  padding: '18px 20px',
+                  fontSize: '15px',
+                  lineHeight: 1.6,
+                  border: 'none',
+                  borderRadius: '16px',
+                  backgroundColor: '#F4F4F5',
+                  color: '#18181B',
+                  resize: 'none',
+                  fontFamily: 'inherit',
+                  transition: 'all 0.2s ease',
+                  boxShadow: isTextareaFocused
+                    ? '0 0 0 3px rgba(91, 74, 230, 0.2), inset 0 0 0 1px #5B4AE6'
+                    : 'inset 0 0 0 1px transparent',
+                  outline: 'none',
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Submit Button - Full width pill with structure in disabled state */}
+          <button
+            onClick={handleSubmit}
+            disabled={!isValid || isLoading}
+            style={{
+              width: '100%',
+              height: '56px',
+              backgroundColor: isLoading ? '#7C6FE6' : isValid ? '#5B4AE6' : 'rgba(91, 74, 230, 0.12)',
+              color: isValid || isLoading ? '#FFFFFF' : 'rgba(91, 74, 230, 0.4)',
+              fontSize: '16px',
+              fontWeight: 600,
+              borderRadius: '9999px',
+              border: 'none',
+              cursor: isValid && !isLoading ? 'pointer' : 'not-allowed',
+              transition: 'all 0.2s ease',
+              boxShadow: isValid && !isLoading ? '0 4px 14px rgba(91, 74, 230, 0.4)' : 'none',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+            }}
+            onMouseEnter={(e) => {
+              if (isValid && !isLoading) {
+                e.currentTarget.style.backgroundColor = '#4F3ED9'
+                e.currentTarget.style.boxShadow = '0 6px 20px rgba(91, 74, 230, 0.5)'
+                e.currentTarget.style.transform = 'translateY(-1px)'
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (isValid && !isLoading) {
+                e.currentTarget.style.backgroundColor = '#5B4AE6'
+                e.currentTarget.style.boxShadow = '0 4px 14px rgba(91, 74, 230, 0.4)'
+                e.currentTarget.style.transform = 'translateY(0)'
+              }
+            }}
+          >
+            {isLoading ? 'Sending...' : 'Send Request'}
+          </button>
+        </div>
+      </div>
+
+      {/* CSS Keyframes */}
+      <style>{`
+        @keyframes modalFadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        @keyframes modalSlideUp {
+          from {
+            opacity: 0;
+            transform: translateY(16px) scale(0.98);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+          }
+        }
+      `}</style>
     </div>
   )
 }

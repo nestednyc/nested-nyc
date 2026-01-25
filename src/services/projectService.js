@@ -245,6 +245,11 @@ export const projectService = {
       return { data: null, error: { message: 'Supabase not configured' } }
     }
 
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(projectId)
+    if (!isUuid) {
+      return { data: null, error: { message: 'Invalid project ID.' } }
+    }
+
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
       return { data: null, error: { message: 'Not authenticated' } }
@@ -323,6 +328,9 @@ export const projectService = {
     if (!isSupabaseConfigured() || !supabase) {
       return false
     }
+
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(projectId)
+    if (!isUuid) return false
 
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
