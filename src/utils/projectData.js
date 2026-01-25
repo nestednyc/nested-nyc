@@ -387,6 +387,7 @@ function transformSupabaseProject(p, isOwner = false) {
     skillsNeeded: p.roles?.map(r => ROLE_LABELS[r] || r).slice(0, 6) || p.skills || [],
     spotsLeft: p.spots_left || p.roles?.length || 0,
     team: p.team_members?.map(m => ({
+      id: m.user_id, // Pass through user_id so profile navigation works
       name: m.name,
       school: m.school,
       role: m.role,
@@ -488,6 +489,8 @@ export async function getMyProjectsAsync() {
 export async function getProjectByIdAsync(projectId) {
   if (!projectId) return null
 
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(projectId)
+
   if (isSupabaseConfigured()) {
     try {
       const { data, error } = await projectService.getProject(projectId)
@@ -495,9 +498,15 @@ export async function getProjectByIdAsync(projectId) {
         const currentUserId = await getCurrentUserId()
         return transformSupabaseProject(data, data.owner_id === currentUserId)
       }
+      // UUID projects only exist in Supabase; log why we didn't find one (helps debug Vercel vs local)
+      if (isUuid && import.meta.env.DEV) {
+        console.warn('[getProjectByIdAsync] Supabase returned no project for UUID:', projectId, { error: error?.message, hasData: !!data })
+      }
     } catch (err) {
       console.error('Error fetching project:', err)
     }
+  } else if (isUuid && import.meta.env.DEV) {
+    console.warn('[getProjectByIdAsync] Supabase not configured (check VITE_SUPABASE_* env). UUID projects require Supabase.', projectId)
   }
 
   return getProjectById(projectId)

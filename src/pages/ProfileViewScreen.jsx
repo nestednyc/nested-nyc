@@ -68,45 +68,58 @@ function ProfileViewScreen() {
   const [profile, setProfile] = useState(null)
   const [nestedProjects, setNestedProjects] = useState([])
   const [loading, setLoading] = useState(true)
-
-  const isOwner = userId === CURRENT_USER_ID || userId === 'me'
+  const [isOwner, setIsOwner] = useState(userId === CURRENT_USER_ID || userId === 'me')
 
   useEffect(() => {
     const fetchProfile = async () => {
       setLoading(true)
 
+      // Get the current authenticated user's ID to check if viewing own profile
+      let authUserId = null
+      if (isSupabaseConfigured()) {
+        try {
+          const { data: { user } } = await supabase.auth.getUser()
+          if (user) {
+            authUserId = user.id
+          }
+        } catch (err) {
+          console.error('Failed to get current user:', err)
+        }
+      }
+
+      // Check if viewing current user (by alias OR by actual Supabase user ID)
+      const isViewingOwnProfile = userId === CURRENT_USER_ID || userId === 'me' || (authUserId && userId === authUserId)
+      setIsOwner(isViewingOwnProfile)
+
       // Check if viewing current user or another user
-      if (userId === CURRENT_USER_ID || userId === 'me') {
-        // Try to fetch from Supabase first
-        if (isSupabaseConfigured()) {
+      if (isViewingOwnProfile) {
+        // Try to fetch from Supabase first (use authUserId we already have)
+        if (isSupabaseConfigured() && authUserId) {
           try {
-            const { data: { user } } = await supabase.auth.getUser()
-            if (user) {
-              const { data, error } = await profileService.getProfile(user.id)
+            const { data, error } = await profileService.getProfile(authUserId)
 
-              if (!error && data) {
-                // Transform DB format to component format
-                const transformedProfile = {
-                  firstName: data.first_name || '',
-                  lastName: data.last_name || '',
-                  university: data.university || '',
-                  fields: data.fields || [],
-                  bio: data.bio || '',
-                  lookingFor: data.looking_for || [],
-                  skills: data.skills || [],
-                  projects: data.projects || [],
-                  avatar: data.avatar || '',
-                  links: data.links || { github: '', portfolio: '', linkedin: '', discord: '' }
-                }
-                setProfile(transformedProfile)
-
-                // Also update localStorage as cache
-                localStorage.setItem(STORAGE_KEY, JSON.stringify(transformedProfile))
-
-                setLoading(false)
-                loadNestedProjects()
-                return
+            if (!error && data) {
+              // Transform DB format to component format
+              const transformedProfile = {
+                firstName: data.first_name || '',
+                lastName: data.last_name || '',
+                university: data.university || '',
+                fields: data.fields || [],
+                bio: data.bio || '',
+                lookingFor: data.looking_for || [],
+                skills: data.skills || [],
+                projects: data.projects || [],
+                avatar: data.avatar || '',
+                links: data.links || { github: '', portfolio: '', linkedin: '', discord: '' }
               }
+              setProfile(transformedProfile)
+
+              // Also update localStorage as cache
+              localStorage.setItem(STORAGE_KEY, JSON.stringify(transformedProfile))
+
+              setLoading(false)
+              loadNestedProjects()
+              return
             }
           } catch (err) {
             console.error('Failed to fetch profile from Supabase:', err)
@@ -121,11 +134,40 @@ function ProfileViewScreen() {
 
         loadNestedProjects()
       } else {
-        // Load mock profile for other users (or could fetch from Supabase by userId)
+        // Viewing another user's profile - try to fetch from Supabase first
+        if (isSupabaseConfigured()) {
+          try {
+            const { data, error } = await profileService.getProfile(userId)
+
+            if (!error && data) {
+              // Transform DB format to component format (same as current user)
+              const transformedProfile = {
+                firstName: data.first_name || '',
+                lastName: data.last_name || '',
+                university: data.university || '',
+                fields: data.fields || [],
+                bio: data.bio || '',
+                lookingFor: data.looking_for || [],
+                skills: data.skills || [],
+                projects: data.projects || [],
+                avatar: data.avatar || '',
+                links: data.links || { github: '', portfolio: '', linkedin: '', discord: '' }
+              }
+              setProfile(transformedProfile)
+              // Other users don't show nested projects for now
+              setNestedProjects([])
+              setLoading(false)
+              return
+            }
+          } catch (err) {
+            console.error('Failed to fetch other user profile from Supabase:', err)
+          }
+        }
+
+        // Fall back to mock data only if Supabase fetch failed or not configured
         const mockProfile = MOCK_USER_PROFILES[userId]
         if (mockProfile) {
           setProfile(mockProfile)
-          // Other users don't show nested projects for now (demo)
           setNestedProjects([])
         }
       }
