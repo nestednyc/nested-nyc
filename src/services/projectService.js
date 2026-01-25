@@ -34,11 +34,13 @@ export const projectService = {
       return { data: null, error: { message: 'Supabase not configured' } }
     }
 
+    // Use maybeSingle() instead of single() to avoid 406 errors
+    // when RLS blocks access or project doesn't exist
     const { data, error } = await supabase
       .from('projects')
       .select('*, team_members(*)')
       .eq('id', projectId)
-      .single()
+      .maybeSingle()
 
     return { data, error }
   },
