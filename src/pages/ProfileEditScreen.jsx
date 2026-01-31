@@ -25,7 +25,39 @@ const SKILLS = [
   'React', 'Python', 'JavaScript', 'TypeScript', 'Node.js', 'Backend', 'Frontend',
   'Full Stack', 'UI/UX', 'Figma', 'Product', 'Data', 'ML/AI', 'Mobile', 'Marketing'
 ]
-const ROLES = ['Frontend', 'Backend', 'Full Stack', 'Designer', 'PM', 'Data', 'Marketing', 'Other']
+
+// Tech Stack options for public profile display
+const TECH_STACK_OPTIONS = [
+  // Languages & Frameworks
+  { id: 'react', label: 'React', category: 'frontend' },
+  { id: 'javascript', label: 'JavaScript', category: 'language' },
+  { id: 'typescript', label: 'TypeScript', category: 'language' },
+  { id: 'python', label: 'Python', category: 'language' },
+  { id: 'nodejs', label: 'Node.js', category: 'backend' },
+  { id: 'nextjs', label: 'Next.js', category: 'frontend' },
+  { id: 'vue', label: 'Vue', category: 'frontend' },
+  { id: 'swift', label: 'Swift', category: 'mobile' },
+  { id: 'kotlin', label: 'Kotlin', category: 'mobile' },
+  { id: 'go', label: 'Go', category: 'backend' },
+  { id: 'rust', label: 'Rust', category: 'language' },
+  // Tools & Platforms
+  { id: 'figma', label: 'Figma', category: 'design' },
+  { id: 'supabase', label: 'Supabase', category: 'backend' },
+  { id: 'vercel', label: 'Vercel', category: 'devops' },
+  { id: 'github', label: 'GitHub', category: 'devops' },
+  { id: 'vscode', label: 'VS Code', category: 'tool' },
+  { id: 'docker', label: 'Docker', category: 'devops' },
+  { id: 'aws', label: 'AWS', category: 'devops' },
+  { id: 'firebase', label: 'Firebase', category: 'backend' },
+  { id: 'postgresql', label: 'PostgreSQL', category: 'database' },
+  { id: 'mongodb', label: 'MongoDB', category: 'database' },
+  // Domains
+  { id: 'uiux', label: 'UI/UX', category: 'design' },
+  { id: 'data', label: 'Data', category: 'domain' },
+  { id: 'aiml', label: 'AI/ML', category: 'domain' },
+  { id: 'mobile', label: 'Mobile', category: 'domain' },
+  { id: 'web3', label: 'Web3', category: 'domain' },
+]
 
 const STORAGE_KEY = 'nested_user_profile'
 const USER_ID = 'current-user' // For demo, use a static ID
@@ -60,7 +92,7 @@ function ProfileEditScreen() {
       bio: '',
       lookingFor: [],
       skills: [],
-      projects: [],
+      publicTechStack: [],
       links: { github: '', portfolio: '', linkedin: '', discord: '' }
     }
   }
@@ -82,17 +114,19 @@ function ProfileEditScreen() {
 
   const update = (field, value) => setProfile(p => ({ ...p, [field]: value }))
   const toggleArray = (field, item, max = 99) => {
-    const arr = profile[field]
+    const arr = profile[field] || []
     if (arr.includes(item)) update(field, arr.filter(i => i !== item))
     else if (arr.length < max) update(field, [...arr, item])
   }
 
-  const updateProject = (idx, key, val) => {
-    const projects = profile.projects.map((p, i) => i === idx ? { ...p, [key]: val } : p)
-    update('projects', projects)
+  const toggleTechStack = (techId) => {
+    const arr = profile.publicTechStack || []
+    if (arr.includes(techId)) {
+      update('publicTechStack', arr.filter(i => i !== techId))
+    } else if (arr.length < 12) {
+      update('publicTechStack', [...arr, techId])
+    }
   }
-  const addProject = () => update('projects', [...profile.projects, { name: '', description: '', link: '', role: '' }])
-  const removeProject = (idx) => update('projects', profile.projects.filter((_, i) => i !== idx))
 
   const updateLink = (key, val) => update('links', { ...profile.links, [key]: val })
 
@@ -379,44 +413,46 @@ function ProfileEditScreen() {
           {/* RIGHT COLUMN */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
             
-            {/* Projects */}
+            {/* Tech Stack (Optional) */}
             <div style={cardStyle}>
-              <h3 style={{ margin: '0 0 10px 0', fontSize: '13px', fontWeight: 700, color: '#111827' }}>Projects & Work</h3>
-              
-              {profile.projects.map((proj, idx) => (
-                <div key={idx} style={{ padding: '10px', backgroundColor: '#FAFAFA', borderRadius: '8px', marginBottom: '8px', position: 'relative' }}>
-                  <button onClick={() => removeProject(idx)} style={{
-                    position: 'absolute', top: '6px', right: '6px', width: '18px', height: '18px', borderRadius: '4px',
-                    border: 'none', backgroundColor: 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'
-                  }}>
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
-                  </button>
-                  <input type="text" value={proj.name} onChange={e => updateProject(idx, 'name', e.target.value)}
-                    placeholder="Project name" style={{ ...inputStyle, marginBottom: '6px', fontWeight: 600 }} />
-                  <input type="text" value={proj.description} onChange={e => updateProject(idx, 'description', e.target.value.slice(0, 120))}
-                    placeholder="One-line description" maxLength={120} style={{ ...inputStyle, marginBottom: '6px', fontSize: '12px' }} />
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 90px', gap: '6px' }}>
-                    <input type="url" value={proj.link} onChange={e => updateProject(idx, 'link', e.target.value)}
-                      placeholder="Link" style={{ ...inputStyle, fontSize: '12px' }} />
-                    <select value={proj.role} onChange={e => updateProject(idx, 'role', e.target.value)}
-                      style={{ ...inputStyle, fontSize: '11px', color: proj.role ? '#111827' : '#9CA3AF' }}>
-                      <option value="">Role</option>
-                      {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
-                    </select>
-                  </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '13px', fontWeight: 700, color: '#111827' }}>Tech Stack</h3>
+                  <p style={{ margin: '2px 0 0 0', fontSize: '11px', color: '#9CA3AF' }}>Optional — shown on your public profile</p>
                 </div>
-              ))}
+                <span style={{ fontSize: '11px', color: '#6B7280' }}>{(profile.publicTechStack || []).length}/12</span>
+              </div>
+              
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                {TECH_STACK_OPTIONS.map(tech => {
+                  const isSelected = (profile.publicTechStack || []).includes(tech.id)
+                  return (
+                    <button
+                      key={tech.id}
+                      onClick={() => toggleTechStack(tech.id)}
+                      style={{
+                        padding: '6px 12px',
+                        fontSize: '12px',
+                        fontWeight: 500,
+                        borderRadius: '16px',
+                        border: 'none',
+                        cursor: 'pointer',
+                        backgroundColor: isSelected ? '#5B4AE6' : '#F3F4F6',
+                        color: isSelected ? 'white' : '#374151',
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      {tech.label}
+                    </button>
+                  )
+                })}
+              </div>
 
-              <button onClick={addProject} style={{
-                width: '100%', padding: '10px', fontSize: '12px', fontWeight: 600, color: '#5B4AE6',
-                backgroundColor: 'transparent', border: '1.5px dashed #D1D5DB', borderRadius: '8px', cursor: 'pointer',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px'
-              }}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-                </svg>
-                Add project
-              </button>
+              {(profile.publicTechStack || []).length === 0 && (
+                <p style={{ margin: '12px 0 0 0', fontSize: '11px', color: '#9CA3AF', textAlign: 'center' }}>
+                  Select technologies you work with to display on your profile
+                </p>
+              )}
             </div>
 
             {/* Links */}

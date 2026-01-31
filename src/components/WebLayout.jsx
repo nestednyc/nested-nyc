@@ -18,11 +18,18 @@ function WebLayout({ children, layoutType = 'app' }) {
   const pathname = location.pathname
 
   // Determine if sidebar should be shown based on route
-  const shouldShowSidebar = layoutType === 'app' && !['/messages'].includes(pathname)
+  // Hide on /messages, /discover (has its own sidebar), /events (wide layout), /matches (focused workspace)
+  const shouldShowSidebar = layoutType === 'app' && !['/messages', '/discover', '/events', '/matches'].includes(pathname)
   const isOnboardingRoute = pathname.startsWith('/onboarding') || pathname === '/uni-email'
   
   // Never show sidebar on onboarding routes
   const showSidebar = shouldShowSidebar && !isOnboardingRoute
+  
+  // Events page gets a special wide layout class
+  const isEventsPage = pathname === '/events'
+  
+  // My Projects page gets a focused workspace layout
+  const isMyProjectsPage = pathname === '/matches'
 
   // Navigation items (Messages hidden for MVP - feature preserved in code)
   const navItems = [
@@ -72,9 +79,9 @@ function WebLayout({ children, layoutType = 'app' }) {
 
       {/* Main Content Area */}
       <div className="web-main">
-        <div className={`web-content-wrapper ${showSidebar ? 'with-sidebar' : 'centered'}`}>
+        <div className={`web-content-wrapper ${showSidebar ? 'with-sidebar' : 'centered'} ${isEventsPage ? 'events-wide' : ''} ${isMyProjectsPage ? 'projects-focused' : ''}`}>
           {/* Main Content */}
-          <main className={`web-content ${layoutType === 'auth' || layoutType === 'form' ? 'web-content-centered' : ''}`}>
+          <main className={`web-content ${layoutType === 'auth' || layoutType === 'form' ? 'web-content-centered' : ''} ${isEventsPage ? 'web-content-events' : ''} ${isMyProjectsPage ? 'web-content-projects' : ''}`}>
             {children}
           </main>
 

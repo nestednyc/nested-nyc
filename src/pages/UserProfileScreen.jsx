@@ -163,50 +163,122 @@ function UserProfileScreen() {
     ? (profile.projects?.find(p => p.id === profile.pinnedProjectId) || projects.find(p => p.id === profile.pinnedProjectId))
     : null
 
-  // Desktop Layout
+  // Desktop Layout - Two Column with Right Sidebar (65% / 35%)
   if (isDesktop) {
     return (
       <div className="min-h-full bg-[#FAFAFA] font-sans">
         {/* Minimal Header */}
         <header className="sticky top-0 z-10 bg-white/80 backdrop-blur-sm border-b border-gray-100">
-          <div className="max-w-6xl mx-auto px-6 h-14 flex items-center">
+          <div 
+            style={{ 
+              maxWidth: '1280px', 
+              margin: '0 auto', 
+              padding: '0 32px',
+              height: '56px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+            }}
+          >
             <button
               onClick={() => navigate(-1)}
               className="p-2 -ml-2 hover:bg-gray-100 rounded-lg transition-colors"
             >
               <ArrowLeft className="w-5 h-5 text-gray-600" />
             </button>
+            {isOwner && (
+              <button
+                onClick={() => navigate('/profile/edit')}
+                className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                Edit Profile
+              </button>
+            )}
           </div>
         </header>
 
-        {/* Main Content */}
-        <div className="max-w-6xl mx-auto px-6 py-10">
-          <div className="flex gap-16">
-            {/* Identity Pillar - Sticky Sidebar */}
-            <aside className="w-72 flex-shrink-0">
-              <div className="sticky top-24">
-                <IdentityPillar
-                  profile={profile}
-                  fullName={fullName}
-                  isOwner={isOwner}
-                  navigate={navigate}
-                />
-              </div>
-            </aside>
-
-            {/* Content Stream */}
-            <main className="flex-1 min-w-0">
-              <ContentStream
+        {/* Main Content - Two Column Layout (65% / 35%) */}
+        <div 
+          style={{ 
+            maxWidth: '1280px', 
+            margin: '0 auto', 
+            padding: '32px',
+            minHeight: 'calc(100vh - 56px)', // Extend to fill viewport (minus header)
+          }}
+        >
+          <div 
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 360px',
+              gap: '40px',
+              minHeight: '100%',
+            }}
+            className="profile-two-col"
+          >
+            {/* Left/Main Column - Profile Content (~65%) */}
+            <main style={{ minWidth: 0 }}>
+              {/* Profile Header Card */}
+              <ProfileHeader
                 profile={profile}
-                projects={displayProjects}
-                pinnedProject={pinnedProject}
-                activeTab={activeTab}
-                setActiveTab={setActiveTab}
-                activeCount={activeProjects.length}
-                pastCount={pastProjects.length}
+                fullName={fullName}
+                isOwner={isOwner}
                 navigate={navigate}
               />
+
+              {/* Content Sections - Expanded Width */}
+              <div style={{ marginTop: '24px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                <AboutSection profile={profile} isMobile={false} />
+                <StackSection profile={profile} isMobile={false} />
+              </div>
             </main>
+
+            {/* Right Sidebar (~35%) - Contained and Secondary */}
+            <aside style={{ maxWidth: '360px' }}>
+              <div className="sticky top-20" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                {/* Open to Collaborate Card */}
+                <CollaborationCard profile={profile} />
+
+                {/* Recently Active Card */}
+                <RecentActivityCard profile={profile} />
+
+                {/* Message / Connect CTA */}
+                {!isOwner && (
+                  <div 
+                    style={{
+                      backgroundColor: 'white',
+                      borderRadius: '16px',
+                      padding: '20px',
+                      border: '1px solid #F0F1F3',
+                    }}
+                  >
+                    <button
+                      onClick={() => navigate(`/chat/${profile.id}`)}
+                      style={{
+                        width: '100%',
+                        padding: '14px',
+                        backgroundColor: '#5B4AE6',
+                        color: 'white',
+                        fontSize: '15px',
+                        fontWeight: 600,
+                        borderRadius: '12px',
+                        border: 'none',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '8px',
+                        transition: 'background-color 0.15s ease',
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#4A3CD4'}
+                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#5B4AE6'}
+                    >
+                      <MessageCircle className="w-4 h-4" />
+                      Send Message
+                    </button>
+                  </div>
+                )}
+              </div>
+            </aside>
           </div>
         </div>
       </div>
@@ -258,6 +330,12 @@ function UserProfileScreen() {
           navigate={navigate}
           isMobile
         />
+
+        {/* Mobile Sidebar Cards (stacked) */}
+        <div style={{ marginTop: '32px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <CollaborationCard profile={profile} />
+          <RecentActivityCard profile={profile} />
+        </div>
       </div>
 
       <BottomNav />
@@ -271,7 +349,7 @@ function UserProfileScreen() {
 
 function IdentityPillar({ profile, fullName, isOwner, navigate }) {
   const stats = profile.stats || {}
-  const badges = profile.badges || []
+  // Note: Badges data is preserved but not displayed on public profiles
 
   return (
     <div className="space-y-6">
@@ -310,9 +388,7 @@ function IdentityPillar({ profile, fullName, isOwner, navigate }) {
             {profile.university}
             {profile.graduationYear && ` '${String(profile.graduationYear).slice(-2)}`}
           </span>
-          {profile.isVerified && (
-            <Shield className="w-4 h-4 text-emerald-500" />
-          )}
+          {/* Verified badge removed from public profiles */}
         </div>
       )}
 
@@ -348,21 +424,7 @@ function IdentityPillar({ profile, fullName, isOwner, navigate }) {
         <span className="font-medium text-gray-900">{stats.eventsAttended || 0}</span> Events
       </div>
 
-      {/* Badges */}
-      {badges.length > 0 && (
-        <div className="flex items-center gap-2">
-          {badges.map(badge => (
-            <div
-              key={badge.id}
-              className="w-8 h-8 rounded-lg flex items-center justify-center"
-              style={{ backgroundColor: `${badge.color}15` }}
-              title={badge.name}
-            >
-              <BadgeIcon icon={badge.icon} color={badge.color} />
-            </div>
-          ))}
-        </div>
-      )}
+      {/* Platform badges removed from public profiles for cleaner display */}
 
       {/* Action Button */}
       {!isOwner ? (
@@ -468,7 +530,7 @@ function MobileIdentity({ profile, fullName, isOwner, navigate }) {
 }
 
 // =============================================
-// CONTENT STREAM (Right Column)
+// CONTENT STREAM (Main Content Area)
 // =============================================
 
 function ContentStream({ profile, projects, pinnedProject, activeTab, setActiveTab, activeCount, pastCount, navigate, isMobile }) {
@@ -477,21 +539,8 @@ function ContentStream({ profile, projects, pinnedProject, activeTab, setActiveT
       {/* About */}
       <AboutSection profile={profile} isMobile={isMobile} />
 
-      {/* Tech Stack */}
+      {/* Tech Stack - Shows publicTechStack from profile */}
       <StackSection profile={profile} isMobile={isMobile} />
-
-      {/* Projects */}
-      <ProjectsSection
-        projects={projects}
-        pinnedProject={pinnedProject}
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
-        activeCount={activeCount}
-        pastCount={pastCount}
-        navigate={navigate}
-        pinnedProjectId={profile.pinnedProjectId}
-        isMobile={isMobile}
-      />
 
       {/* Activity */}
       <ActivitySection profile={profile} isMobile={isMobile} />
@@ -504,107 +553,253 @@ function ContentStream({ profile, projects, pinnedProject, activeTab, setActiveT
 // =============================================
 
 function AboutSection({ profile, isMobile }) {
-  if (!profile.bio && (!profile.lookingFor || profile.lookingFor.length === 0)) return null
+  const hasLookingFor = profile.lookingFor && profile.lookingFor.length > 0
+  const hasMajor = profile.major && profile.major.length > 0
+  const hasBioForMobile = isMobile && profile.bio
+  
+  // Hide section if no content to show
+  if (!hasBioForMobile && !hasLookingFor && !hasMajor) return null
 
   return (
-    <section>
-      <h2 className={`font-semibold text-gray-900 ${isMobile ? 'text-lg mb-3' : 'text-xl mb-4'}`}>
+    <section
+      style={{
+        backgroundColor: 'white',
+        borderRadius: '16px',
+        padding: isMobile ? '20px' : '24px',
+        border: '1px solid #F0F1F3',
+      }}
+    >
+      <h2 
+        style={{ 
+          margin: 0, 
+          marginBottom: isMobile ? '16px' : '20px', 
+          fontSize: isMobile ? '18px' : '18px', 
+          fontWeight: 600, 
+          color: '#111827',
+        }}
+      >
         About
       </h2>
 
-      {/* Bio - Only shown on mobile (desktop has it in sidebar) */}
-      {isMobile && profile.bio && (
-        <p className="text-[15px] leading-relaxed text-gray-600 mb-4">
+      {/* Bio - Only shown on mobile (desktop has it in ProfileHeader) */}
+      {hasBioForMobile && (
+        <p style={{ 
+          margin: 0, 
+          marginBottom: (hasLookingFor || hasMajor) ? '16px' : 0,
+          fontSize: '15px', 
+          lineHeight: 1.6, 
+          color: '#4B5563',
+        }}>
           {profile.bio}
         </p>
       )}
 
       {/* Looking For */}
-      {profile.lookingFor && profile.lookingFor.length > 0 && (
-        <div className="flex flex-wrap gap-2">
-          {profile.lookingFor.map(id => {
-            const item = LOOKING_FOR_LABELS[id]
-            if (!item) return null
+      {hasLookingFor && (
+        <div>
+          <p style={{ margin: 0, marginBottom: '10px', fontSize: '13px', fontWeight: 500, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+            Looking for
+          </p>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+            {profile.lookingFor.map(id => {
+              const item = LOOKING_FOR_LABELS[id]
+              if (!item) return null
+              return (
+                <span
+                  key={id}
+                  style={{
+                    padding: '8px 14px',
+                    backgroundColor: '#F3F4F6',
+                    borderRadius: '20px',
+                    fontSize: '13px',
+                    fontWeight: 500,
+                    color: '#374151',
+                  }}
+                >
+                  {item.emoji} {item.label}
+                </span>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Major */}
+      {hasMajor && (
+        <div style={{ marginTop: hasLookingFor ? '16px' : 0 }}>
+          <p style={{ margin: 0, marginBottom: '10px', fontSize: '13px', fontWeight: 500, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+            Studying
+          </p>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+            {profile.major.map(m => (
+              <span
+                key={m}
+                style={{
+                  padding: '8px 14px',
+                  backgroundColor: 'rgba(91, 74, 230, 0.08)',
+                  borderRadius: '20px',
+                  fontSize: '13px',
+                  fontWeight: 500,
+                  color: '#5B4AE6',
+                }}
+              >
+                {m}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+    </section>
+  )
+}
+
+// =============================================
+// STACK SECTION (Public Tech Stack)
+// =============================================
+
+// Map tech stack IDs to display labels
+const TECH_STACK_LABELS = {
+  'react': 'React',
+  'javascript': 'JavaScript',
+  'typescript': 'TypeScript',
+  'python': 'Python',
+  'nodejs': 'Node.js',
+  'nextjs': 'Next.js',
+  'vue': 'Vue',
+  'swift': 'Swift',
+  'kotlin': 'Kotlin',
+  'go': 'Go',
+  'rust': 'Rust',
+  'figma': 'Figma',
+  'supabase': 'Supabase',
+  'vercel': 'Vercel',
+  'github': 'GitHub',
+  'vscode': 'VS Code',
+  'docker': 'Docker',
+  'aws': 'AWS',
+  'firebase': 'Firebase',
+  'postgresql': 'PostgreSQL',
+  'mongodb': 'MongoDB',
+  'uiux': 'UI/UX',
+  'data': 'Data',
+  'aiml': 'AI/ML',
+  'mobile': 'Mobile',
+  'web3': 'Web3',
+}
+
+function StackSection({ profile, isMobile }) {
+  // Use publicTechStack if available, fallback to legacy skills/tools for backward compatibility
+  const publicTechStack = profile.publicTechStack || []
+  const hasLegacySkills = profile.skills && profile.skills.length > 0
+  const hasLegacyTools = profile.tools && profile.tools.length > 0
+  
+  // If publicTechStack is set, use it; otherwise fall back to legacy
+  const hasTechStack = publicTechStack.length > 0
+  const hasLegacyData = hasLegacySkills || hasLegacyTools
+
+  // Hide section if no tech stack data
+  if (!hasTechStack && !hasLegacyData) return null
+
+  return (
+    <section
+      style={{
+        backgroundColor: 'white',
+        borderRadius: '16px',
+        padding: isMobile ? '20px' : '28px',
+        border: '1px solid #F0F1F3',
+      }}
+    >
+      {/* Section Header - Primary professional signal */}
+      <div style={{ marginBottom: isMobile ? '16px' : '20px' }}>
+        <h2 
+          style={{ 
+            margin: 0, 
+            fontSize: '18px', 
+            fontWeight: 600, 
+            color: '#111827',
+          }}
+        >
+          Tech Stack
+        </h2>
+        <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#6B7280' }}>
+          Tools and technologies
+        </p>
+      </div>
+
+      {/* Public Tech Stack (new system) - Primary professional signal */}
+      {hasTechStack && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+          {publicTechStack.map(techId => {
+            const label = TECH_STACK_LABELS[techId] || techId
             return (
               <span
-                key={id}
-                className="px-3 py-1.5 bg-gray-100 rounded-full text-sm font-medium text-gray-600"
+                key={techId}
+                style={{
+                  padding: '10px 18px',
+                  backgroundColor: '#F8F9FA',
+                  color: '#374151',
+                  fontSize: '14px',
+                  fontWeight: 500,
+                  borderRadius: '10px',
+                  border: '1px solid #EAECF0',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  transition: 'all 0.15s ease',
+                }}
               >
-                {item.emoji} {item.label}
+                {label}
               </span>
             )
           })}
         </div>
       )}
 
-      {/* Major */}
-      {profile.major && profile.major.length > 0 && (
-        <div className="flex flex-wrap gap-2 mt-4">
-          {profile.major.map(m => (
-            <span
-              key={m}
-              className="px-3 py-1.5 bg-primary-light rounded-full text-sm font-medium text-primary"
-            >
-              {m}
-            </span>
-          ))}
-        </div>
-      )}
-
-      <div className="border-b border-gray-100 mt-8" />
-    </section>
-  )
-}
-
-// =============================================
-// STACK SECTION
-// =============================================
-
-function StackSection({ profile, isMobile }) {
-  const hasSkills = profile.skills && profile.skills.length > 0
-  const hasTools = profile.tools && profile.tools.length > 0
-
-  if (!hasSkills && !hasTools) return null
-
-  return (
-    <section>
-      <h2 className={`font-semibold text-gray-900 ${isMobile ? 'text-lg mb-3' : 'text-xl mb-4'}`}>
-        Tech Stack
-      </h2>
-
-      {/* Tools with Icons */}
-      {hasTools && (
-        <div className="flex flex-wrap gap-3 mb-4">
+      {/* Legacy fallback: Tools with Icons (only if no publicTechStack) */}
+      {!hasTechStack && hasLegacyTools && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginBottom: hasLegacySkills ? '16px' : 0 }}>
           {profile.tools.map(tool => (
             <div
               key={tool}
-              className="flex items-center gap-2 px-3 py-2 bg-gray-50 hover:bg-gray-100 rounded-xl transition-colors"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '10px 14px',
+                backgroundColor: '#F8F9FA',
+                borderRadius: '12px',
+                border: '1px solid #E5E7EB',
+              }}
               title={tool}
             >
-              <span className="text-gray-700">
-                {TOOL_ICONS[tool] || <div className="w-5 h-5 rounded bg-gray-300" />}
+              <span style={{ color: '#374151' }}>
+                {TOOL_ICONS[tool] || <div style={{ width: '20px', height: '20px', borderRadius: '4px', backgroundColor: '#D1D5DB' }} />}
               </span>
-              <span className="text-sm font-medium text-gray-700">{tool}</span>
+              <span style={{ fontSize: '14px', fontWeight: 500, color: '#374151' }}>{tool}</span>
             </div>
           ))}
         </div>
       )}
 
-      {/* Skills */}
-      {hasSkills && (
-        <div className="flex flex-wrap gap-2">
+      {/* Legacy fallback: Skills (only if no publicTechStack) */}
+      {!hasTechStack && hasLegacySkills && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
           {profile.skills.map(skill => (
             <span
               key={skill}
-              className="px-3 py-1.5 bg-gray-100 rounded-full text-sm text-gray-600"
+              style={{
+                padding: '8px 14px',
+                backgroundColor: '#F3F4F6',
+                borderRadius: '20px',
+                fontSize: '13px',
+                color: '#4B5563',
+              }}
             >
               {skill}
             </span>
           ))}
         </div>
       )}
-
-      <div className="border-b border-gray-100 mt-8" />
     </section>
   )
 }
@@ -765,6 +960,351 @@ function ActivitySection({ profile, isMobile }) {
         })}
       </div>
     </section>
+  )
+}
+
+// =============================================
+// PROFILE HEADER (Desktop Main Column Top)
+// =============================================
+
+function ProfileHeader({ profile, fullName, isOwner, navigate }) {
+  const stats = profile.stats || {}
+  // Note: Badges data is preserved but not displayed on public profiles
+  // Badges are available for internal/admin use if needed
+
+  return (
+    <div 
+      style={{
+        backgroundColor: 'white',
+        borderRadius: '20px',
+        padding: '28px',
+        border: '1px solid #F0F1F3',
+      }}
+    >
+      {/* Top Row: Avatar + Identity */}
+      <div style={{ display: 'flex', gap: '20px', marginBottom: '20px' }}>
+        {/* Avatar */}
+        <div 
+          style={{
+            width: '88px',
+            height: '88px',
+            borderRadius: '20px',
+            overflow: 'hidden',
+            backgroundColor: '#F3F4F6',
+            border: '2px solid #E5E7EB',
+            flexShrink: 0,
+          }}
+        >
+          {profile.avatar ? (
+            <img src={profile.avatar} alt={fullName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          ) : (
+            <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '28px', fontWeight: 'bold', color: '#9CA3AF' }}>
+              {profile.firstName?.[0]}{profile.lastName?.[0]}
+            </div>
+          )}
+        </div>
+
+        {/* Identity Info */}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+            <h1 style={{ margin: 0, fontSize: '24px', fontWeight: 700, color: '#111827', letterSpacing: '-0.02em' }}>
+              {fullName}
+            </h1>
+            {/* Verified badge removed from public profiles */}
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px', flexWrap: 'wrap' }}>
+            {profile.username && (
+              <span style={{ fontSize: '14px', color: '#6B7280' }}>@{profile.username}</span>
+            )}
+            {profile.openToMessages && (
+              <span 
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                  fontSize: '12px',
+                  fontWeight: 500,
+                  color: '#059669',
+                  backgroundColor: 'rgba(5, 150, 105, 0.1)',
+                  padding: '4px 10px',
+                  borderRadius: '12px',
+                }}
+              >
+                <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#10B981' }} />
+                Open to collaborate
+              </span>
+            )}
+          </div>
+
+          {/* University */}
+          {profile.university && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '10px', fontSize: '14px', color: '#6B7280' }}>
+              <MapPin className="w-4 h-4 text-gray-400" />
+              <span>
+                {profile.university}
+                {profile.graduationYear && ` '${String(profile.graduationYear).slice(-2)}`}
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Bio */}
+      {profile.bio && (
+        <p style={{ margin: 0, marginBottom: '20px', fontSize: '15px', lineHeight: 1.6, color: '#4B5563' }}>
+          {profile.bio}
+        </p>
+      )}
+
+      {/* Stats + Social Row */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '16px', borderTop: '1px solid #F3F4F6' }}>
+        {/* Stats */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+          <div style={{ textAlign: 'center' }}>
+            <p style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: '#111827' }}>{stats.projectsCreated || 0}</p>
+            <p style={{ margin: 0, fontSize: '12px', color: '#9CA3AF' }}>Created</p>
+          </div>
+          <div style={{ width: '1px', height: '24px', backgroundColor: '#E5E7EB' }} />
+          <div style={{ textAlign: 'center' }}>
+            <p style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: '#111827' }}>{stats.projectsJoined || 0}</p>
+            <p style={{ margin: 0, fontSize: '12px', color: '#9CA3AF' }}>Joined</p>
+          </div>
+          <div style={{ width: '1px', height: '24px', backgroundColor: '#E5E7EB' }} />
+          <div style={{ textAlign: 'center' }}>
+            <p style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: '#111827' }}>{stats.eventsAttended || 0}</p>
+            <p style={{ margin: 0, fontSize: '12px', color: '#9CA3AF' }}>Events</p>
+          </div>
+        </div>
+
+        {/* Social Links */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          {profile.links?.github && (
+            <SocialLink href={profile.links.github} icon={<Github className="w-5 h-5" />} />
+          )}
+          {profile.links?.linkedin && (
+            <SocialLink href={profile.links.linkedin} icon={<Linkedin className="w-5 h-5" />} />
+          )}
+          {profile.links?.portfolio && (
+            <SocialLink href={profile.links.portfolio} icon={<Globe className="w-5 h-5" />} />
+          )}
+          {profile.links?.twitter && (
+            <SocialLink href={profile.links.twitter} icon={<Twitter className="w-5 h-5" />} />
+          )}
+        </div>
+      </div>
+
+      {/* Platform badges removed from public profiles for cleaner, collaboration-first display */}
+      {/* Badge data preserved in profile.badges for internal/admin use */}
+    </div>
+  )
+}
+
+// =============================================
+// COLLABORATION CARD (Right Sidebar)
+// =============================================
+
+function CollaborationCard({ profile }) {
+  const lookingFor = profile.lookingFor || []
+  const roles = profile.roles || []
+  
+  // Default collaboration interests if none specified
+  const defaultInterests = ['Join a project', 'Research', 'Hackathons']
+  const interests = lookingFor.length > 0 
+    ? lookingFor.map(id => LOOKING_FOR_LABELS[id]?.label || id) 
+    : defaultInterests
+
+  return (
+    <div 
+      style={{
+        backgroundColor: 'white',
+        borderRadius: '16px',
+        padding: '20px',
+        border: '1px solid #F0F1F3',
+      }}
+    >
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
+        <div 
+          style={{
+            width: '36px',
+            height: '36px',
+            borderRadius: '10px',
+            backgroundColor: profile.openToMessages ? 'rgba(16, 185, 129, 0.1)' : 'rgba(156, 163, 175, 0.1)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          {profile.openToMessages ? (
+            <Sparkles className="w-5 h-5" style={{ color: '#10B981' }} />
+          ) : (
+            <Users className="w-5 h-5" style={{ color: '#9CA3AF' }} />
+          )}
+        </div>
+        <div>
+          <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 600, color: '#111827' }}>
+            {profile.openToMessages ? 'Open to Collaborate' : 'Collaboration'}
+          </h3>
+          <p style={{ margin: 0, fontSize: '12px', color: '#6B7280' }}>
+            {profile.openToMessages ? 'Accepting new opportunities' : 'Check back later'}
+          </p>
+        </div>
+      </div>
+
+      {/* Role Tags */}
+      {roles.length > 0 && (
+        <div style={{ marginBottom: '16px' }}>
+          <p style={{ margin: 0, marginBottom: '8px', fontSize: '12px', fontWeight: 500, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+            Roles
+          </p>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+            {roles.map((role, idx) => (
+              <span 
+                key={idx}
+                style={{
+                  padding: '6px 12px',
+                  backgroundColor: 'rgba(91, 74, 230, 0.08)',
+                  color: '#5B4AE6',
+                  fontSize: '12px',
+                  fontWeight: 500,
+                  borderRadius: '8px',
+                }}
+              >
+                {role}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Currently Open To */}
+      <div>
+        <p style={{ margin: 0, marginBottom: '8px', fontSize: '12px', fontWeight: 500, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+          Currently open to
+        </p>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+          {interests.map((interest, idx) => (
+            <span 
+              key={idx}
+              style={{
+                padding: '6px 12px',
+                backgroundColor: '#F3F4F6',
+                color: '#374151',
+                fontSize: '12px',
+                fontWeight: 500,
+                borderRadius: '8px',
+              }}
+            >
+              {interest}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      {/* Availability */}
+      {profile.availabilityHoursPerWeek && (
+        <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid #F3F4F6' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Calendar className="w-4 h-4" style={{ color: '#6B7280' }} />
+            <span style={{ fontSize: '13px', color: '#6B7280' }}>
+              ~{profile.availabilityHoursPerWeek} hrs/week available
+            </span>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// =============================================
+// RECENT ACTIVITY CARD (Right Sidebar)
+// =============================================
+
+function RecentActivityCard({ profile }) {
+  const activity = profile.activity || []
+  
+  // Default/mock activity if none exists
+  const mockActivity = [
+    { id: 'mock-1', type: 'project_created', title: 'Created a new project', timestamp: '2 days ago' },
+    { id: 'mock-2', type: 'event_attended', title: 'Attended NYC Builders Meetup', timestamp: '1 week ago' },
+    { id: 'mock-3', type: 'project_joined', title: 'Joined a team', timestamp: '2 weeks ago' },
+  ]
+  
+  const displayActivity = activity.length > 0 ? activity.slice(0, 4) : mockActivity
+
+  return (
+    <div 
+      style={{
+        backgroundColor: 'white',
+        borderRadius: '16px',
+        padding: '20px',
+        border: '1px solid #F0F1F3',
+      }}
+    >
+      {/* Header */}
+      <h3 style={{ margin: 0, marginBottom: '16px', fontSize: '15px', fontWeight: 600, color: '#111827' }}>
+        Recently Active
+      </h3>
+
+      {/* Activity List */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        {displayActivity.map((item, idx) => {
+          const activityType = ACTIVITY_TYPES[item.type] || { color: '#6B7280' }
+          return (
+            <div 
+              key={item.id || idx}
+              style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '12px',
+              }}
+            >
+              <div 
+                style={{
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '8px',
+                  backgroundColor: `${activityType.color}15`,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                }}
+              >
+                <ActivityIcon type={item.type} color={activityType.color} />
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ margin: 0, fontSize: '13px', fontWeight: 500, color: '#374151', lineHeight: 1.4 }}>
+                  {item.title}
+                </p>
+                <p style={{ margin: 0, marginTop: '2px', fontSize: '11px', color: '#9CA3AF' }}>
+                  {item.timestamp}
+                </p>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      {/* View All Link (if more activity) */}
+      {activity.length > 4 && (
+        <button 
+          style={{
+            marginTop: '12px',
+            padding: 0,
+            background: 'none',
+            border: 'none',
+            fontSize: '13px',
+            fontWeight: 500,
+            color: '#5B4AE6',
+            cursor: 'pointer',
+          }}
+        >
+          View all activity →
+        </button>
+      )}
+    </div>
   )
 }
 

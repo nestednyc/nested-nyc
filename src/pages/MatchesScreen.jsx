@@ -51,25 +51,30 @@ function MatchesScreen() {
       {/* Header */}
       <div 
         style={{ 
-          paddingTop: '50px',
-          paddingLeft: '20px',
-          paddingRight: '20px',
+          paddingTop: '32px',
+          paddingLeft: '40px',
+          paddingRight: '40px',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          marginBottom: '24px'
+          marginBottom: '32px'
         }}
       >
-        <h1 
-          style={{ 
-            margin: 0,
-            fontSize: '24px',
-            fontWeight: 700,
-            color: '#111827'
-          }}
-        >
-          My Projects
-        </h1>
+        <div>
+          <h1 
+            style={{ 
+              margin: 0,
+              fontSize: '24px',
+              fontWeight: 700,
+              color: '#111827'
+            }}
+          >
+            My Projects
+          </h1>
+          <p style={{ margin: '4px 0 0 0', fontSize: '14px', color: '#6B7280' }}>
+            Your workspace for building and collaborating
+          </p>
+        </div>
         
         {/* New Project Button */}
         <button 
@@ -77,8 +82,8 @@ function MatchesScreen() {
           style={{
             display: 'flex',
             alignItems: 'center',
-            gap: '6px',
-            padding: '10px 18px',
+            gap: '8px',
+            padding: '12px 20px',
             backgroundColor: '#5B4AE6',
             color: 'white',
             fontSize: '14px',
@@ -105,54 +110,52 @@ function MatchesScreen() {
           flex: 1, 
           overflowY: 'auto', 
           paddingBottom: '100px',
-          paddingLeft: '20px',
-          paddingRight: '20px'
+          paddingLeft: '40px',
+          paddingRight: '40px'
         }}
       >
-        {/* Projects Grid */}
-          <div 
-            style={{ 
-              display: 'grid', 
-            gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
-            gap: '16px'
+        {/* Projects Grid - 2 columns for focused workspace */}
+        <div 
+          style={{ 
+            display: 'grid', 
+            gridTemplateColumns: 'repeat(2, 1fr)',
+            gap: '20px'
           }}
+          className="projects-grid"
         >
           {/* Create Project Card - Always first */}
           <div 
             onClick={() => navigate('/create-project')}
             style={{
               backgroundColor: 'white',
-              borderRadius: '15px',
+              borderRadius: '16px',
               border: '2px dashed #E5E7EB',
-              padding: '20px',
+              padding: '28px',
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
               justifyContent: 'center',
-              gap: '12px',
-              minHeight: '180px',
+              gap: '14px',
+              minHeight: '200px',
               cursor: 'pointer',
-              transition: 'all 0.15s ease',
-              boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+              transition: 'all 0.2s ease'
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.borderColor = '#5B4AE6'
               e.currentTarget.style.backgroundColor = 'rgba(91, 74, 230, 0.02)'
-              e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.08)'
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.borderColor = '#E5E7EB'
               e.currentTarget.style.backgroundColor = 'white'
-              e.currentTarget.style.boxShadow = '0 1px 2px rgba(0,0,0,0.05)'
             }}
           >
             {/* Plus Icon */}
             <div 
               style={{
-                width: '48px',
-                height: '48px',
-                borderRadius: '12px',
-                backgroundColor: 'rgba(91, 74, 230, 0.1)',
+                width: '52px',
+                height: '52px',
+                borderRadius: '14px',
+                backgroundColor: 'rgba(91, 74, 230, 0.08)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center'
@@ -166,59 +169,60 @@ function MatchesScreen() {
             
             {/* Text */}
             <div style={{ textAlign: 'center' }}>
-              <p style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: '#5B4AE6' }}>
+              <p style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#5B4AE6' }}>
                 Create Project
               </p>
-              <p style={{ margin: 0, marginTop: '4px', fontSize: '12px', color: '#9CA3AF' }}>
-                Share your idea
+              <p style={{ margin: 0, marginTop: '4px', fontSize: '13px', color: '#9CA3AF' }}>
+                Start something new
               </p>
             </div>
           </div>
 
           {/* Project Cards */}
-            {activeProjects.map(project => (
-              <div 
-                key={project.id}
-                style={{
+          {activeProjects.map(project => (
+            <div 
+              key={project.id}
+              style={{
                 backgroundColor: 'white',
-                  borderRadius: '15px',
-                border: '1px solid #E5E7EB',
-                padding: '20px',
+                borderRadius: '16px',
+                border: '1px solid #EAECF0',
+                padding: '24px',
                 display: 'flex',
                 flexDirection: 'column',
-                gap: '12px',
-                minHeight: '180px',
-                  cursor: 'pointer',
-                transition: 'all 0.15s ease',
-                boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
-                position: 'relative'
+                gap: '16px',
+                minHeight: '200px',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                boxShadow: '0 1px 2px rgba(0, 0, 0, 0.03)'
               }}
               onClick={() => navigate(`/projects/${project.id}`)}
               onMouseEnter={(e) => {
-                e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.08)'
-                e.currentTarget.style.transform = 'translateY(-1px)'
+                e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.06)'
+                e.currentTarget.style.transform = 'translateY(-2px)'
+                e.currentTarget.style.borderColor = '#D1D5DB'
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.boxShadow = '0 1px 2px rgba(0,0,0,0.05)'
+                e.currentTarget.style.boxShadow = '0 1px 2px rgba(0, 0, 0, 0.03)'
                 e.currentTarget.style.transform = 'translateY(0)'
+                e.currentTarget.style.borderColor = '#EAECF0'
               }}
             >
               {/* Top Row: Icon + Title */}
-              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '14px' }}>
                 {/* Project Icon/Avatar */}
                 <div 
                   style={{
-                    width: '48px',
-                    height: '48px',
-                    borderRadius: '12px',
-                    backgroundColor: 'rgba(91, 74, 230, 0.1)',
+                    width: '52px',
+                    height: '52px',
+                    borderRadius: '14px',
+                    backgroundColor: 'rgba(91, 74, 230, 0.08)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     flexShrink: 0
                   }}
                 >
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#5B4AE6" strokeWidth="2">
+                  <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#5B4AE6" strokeWidth="2">
                     <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
                     <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
                     <line x1="12" y1="22.08" x2="12" y2="12"/>
@@ -227,20 +231,20 @@ function MatchesScreen() {
                 
                 {/* Title + Description */}
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: '#111827', lineHeight: 1.3 }}>
+                  <p style={{ margin: 0, fontSize: '17px', fontWeight: 700, color: '#111827', lineHeight: 1.3 }}>
                     {project.title}
                   </p>
                   <p 
                     style={{ 
                       margin: 0, 
-                      marginTop: '4px',
-                      fontSize: '12px', 
-                      color: '#9CA3AF',
+                      marginTop: '6px',
+                      fontSize: '13px', 
+                      color: '#6B7280',
                       display: '-webkit-box',
-                      WebkitLineClamp: 1,
+                      WebkitLineClamp: 2,
                       WebkitBoxOrient: 'vertical',
                       overflow: 'hidden',
-                      textOverflow: 'ellipsis'
+                      lineHeight: 1.5
                     }}
                   >
                     {project.description || project.tagline || 'Building something awesome'}
@@ -249,17 +253,17 @@ function MatchesScreen() {
               </div>
               
               {/* Metadata Row: Badges */}
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '4px' }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                 {/* Role Badge */}
                 {project.isOwner && (
                   <span 
                     style={{
-                      fontSize: '10px',
+                      fontSize: '11px',
                       fontWeight: 600,
                       color: '#5B4AE6',
-                      backgroundColor: 'rgba(91, 74, 230, 0.1)',
-                      padding: '4px 10px',
-                      borderRadius: '12px'
+                      backgroundColor: 'rgba(91, 74, 230, 0.08)',
+                      padding: '5px 12px',
+                      borderRadius: '10px'
                     }}
                   >
                     Owner
@@ -268,12 +272,12 @@ function MatchesScreen() {
                 {!project.isOwner && project.joined && (
                   <span 
                     style={{
-                      fontSize: '10px',
+                      fontSize: '11px',
                       fontWeight: 600,
                       color: '#6B7280',
                       backgroundColor: '#F3F4F6',
-                      padding: '4px 10px',
-                      borderRadius: '12px'
+                      padding: '5px 12px',
+                      borderRadius: '10px'
                     }}
                   >
                     Member
@@ -284,12 +288,12 @@ function MatchesScreen() {
                 {(project.school || (project.schools && project.schools[0])) && (
                   <span 
                     style={{
-                      fontSize: '10px',
-                      fontWeight: 600,
+                      fontSize: '11px',
+                      fontWeight: 500,
                       color: '#6B7280',
                       backgroundColor: '#F3F4F6',
-                      padding: '4px 10px',
-                      borderRadius: '12px'
+                      padding: '5px 12px',
+                      borderRadius: '10px'
                     }}
                   >
                     {project.school || project.schools[0]}
@@ -299,12 +303,12 @@ function MatchesScreen() {
                 {/* Status Badge */}
                 <span 
                   style={{
-                    fontSize: '10px',
+                    fontSize: '11px',
                     fontWeight: 600,
                     color: '#059669',
-                    backgroundColor: 'rgba(5, 150, 105, 0.1)',
-                    padding: '4px 10px',
-                    borderRadius: '12px'
+                    backgroundColor: 'rgba(5, 150, 105, 0.08)',
+                    padding: '5px 12px',
+                    borderRadius: '10px'
                   }}
                 >
                   Active
@@ -315,20 +319,20 @@ function MatchesScreen() {
               <div style={{ flex: 1 }} />
               
               {/* Open Button - Bottom Right */}
-              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '8px' }}>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: '8px', borderTop: '1px solid #F3F4F6' }}>
                 <button 
                   onClick={(e) => {
                     e.stopPropagation()
                     navigate(`/projects/${project.id}`)
                   }}
-                    style={{
-                    padding: '8px 16px',
+                  style={{
+                    padding: '10px 20px',
                     backgroundColor: '#5B4AE6',
                     color: 'white',
                     fontSize: '13px',
                     fontWeight: 600,
                     borderRadius: '10px',
-                      border: 'none',
+                    border: 'none',
                     cursor: 'pointer',
                     transition: 'background-color 0.15s ease'
                   }}
@@ -344,66 +348,68 @@ function MatchesScreen() {
                   Open
                 </button>
               </div>
-              </div>
-            ))}
+            </div>
+          ))}
         </div>
         
-        {/* Saved Section - Optional, can be removed or kept as is */}
+        {/* Saved Section */}
         {savedProjects.length > 0 && (
-          <div style={{ marginTop: '32px' }}>
-            <p style={{ margin: 0, marginBottom: '16px', fontSize: '14px', color: '#6B7280', fontWeight: 600 }}>
-            Saved
-          </p>
-          <div 
-            style={{ 
-              display: 'grid', 
-                gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
-                gap: '16px' 
-            }}
-          >
-            {savedProjects.map(project => (
-              <div 
-                key={project.id}
+          <div style={{ marginTop: '40px', paddingTop: '32px', borderTop: '1px solid #F0F1F3' }}>
+            <p style={{ margin: 0, marginBottom: '20px', fontSize: '13px', color: '#6B7280', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              Saved for later
+            </p>
+            <div 
+              style={{ 
+                display: 'grid', 
+                gridTemplateColumns: 'repeat(2, 1fr)',
+                gap: '20px' 
+              }}
+              className="projects-grid"
+            >
+              {savedProjects.map(project => (
+                <div 
+                  key={project.id}
                   style={{
                     backgroundColor: 'white',
-                    borderRadius: '15px',
-                    border: '1px solid #E5E7EB',
-                    padding: '20px',
+                    borderRadius: '16px',
+                    border: '1px solid #EAECF0',
+                    padding: '24px',
                     display: 'flex',
                     flexDirection: 'column',
-                    gap: '12px',
-                    minHeight: '180px',
+                    gap: '16px',
+                    minHeight: '200px',
                     cursor: 'pointer',
-                    transition: 'all 0.15s ease',
-                    boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
-                    position: 'relative'
+                    transition: 'all 0.2s ease',
+                    boxShadow: '0 1px 2px rgba(0, 0, 0, 0.03)'
                   }}
                   onClick={() => navigate(`/projects/${project.id}`)}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.08)'
-                    e.currentTarget.style.transform = 'translateY(-1px)'
+                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.06)'
+                    e.currentTarget.style.transform = 'translateY(-2px)'
+                    e.currentTarget.style.borderColor = '#D1D5DB'
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.boxShadow = '0 1px 2px rgba(0,0,0,0.05)'
+                    e.currentTarget.style.boxShadow = '0 1px 2px rgba(0, 0, 0, 0.03)'
                     e.currentTarget.style.transform = 'translateY(0)'
+                    e.currentTarget.style.borderColor = '#EAECF0'
                   }}
                 >
                   {/* Top Row: Icon + Title */}
-                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '14px' }}>
                     {/* Project Icon/Avatar */}
                     <div 
                       style={{
-                        width: '48px',
-                        height: '48px',
-                        borderRadius: '12px',
-                        backgroundColor: 'rgba(91, 74, 230, 0.1)',
+                        width: '52px',
+                        height: '52px',
+                        borderRadius: '14px',
+                        backgroundColor: 'rgba(91, 74, 230, 0.08)',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
                         flexShrink: 0
                       }}
                     >
-                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#5B4AE6" strokeWidth="2">
+                      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#5B4AE6" strokeWidth="2">
                         <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
                         <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
                         <line x1="12" y1="22.08" x2="12" y2="12"/>
@@ -412,20 +418,20 @@ function MatchesScreen() {
                     
                     {/* Title + Description */}
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <p style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: '#111827', lineHeight: 1.3 }}>
+                      <p style={{ margin: 0, fontSize: '17px', fontWeight: 700, color: '#111827', lineHeight: 1.3 }}>
                         {project.title}
                       </p>
                       <p 
                         style={{ 
                           margin: 0, 
-                          marginTop: '4px',
-                          fontSize: '12px', 
-                          color: '#9CA3AF',
+                          marginTop: '6px',
+                          fontSize: '13px', 
+                          color: '#6B7280',
                           display: '-webkit-box',
-                          WebkitLineClamp: 1,
+                          WebkitLineClamp: 2,
                           WebkitBoxOrient: 'vertical',
                           overflow: 'hidden',
-                          textOverflow: 'ellipsis'
+                          lineHeight: 1.5
                         }}
                       >
                         {project.description || project.category || 'Saved project'}
@@ -434,34 +440,40 @@ function MatchesScreen() {
                   </div>
                   
                   {/* Metadata Row: Badges */}
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '4px' }}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                     {/* School Badge */}
                     {project.school && (
                       <span 
                         style={{
-                          fontSize: '10px',
-                          fontWeight: 600,
+                          fontSize: '11px',
+                          fontWeight: 500,
                           color: '#6B7280',
                           backgroundColor: '#F3F4F6',
-                          padding: '4px 10px',
-                          borderRadius: '12px'
+                          padding: '5px 12px',
+                          borderRadius: '10px'
                         }}
                       >
                         {project.school}
                       </span>
                     )}
                     
-                    {/* Status Badge - Draft for saved */}
+                    {/* Saved Badge */}
                     <span 
                       style={{
-                        fontSize: '10px',
+                        fontSize: '11px',
                         fontWeight: 600,
                         color: '#9CA3AF',
                         backgroundColor: '#F3F4F6',
-                        padding: '4px 10px',
-                        borderRadius: '12px'
+                        padding: '5px 12px',
+                        borderRadius: '10px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px'
                       }}
                     >
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="#9CA3AF" stroke="none">
+                        <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
+                      </svg>
                       Saved
                     </span>
                   </div>
@@ -470,39 +482,39 @@ function MatchesScreen() {
                   <div style={{ flex: 1 }} />
                   
                   {/* Open Button - Bottom Right */}
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '8px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: '8px', borderTop: '1px solid #F3F4F6' }}>
                     <button 
                       onClick={(e) => {
                         e.stopPropagation()
                         navigate(`/projects/${project.id}`)
                       }}
                       style={{
-                        padding: '8px 16px',
-                        backgroundColor: '#5B4AE6',
-                        color: 'white',
+                        padding: '10px 20px',
+                        backgroundColor: 'transparent',
+                        color: '#5B4AE6',
                         fontSize: '13px',
                         fontWeight: 600,
                         borderRadius: '10px',
-                        border: 'none',
+                        border: '1.5px solid #5B4AE6',
                         cursor: 'pointer',
-                        transition: 'background-color 0.15s ease'
+                        transition: 'all 0.15s ease'
                       }}
                       onMouseEnter={(e) => {
                         e.stopPropagation()
-                        e.currentTarget.style.backgroundColor = '#4A3CD4'
+                        e.currentTarget.style.backgroundColor = 'rgba(91, 74, 230, 0.08)'
                       }}
                       onMouseLeave={(e) => {
                         e.stopPropagation()
-                        e.currentTarget.style.backgroundColor = '#5B4AE6'
+                        e.currentTarget.style.backgroundColor = 'transparent'
                       }}
                     >
-                      Open
+                      View
                     </button>
                   </div>
-              </div>
-            ))}
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
         )}
       </div>
       
