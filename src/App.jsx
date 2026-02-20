@@ -1,12 +1,14 @@
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { useState, useEffect } from 'react'
+import { OnboardingProvider } from './context/OnboardingContext'
 
 // Layout components
 import MobileFrame from './components/MobileFrame'
 import WebLayout from './components/WebLayout'
 
-// Auth Flow (UI only)
+// Auth Flow
 import AuthGateScreen from './pages/AuthGateScreen'
+import AuthConfirmScreen from './pages/AuthConfirmScreen'
 
 // Main App Pages
 import DiscoverScreen from './pages/DiscoverScreen'
@@ -44,7 +46,7 @@ function useIsDesktop() {
 /**
  * Route categories for layout decisions
  */
-const AUTH_ROUTES = ['/auth', '/login']
+const AUTH_ROUTES = ['/auth', '/auth/confirm', '/login']
 const FORM_ROUTES = ['/profile/edit']
 const APP_ROUTES = ['/discover', '/events', '/matches', '/messages']
 
@@ -76,6 +78,13 @@ function AppContent() {
           : <MobileFrame><AuthGateScreen /></MobileFrame>
       } />
       
+      {/* Auth Confirm - handles email verification callback */}
+      <Route path="/auth/confirm" element={
+        useDesktopLayout
+          ? <WebLayout layoutType="auth"><AuthConfirmScreen /></WebLayout>
+          : <MobileFrame><AuthConfirmScreen /></MobileFrame>
+      } />
+
       {/* Legacy login route */}
       <Route path="/login" element={<Navigate to="/auth" replace />} />
       
@@ -169,7 +178,9 @@ function AppContent() {
 function App() {
   return (
     <BrowserRouter>
-      <AppContent />
+      <OnboardingProvider>
+        <AppContent />
+      </OnboardingProvider>
     </BrowserRouter>
   )
 }
