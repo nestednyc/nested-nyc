@@ -1,7 +1,11 @@
 /**
  * Nest Data Store
  * Centralized data for all nests - both default and user-created
+ * Supports both localStorage (fallback) and Supabase (when configured)
  */
+
+import { supabase, isSupabaseConfigured } from '../lib/supabase'
+import { nestService } from '../services/nestService'
 
 // Demo current user ID (for MVP/demo purposes)
 export const DEMO_CURRENT_USER_ID = 'demo-user-1'
@@ -168,4 +172,186 @@ export function getNestById(nestId) {
 export function getDiscoverNests() {
   const userNests = getUserNests().map(transformUserNest)
   return [...userNests, ...DEFAULT_NESTS]
+}
+
+// ============================================
+// ASYNC SUPABASE-AWARE FUNCTIONS
+// ============================================
+
+/**
+ * Get current user ID from Supabase
+ */
+async function getCurrentUserId() {
+  if (!isSupabaseConfigured() || !supabase) {
+    return null
+  }
+  const { data: { user } } = await supabase.auth.getUser()
+  return user?.id || null
+}
+
+/**
+ * Transform a Supabase nest to the standard component format
+ */
+function transformSupabaseNest(n, isOwner = false, isMember = false) {
+  return {
+    id: n.id,
+    name: n.name,
+    description: n.description,
+    image: n.image || 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=200&h=200&fit=crop',
+    tags: n.tags || [],
+    members: n.member_count || 1,
+    ownerId: n.owner_id,
+    isOwner: isOwner,
+    isMember: isMember,
+    isSupabaseNest: true,
+    createdAt: n.created_at,
+    memberAvatars: [] // Would need to fetch from nest_members with profiles
+  }
+}
+
+/**
+ * Async: Get all nests for Discover (Supabase + localStorage fallback)
+ */
+export async function getDiscoverNestsAsync() {
+  // Always include localStorage/default nests as base
+  const localNests = getDiscoverNests()
+
+  if (!isSupabaseConfigured()) {
+    return localNests
+  }
+
+  try {
+    const { data: dbNests, error } = await nestService.getAllNests()
+
+    if (error || !dbNests) {
+      console.warn('Could not fetch nests from Supabase, using localStorage:', error?.message)
+      return localNests
+    }
+
+    const currentUserId = await getCurrentUserId()
+
+    // Get joined nests for current user
+    let joinedNestIds = new Set()
+    if (currentUserId) {
+      const { data: joined } = await nestService.getJoinedNests()
+      if (joined) {
+        joinedNestIds = new Set(joined.map(n => n.id))
+      }
+    }
+
+    // Transform Supabase nests
+    const transformedDbNests = dbNests.map(n =>
+      transformSupabaseNest(
+        n,
+        n.owner_id === currentUserId,
+        joinedNestIds.has(n.id)
+      )
+    )
+
+    // Merge: DB nests first, then local nests (avoiding duplicates)
+    const dbIds = new Set(dbNests.map(n => n.id))
+    const localOnly = localNests.filter(n => !dbIds.has(n.id))
+
+    return [...transformedDbNests, ...localOnly]
+  } catch (err) {
+    console.error('Error fetching nests:', err)
+    return localNests
+  }
+}
+
+/**
+ * Async: Get a single nest by ID
+ */
+export async function getNestByIdAsync(nestId) {
+  if (!nestId) return null
+
+  // First try localStorage/default
+  const localNest = getNestById(nestId)
+
+  if (!isSupabaseConfigured()) {
+    return localNest
+  }
+
+  // Check if it looks like a Supabase UUID
+  const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(nestId)
+
+  if (isUUID) {
+    try {
+      const { data, error } = await nestService.getNest(nestId)
+
+      if (!error && data) {
+        const currentUserId = await getCurrentUserId()
+        const isMember = currentUserId ? await nestService.isMember(nestId) : false
+        return transformSupabaseNest(data, data.owner_id === currentUserId, isMember)
+      }
+    } catch (err) {
+      console.error('Error fetching nest:', err)
+    }
+  }
+
+  return localNest
+}
+
+/**
+ * Async: Create a new nest
+ */
+export async function createNestAsync(nestData) {
+  if (!isSupabaseConfigured()) {
+    // Fall back to localStorage
+    return { data: saveNest(nestData), error: null }
+  }
+
+  try {
+    const { data, error } = await nestService.createNest({
+      name: nestData.name,
+      description: nestData.description,
+      image: nestData.image,
+      tags: nestData.tags || []
+    })
+
+    if (error) {
+      console.error('Error creating nest in Supabase:', error)
+      // Fall back to localStorage
+      return { data: saveNest(nestData), error: null }
+    }
+
+    return { data: transformSupabaseNest(data, true, true), error: null }
+  } catch (err) {
+    console.error('Error creating nest:', err)
+    return { data: saveNest(nestData), error: null }
+  }
+}
+
+/**
+ * Async: Join a nest
+ */
+export async function joinNestAsync(nestId) {
+  if (!isSupabaseConfigured()) {
+    return { error: { message: 'Supabase not configured' } }
+  }
+
+  try {
+    const { data, error } = await nestService.joinNest(nestId)
+    return { data, error }
+  } catch (err) {
+    console.error('Error joining nest:', err)
+    return { error: err }
+  }
+}
+
+/**
+ * Async: Leave a nest
+ */
+export async function leaveNestAsync(nestId) {
+  if (!isSupabaseConfigured()) {
+    return { error: { message: 'Supabase not configured' } }
+  }
+
+  try {
+    const { error } = await nestService.leaveNest(nestId)
+    return { error }
+  } catch (err) {
+    console.error('Error leaving nest:', err)
+    return { error: err }
+  }
 }

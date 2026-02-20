@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { getMyProjects, DEMO_CURRENT_USER_ID } from '../utils/projectData'
+import { getMyProjects, getMyProjectsAsync, DEMO_CURRENT_USER_ID } from '../utils/projectData'
+import { supabase, isSupabaseConfigured } from '../lib/supabase'
+import { profileService } from '../services/profileService'
 
 /**
  * ProfileViewScreen - Public read-only profile view
@@ -20,8 +22,9 @@ const LOOKING_FOR_LABELS = {
 // Max projects to display on public profile
 const MAX_VISIBLE_PROJECTS = 3
 
-// Mock profiles for other users (pending request users, etc.)
+// Mock profiles for other users (pending request users, team members, etc.)
 const MOCK_USER_PROFILES = {
+  // Pending request users
   'req-1': {
     firstName: 'Jordan',
     lastName: 'Lee',
@@ -57,6 +60,151 @@ const MOCK_USER_PROFILES = {
     projects: [],
     links: { linkedin: 'linkedin.com/in/alexchen' },
     avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop'
+  },
+  // Mock team members from DEFAULT_PROJECTS
+  'mock-marcus': {
+    firstName: 'Marcus',
+    lastName: 'Chen',
+    university: 'NYU',
+    bio: 'Backend engineer focused on sustainability tech. Building tools to help students understand their environmental impact.',
+    fields: ['Engineering', 'Sustainability'],
+    lookingFor: ['join'],
+    skills: ['Python', 'Node.js', 'React', 'D3.js', 'Data Viz'],
+    projects: [],
+    links: { github: 'github.com/marcuschen', linkedin: 'linkedin.com/in/marcuschen' },
+    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop'
+  },
+  'mock-sofia': {
+    firstName: 'Sofia',
+    lastName: 'Rodriguez',
+    university: 'Columbia',
+    bio: 'Data scientist passionate about using analytics to drive positive change. Love working on climate and sustainability projects.',
+    fields: ['Data Science', 'Engineering'],
+    lookingFor: ['join'],
+    skills: ['Python', 'R', 'SQL', 'Machine Learning', 'Data Viz'],
+    projects: [],
+    links: { github: 'github.com/sofiarodriguez', linkedin: 'linkedin.com/in/sofiarodriguez' },
+    avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop'
+  },
+  'mock-priya': {
+    firstName: 'Priya',
+    lastName: 'Sharma',
+    university: 'Columbia',
+    bio: 'ML engineer building AI-powered education tools. Passionate about making learning more accessible and effective.',
+    fields: ['Engineering', 'ML/AI'],
+    lookingFor: ['cofounder'],
+    skills: ['Python', 'TensorFlow', 'PyTorch', 'NLP', 'React Native'],
+    projects: [],
+    links: { github: 'github.com/priyasharma', linkedin: 'linkedin.com/in/priyasharma' },
+    avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop'
+  },
+  'mock-david': {
+    firstName: 'David',
+    lastName: 'Kim',
+    university: 'Columbia',
+    bio: 'Backend developer with experience in scalable systems. Love building APIs and infrastructure.',
+    fields: ['Engineering'],
+    lookingFor: ['join'],
+    skills: ['Node.js', 'Python', 'PostgreSQL', 'AWS', 'Docker'],
+    projects: [],
+    links: { github: 'github.com/davidkim', linkedin: 'linkedin.com/in/davidkim' },
+    avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100&h=100&fit=crop'
+  },
+  'mock-emma': {
+    firstName: 'Emma',
+    lastName: 'Wilson',
+    university: 'Columbia',
+    bio: 'Product designer creating delightful user experiences. Background in cognitive science and HCI.',
+    fields: ['Design', 'Product'],
+    lookingFor: ['join'],
+    skills: ['Figma', 'UI/UX', 'User Research', 'Prototyping', 'Design Systems'],
+    projects: [],
+    links: { portfolio: 'emmawilson.design', linkedin: 'linkedin.com/in/emmawilson' },
+    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&h=100&fit=crop'
+  },
+  'mock-jake': {
+    firstName: 'Jake',
+    lastName: 'Morrison',
+    university: 'NYU',
+    bio: 'Mobile developer building apps that make city life easier. Passionate about civic tech and urban mobility.',
+    fields: ['Engineering', 'Product'],
+    lookingFor: ['cofounder'],
+    skills: ['React Native', 'Swift', 'Kotlin', 'Node.js', 'APIs'],
+    projects: [],
+    links: { github: 'github.com/jakemorrison', linkedin: 'linkedin.com/in/jakemorrison' },
+    avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100&h=100&fit=crop'
+  },
+  'mock-lily': {
+    firstName: 'Lily',
+    lastName: 'Chen',
+    university: 'Parsons',
+    bio: 'Visual designer with a focus on mobile experiences. Love creating clean, intuitive interfaces.',
+    fields: ['Design'],
+    lookingFor: ['join'],
+    skills: ['Figma', 'Sketch', 'Illustration', 'UI Design', 'Motion Design'],
+    projects: [],
+    links: { portfolio: 'lilychen.design', linkedin: 'linkedin.com/in/lilychen' },
+    avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100&h=100&fit=crop'
+  },
+  'mock-aisha': {
+    firstName: 'Aisha',
+    lastName: 'Patel',
+    university: 'Parsons',
+    bio: 'Design lead passionate about community building. Creating platforms that bring students together.',
+    fields: ['Design', 'Product'],
+    lookingFor: ['cofounder'],
+    skills: ['UI/UX', 'Figma', 'Branding', 'User Research', 'Frontend'],
+    projects: [],
+    links: { portfolio: 'aishapatel.design', linkedin: 'linkedin.com/in/aishapatel' },
+    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&h=100&fit=crop'
+  },
+  'mock-tom': {
+    firstName: 'Tom',
+    lastName: 'Richards',
+    university: 'The New School',
+    bio: 'Frontend developer who loves bringing designs to life. Focused on performance and accessibility.',
+    fields: ['Engineering'],
+    lookingFor: ['join'],
+    skills: ['React', 'TypeScript', 'CSS', 'Accessibility', 'Performance'],
+    projects: [],
+    links: { github: 'github.com/tomrichards', linkedin: 'linkedin.com/in/tomrichards' },
+    avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop'
+  },
+  'mock-nina': {
+    firstName: 'Nina',
+    lastName: 'Santos',
+    university: 'Parsons',
+    bio: 'Marketing specialist helping startups find their audience. Experience in social media and growth.',
+    fields: ['Marketing', 'Business'],
+    lookingFor: ['join'],
+    skills: ['Social Media', 'Content Strategy', 'Analytics', 'Copywriting', 'Growth'],
+    projects: [],
+    links: { linkedin: 'linkedin.com/in/ninasantos' },
+    avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=100&h=100&fit=crop'
+  },
+  'mock-alex-j': {
+    firstName: 'Alex',
+    lastName: 'Johnson',
+    university: 'Stern',
+    bio: 'Business student passionate about startups and fundraising. Helping founders tell their stories.',
+    fields: ['Business', 'Product'],
+    lookingFor: ['cofounder'],
+    skills: ['Strategy', 'Fundraising', 'Pitch Decks', 'Financial Modeling', 'Storytelling'],
+    projects: [],
+    links: { linkedin: 'linkedin.com/in/alexjohnson' },
+    avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop'
+  },
+  'mock-maya': {
+    firstName: 'Maya',
+    lastName: 'Thompson',
+    university: 'Tisch',
+    bio: 'Audio engineer and musician building tools for remote music collaboration. Love connecting artists.',
+    fields: ['Creative', 'Engineering'],
+    lookingFor: ['cofounder'],
+    skills: ['Audio Engineering', 'Music Production', 'React', 'WebRTC', 'UI/UX'],
+    projects: [],
+    links: { portfolio: 'mayathompson.music', linkedin: 'linkedin.com/in/mayathompson' },
+    avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=100&h=100&fit=crop'
   }
 }
 
@@ -65,47 +213,171 @@ function ProfileViewScreen() {
   const { userId } = useParams()
   const [profile, setProfile] = useState(null)
   const [nestedProjects, setNestedProjects] = useState([])
-  
-  const isOwner = userId === CURRENT_USER_ID || userId === 'me'
+  const [loading, setLoading] = useState(true)
+  const [isOwner, setIsOwner] = useState(userId === CURRENT_USER_ID || userId === 'me')
 
   useEffect(() => {
-    // Check if viewing current user or another user
-    if (userId === CURRENT_USER_ID || userId === 'me') {
-      // Load current user from localStorage
+    const fetchProfile = async () => {
+      setLoading(true)
+
+      // Get the current authenticated user's ID to check if viewing own profile
+      let authUserId = null
+      if (isSupabaseConfigured()) {
+        try {
+          const { data: { user } } = await supabase.auth.getUser()
+          if (user) {
+            authUserId = user.id
+          }
+        } catch (err) {
+          console.error('Failed to get current user:', err)
+        }
+      }
+
+      // Check if viewing current user (by alias OR by actual Supabase user ID)
+      const isViewingOwnProfile = userId === CURRENT_USER_ID || userId === 'me' || (authUserId && userId === authUserId)
+      setIsOwner(isViewingOwnProfile)
+
+      // Check if viewing current user or another user
+      if (isViewingOwnProfile) {
+        // Try to fetch from Supabase first (use authUserId we already have)
+        if (isSupabaseConfigured() && authUserId) {
+          try {
+            const { data, error } = await profileService.getProfile(authUserId)
+
+            if (!error && data) {
+              // Transform DB format to component format
+              const transformedProfile = {
+                firstName: data.first_name || '',
+                lastName: data.last_name || '',
+                university: data.university || '',
+                fields: data.fields || [],
+                bio: data.bio || '',
+                lookingFor: data.looking_for || [],
+                skills: data.skills || [],
+                projects: data.projects || [],
+                avatar: data.avatar || '',
+                links: data.links || { github: '', portfolio: '', linkedin: '', discord: '' }
+              }
+              setProfile(transformedProfile)
+
+              // Also update localStorage as cache
+              localStorage.setItem(STORAGE_KEY, JSON.stringify(transformedProfile))
+
+              setLoading(false)
+              loadNestedProjects()
+              return
+            }
+          } catch (err) {
+            console.error('Failed to fetch profile from Supabase:', err)
+          }
+        }
+
+        // Fall back to localStorage if Supabase fetch failed
+        try {
+          const saved = localStorage.getItem(STORAGE_KEY)
+          if (saved) setProfile(JSON.parse(saved))
+        } catch (e) {}
+
+        loadNestedProjects()
+      } else {
+        // Viewing another user's profile - try to fetch from Supabase first
+        if (isSupabaseConfigured()) {
+          try {
+            const { data, error } = await profileService.getProfile(userId)
+
+            if (!error && data) {
+              // Transform DB format to component format (same as current user)
+              const transformedProfile = {
+                firstName: data.first_name || '',
+                lastName: data.last_name || '',
+                university: data.university || '',
+                fields: data.fields || [],
+                bio: data.bio || '',
+                lookingFor: data.looking_for || [],
+                skills: data.skills || [],
+                projects: data.projects || [],
+                avatar: data.avatar || '',
+                links: data.links || { github: '', portfolio: '', linkedin: '', discord: '' }
+              }
+              setProfile(transformedProfile)
+              // Other users don't show nested projects for now
+              setNestedProjects([])
+              setLoading(false)
+              return
+            }
+          } catch (err) {
+            console.error('Failed to fetch other user profile from Supabase:', err)
+          }
+        }
+
+        // Fall back to mock data only if Supabase fetch failed or not configured
+        const mockProfile = MOCK_USER_PROFILES[userId]
+        if (mockProfile) {
+          setProfile(mockProfile)
+          setNestedProjects([])
+        }
+      }
+
+      setLoading(false)
+    }
+
+    const loadNestedProjects = async () => {
+      // Load Nested projects from Supabase (with localStorage fallback)
+      let allProjects
       try {
-        const saved = localStorage.getItem(STORAGE_KEY)
-        if (saved) setProfile(JSON.parse(saved))
-      } catch (e) {}
-      
-      // Load Nested projects (same source as My Projects page)
-      const allProjects = getMyProjects()
-      
+        allProjects = await getMyProjectsAsync()
+      } catch (err) {
+        console.error('Error loading projects:', err)
+        allProjects = getMyProjects()
+      }
+
       // Prioritize: Owner projects first, then by joined status (active), then most recent
       const prioritized = allProjects.sort((a, b) => {
         const aIsOwner = a.isOwner || a.ownerId === DEMO_CURRENT_USER_ID ? 1 : 0
         const bIsOwner = b.isOwner || b.ownerId === DEMO_CURRENT_USER_ID ? 1 : 0
         if (bIsOwner !== aIsOwner) return bIsOwner - aIsOwner
-        
+
         const aJoined = a.joined ? 1 : 0
         const bJoined = b.joined ? 1 : 0
         if (bJoined !== aJoined) return bJoined - aJoined
-        
+
         const aIsUser = a.isUserProject ? 1 : 0
         const bIsUser = b.isUserProject ? 1 : 0
         return bIsUser - aIsUser
       })
-      
+
       setNestedProjects(prioritized)
-    } else {
-      // Load mock profile for other users
-      const mockProfile = MOCK_USER_PROFILES[userId]
-      if (mockProfile) {
-        setProfile(mockProfile)
-        // Other users don't show nested projects for now (demo)
-        setNestedProjects([])
-      }
     }
+
+    fetchProfile()
   }, [userId])
+
+  // Show loading state
+  if (loading) {
+    return (
+      <div style={{
+        height: '100%',
+        backgroundColor: '#F9FAFB',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center'
+      }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{
+            width: '32px',
+            height: '32px',
+            border: '3px solid #E5E7EB',
+            borderTopColor: '#5B4AE6',
+            borderRadius: '50%',
+            animation: 'spin 0.8s linear infinite',
+            margin: '0 auto 12px'
+          }} />
+          <p style={{ color: '#6B7280', fontSize: '14px' }}>Loading profile...</p>
+          <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+        </div>
+      </div>
+    )
+  }
 
   if (!profile) {
     return (

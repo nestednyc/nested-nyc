@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { supabase, isSupabaseConfigured } from '../lib/supabase'
+import { profileService } from '../services/profileService'
 
 /**
  * MyProfileScreen - Standalone profile page
@@ -57,44 +59,126 @@ const STORAGE_KEY = 'nested_user_profile'
 function MyProfileScreen() {
   const navigate = useNavigate()
   const [saveStatus, setSaveStatus] = useState('saved') // 'saved' | 'saving' | 'unsaved'
+  const [loading, setLoading] = useState(true)
+  const [currentUserId, setCurrentUserId] = useState(null)
   const saveTimeoutRef = useRef(null)
   const dropdownRef = useRef(null)
   const inputRef = useRef(null)
 
-  // Load profile from localStorage
-  const loadProfile = () => {
+  // Default profile structure
+  const getDefaultProfile = () => ({
+    firstName: '',
+    lastName: '',
+    university: '',
+    otherUniversity: '',
+    fields: [],
+    bio: '',
+    lookingFor: [],
+    skills: [],
+    projects: [],
+    links: { github: '', portfolio: '', linkedin: '', discord: '' }
+  })
+
+  // Load profile from localStorage (fallback)
+  const loadProfileFromStorage = () => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY)
       if (saved) return JSON.parse(saved)
     } catch (e) {}
-    return {
-      firstName: '',
-      lastName: '',
-      university: '',
-      otherUniversity: '',
-      fields: [],
-      bio: '',
-      lookingFor: [],
-      skills: [],
-      projects: [],
-      links: { github: '', portfolio: '', linkedin: '', discord: '' }
-    }
+    return getDefaultProfile()
   }
 
-  const [profile, setProfile] = useState(loadProfile)
+  const [profile, setProfile] = useState(loadProfileFromStorage)
+
+  // Fetch profile from Supabase on mount
+  useEffect(() => {
+    const fetchProfile = async () => {
+      if (!isSupabaseConfigured()) {
+        setLoading(false)
+        return
+      }
+
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) {
+          setLoading(false)
+          return
+        }
+
+        setCurrentUserId(user.id)
+        const { data, error } = await profileService.getProfile(user.id)
+
+        if (error) {
+          console.warn('Could not fetch profile, using localStorage:', error.message)
+          setLoading(false)
+          return
+        }
+
+        if (data) {
+          // Transform DB format to component format
+          const transformedProfile = {
+            firstName: data.first_name || '',
+            lastName: data.last_name || '',
+            university: data.university || '',
+            otherUniversity: '',
+            fields: data.fields || [],
+            bio: data.bio || '',
+            lookingFor: data.looking_for || [],
+            skills: data.skills || [],
+            projects: data.projects || [],
+            links: data.links || { github: '', portfolio: '', linkedin: '', discord: '' }
+          }
+          setProfile(transformedProfile)
+          setUniversityQuery(data.university || '')
+        }
+      } catch (err) {
+        console.error('Failed to fetch profile:', err)
+      }
+      setLoading(false)
+    }
+
+    fetchProfile()
+  }, [])
   const [showUniversityDropdown, setShowUniversityDropdown] = useState(false)
   const [universityQuery, setUniversityQuery] = useState(profile.university || '')
 
-  // Auto-save with debounce
+  // Auto-save with debounce - saves to both localStorage and Supabase
   const saveProfile = useCallback((data) => {
     setSaveStatus('saving')
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current)
-    
-    saveTimeoutRef.current = setTimeout(() => {
+
+    saveTimeoutRef.current = setTimeout(async () => {
+      // Always save to localStorage as fallback
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
+
+      // Save to Supabase if configured and user is authenticated
+      if (currentUserId && isSupabaseConfigured()) {
+        try {
+          // Transform component format to DB format
+          const dbProfile = {
+            first_name: data.firstName,
+            last_name: data.lastName,
+            university: data.university,
+            fields: data.fields,
+            bio: data.bio,
+            looking_for: data.lookingFor,
+            skills: data.skills,
+            projects: data.projects,
+            links: data.links
+          }
+
+          const { error } = await profileService.updateProfile(currentUserId, dbProfile)
+          if (error) {
+            console.error('Failed to save profile to DB:', error)
+          }
+        } catch (err) {
+          console.error('Failed to save profile to DB:', err)
+        }
+      }
+
       setSaveStatus('saved')
     }, 800)
-  }, [])
+  }, [currentUserId])
 
   // Update profile field and trigger auto-save
   const updateProfile = (field, value) => {
@@ -168,6 +252,32 @@ function MyProfileScreen() {
   const updateLink = (key, value) => {
     const newLinks = { ...profile.links, [key]: value }
     updateProfile('links', newLinks)
+  }
+
+  // Show loading state
+  if (loading) {
+    return (
+      <div style={{
+        height: '100%',
+        backgroundColor: '#F9FAFB',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center'
+      }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{
+            width: '32px',
+            height: '32px',
+            border: '3px solid #E5E7EB',
+            borderTopColor: '#5B4AE6',
+            borderRadius: '50%',
+            animation: 'spin 0.8s linear infinite',
+            margin: '0 auto 12px'
+          }} />
+          <p style={{ color: '#6B7280', fontSize: '14px' }}>Loading profile...</p>
+        </div>
+      </div>
+    )
   }
 
   return (

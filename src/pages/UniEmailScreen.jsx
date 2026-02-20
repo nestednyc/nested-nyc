@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { authService, getErrorMessage, isSupabaseConfigured } from '../lib/supabase'
 import { getEmailValidationError, isEduEmail } from '../utils/emailValidation'
+import { lookupService } from '../services/lookupService'
 
 /**
  * UniEmailScreen - University Email + Password Sign Up
@@ -24,10 +25,13 @@ function UniEmailScreen() {
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [hasBlurredEmail, setHasBlurredEmail] = useState(false)
+  const [checkingEmail, setCheckingEmail] = useState(false)
+  const [emailExists, setEmailExists] = useState(false)
 
   const handleEmailChange = (e) => {
     setEmail(e.target.value)
     if (error) setError('')
+    setEmailExists(false)
   }
 
   const handlePasswordChange = (e) => {
@@ -40,11 +44,31 @@ function UniEmailScreen() {
     if (error) setError('')
   }
 
-  const handleEmailBlur = () => {
+  const handleEmailBlur = async () => {
     setHasBlurredEmail(true)
     const validationError = getEmailValidationError(email)
     if (validationError) {
       setError(validationError)
+      return
+    }
+
+    // Only check existence if email is valid .edu format
+    if (!email || !isEduEmail(email)) {
+      return
+    }
+
+    setCheckingEmail(true)
+    setEmailExists(false)
+
+    try {
+      const { exists } = await lookupService.checkEmailExists(email)
+      if (exists) {
+        setEmailExists(true)
+      }
+    } catch (err) {
+      console.error('Email lookup error:', err)
+    } finally {
+      setCheckingEmail(false)
     }
   }
 
@@ -251,7 +275,7 @@ function UniEmailScreen() {
         </div>
         
         {/* Valid email indicator */}
-        {email && isEduEmail(email) && !error && (
+        {email && isEduEmail(email) && !error && !emailExists && (
           <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
               <circle cx="12" cy="12" r="10" fill="#4CAF50"/>
@@ -262,7 +286,55 @@ function UniEmailScreen() {
             </span>
           </div>
         )}
+        {checkingEmail && (
+          <div style={{ marginTop: '8px', fontSize: '12px', color: '#9CA3AF' }}>
+            Checking email...
+          </div>
+        )}
       </div>
+
+      {/* Email already registered banner */}
+      {emailExists && (
+        <div
+          style={{
+            marginTop: '16px',
+            padding: '14px 16px',
+            backgroundColor: '#FEF3C7',
+            border: '1px solid #F59E0B',
+            borderRadius: '12px',
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: '10px'
+          }}
+        >
+          <span style={{ fontSize: '18px', flexShrink: 0 }}>&#9888;&#65039;</span>
+          <div style={{ flex: 1 }}>
+            <p style={{ margin: 0, fontSize: '14px', color: '#92400E', fontWeight: 500 }}>
+              This email is already registered.
+            </p>
+            <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#A16207' }}>
+              Try{' '}
+              <button
+                type="button"
+                onClick={() => navigate('/signin')}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  padding: 0,
+                  color: '#B45309',
+                  fontWeight: 600,
+                  textDecoration: 'underline',
+                  cursor: 'pointer',
+                  fontSize: '13px'
+                }}
+              >
+                signing in
+              </button>
+              {' '}instead.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Password Input */}
       <div style={{ marginTop: '16px' }}>

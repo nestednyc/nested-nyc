@@ -25,7 +25,8 @@ import EventDetailScreen from './pages/EventDetailScreen'
 // import CreateNestScreen from './pages/CreateNestScreen'
 import EditProjectScreen from './pages/EditProjectScreen'
 import ProfileEditScreen from './pages/ProfileEditScreen'
-import UserProfileScreen from './pages/UserProfileScreen'
+import ProfileViewScreen from './pages/ProfileViewScreen'
+import CreateEventScreen from './pages/CreateEventScreen'
 
 /**
  * useIsDesktop - Hook to detect desktop screen width
@@ -96,8 +97,8 @@ function AppContent() {
       } />
       <Route path="/profile/:userId" element={
         isDesktop
-          ? <WebLayout layoutType="app"><UserProfileScreen /></WebLayout>
-          : <MobileFrame><UserProfileScreen /></MobileFrame>
+          ? <WebLayout layoutType="app"><ProfileViewScreen /></WebLayout>
+          : <MobileFrame><ProfileViewScreen /></MobileFrame>
       } />
       
       {/* Main App Routes */}
@@ -132,9 +133,15 @@ function AppContent() {
       <Route path="/my-profile" element={<Navigate to="/profile/current-user" replace />} />
       
       <Route path="/create-project" element={
-        isDesktop 
+        isDesktop
           ? <WebLayout layoutType="form"><CreateProjectScreen /></WebLayout>
           : <MobileFrame><CreateProjectScreen /></MobileFrame>
+      } />
+
+      <Route path="/create-event" element={
+        isDesktop
+          ? <WebLayout layoutType="form"><CreateEventScreen /></WebLayout>
+          : <MobileFrame><CreateEventScreen /></MobileFrame>
       } />
       
       {/* Chat */}
