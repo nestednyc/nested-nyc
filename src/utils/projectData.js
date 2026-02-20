@@ -1,12 +1,9 @@
 /**
  * Project Data Store
  * Centralized data for all projects - both default and user-created
- * Supports both localStorage (fallback) and Supabase (when configured)
  */
 
 import { getProjects, updateProject } from './projectStorage'
-import { supabase, isSupabaseConfigured } from '../lib/supabase'
-import { projectService } from '../services/projectService'
 
 // Demo current user ID (for MVP/demo purposes)
 export const DEMO_CURRENT_USER_ID = 'demo-user-1'
@@ -87,8 +84,8 @@ export const DEFAULT_PROJECTS = [
     spotsLeft: 3,
     ownerId: 'demo-user-1', // Demo: This project is owned by the current user
     team: [
-      { id: 'mock-marcus', name: 'Marcus Chen', school: 'NYU', role: 'Lead / Backend', image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop' },
-      { id: 'mock-sofia', name: 'Sofia Rodriguez', school: 'Columbia', role: 'Data Science', image: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=200&fit=crop' },
+      { name: 'Marcus Chen', school: 'NYU', role: 'Lead / Backend', image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop' },
+      { name: 'Sofia Rodriguez', school: 'Columbia', role: 'Data Science', image: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=200&fit=crop' },
     ]
   },
   {
@@ -103,9 +100,9 @@ export const DEFAULT_PROJECTS = [
     skillsNeeded: ['Python', 'ML/AI', 'React Native', 'UI/UX'],
     spotsLeft: 2,
     team: [
-      { id: 'mock-priya', name: 'Priya Sharma', school: 'Columbia', role: 'Lead / ML', image: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=200&fit=crop' },
-      { id: 'mock-david', name: 'David Kim', school: 'Columbia', role: 'Backend', image: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200&h=200&fit=crop' },
-      { id: 'mock-emma', name: 'Emma Wilson', school: 'Columbia', role: 'Design', image: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&h=200&fit=crop' },
+      { name: 'Priya Sharma', school: 'Columbia', role: 'Lead / ML', image: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=200&fit=crop' },
+      { name: 'David Kim', school: 'Columbia', role: 'Backend', image: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200&h=200&fit=crop' },
+      { name: 'Emma Wilson', school: 'Columbia', role: 'Design', image: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&h=200&fit=crop' },
     ]
   },
   {
@@ -120,8 +117,8 @@ export const DEFAULT_PROJECTS = [
     skillsNeeded: ['React Native', 'Node.js', 'APIs', 'UI/UX'],
     spotsLeft: 4,
     team: [
-      { id: 'mock-jake', name: 'Jake Morrison', school: 'NYU', role: 'Lead / Mobile', image: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200&h=200&fit=crop' },
-      { id: 'mock-lily', name: 'Lily Chen', school: 'Parsons', role: 'Design', image: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=200&h=200&fit=crop' },
+      { name: 'Jake Morrison', school: 'NYU', role: 'Lead / Mobile', image: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200&h=200&fit=crop' },
+      { name: 'Lily Chen', school: 'Parsons', role: 'Design', image: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=200&h=200&fit=crop' },
     ]
   },
   {
@@ -136,21 +133,21 @@ export const DEFAULT_PROJECTS = [
     skillsNeeded: ['React Native', 'Firebase', 'UI/UX', 'Marketing'],
     spotsLeft: 2,
     team: [
-      { id: 'mock-aisha', name: 'Aisha Patel', school: 'Parsons', role: 'Lead / Design', image: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&h=200&fit=crop' },
-      { id: 'mock-tom', name: 'Tom Richards', school: 'The New School', role: 'Frontend', image: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200&h=200&fit=crop' },
-      { id: 'mock-nina', name: 'Nina Santos', school: 'Parsons', role: 'Marketing', image: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=200&h=200&fit=crop' },
+      { name: 'Aisha Patel', school: 'Parsons', role: 'Lead / Design', image: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&h=200&fit=crop' },
+      { name: 'Tom Richards', school: 'The New School', role: 'Frontend', image: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200&h=200&fit=crop' },
+      { name: 'Nina Santos', school: 'Parsons', role: 'Marketing', image: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=200&h=200&fit=crop' },
     ]
   },
 ]
 
 // My Projects default data (saved/joined projects)
 export const MY_PROJECTS_DEFAULT = [
-  {
-    id: 'my-1',
-    title: 'ClimateTech Dashboard',
-    category: 'Sustainability',
-    school: 'NYU',
-    image: 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=200&h=280&fit=crop',
+  { 
+    id: 'my-1', 
+    title: 'ClimateTech Dashboard', 
+    category: 'Sustainability', 
+    school: 'NYU', 
+    image: 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=200&h=280&fit=crop', 
     joined: true,
     schools: ['NYU'],
     description: 'Building an interactive dashboard to visualize NYC climate data.',
@@ -159,15 +156,15 @@ export const MY_PROJECTS_DEFAULT = [
     author: 'Marcus Chen',
     authorImage: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop',
     team: [
-      { id: 'mock-marcus', name: 'Marcus Chen', school: 'NYU', role: 'Lead', image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop' },
+      { name: 'Marcus Chen', school: 'NYU', role: 'Lead', image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop' },
     ]
   },
-  {
-    id: 'my-2',
-    title: 'AI Study Buddy',
-    category: 'EdTech',
-    school: 'Columbia',
-    image: 'https://images.unsplash.com/photo-1620712943543-bcc4688e7485?w=200&h=280&fit=crop',
+  { 
+    id: 'my-2', 
+    title: 'AI Study Buddy', 
+    category: 'EdTech', 
+    school: 'Columbia', 
+    image: 'https://images.unsplash.com/photo-1620712943543-bcc4688e7485?w=200&h=280&fit=crop', 
     joined: true,
     schools: ['Columbia'],
     description: 'An AI-powered study companion for students.',
@@ -176,15 +173,15 @@ export const MY_PROJECTS_DEFAULT = [
     author: 'Priya Sharma',
     authorImage: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop',
     team: [
-      { id: 'mock-priya', name: 'Priya Sharma', school: 'Columbia', role: 'Lead', image: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=200&fit=crop' },
+      { name: 'Priya Sharma', school: 'Columbia', role: 'Lead', image: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=200&fit=crop' },
     ]
   },
-  {
-    id: 'my-3',
-    title: 'NYC Transit App',
-    category: 'Civic Tech',
-    school: 'NYU',
-    image: 'https://images.unsplash.com/photo-1517048676732-d65bc937f952?w=200&h=280&fit=crop',
+  { 
+    id: 'my-3', 
+    title: 'NYC Transit App', 
+    category: 'Civic Tech', 
+    school: 'NYU', 
+    image: 'https://images.unsplash.com/photo-1517048676732-d65bc937f952?w=200&h=280&fit=crop', 
     joined: false,
     schools: ['NYU', 'Parsons'],
     description: 'Real-time NYC subway and bus tracking.',
@@ -193,15 +190,15 @@ export const MY_PROJECTS_DEFAULT = [
     author: 'Jake Morrison',
     authorImage: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100&h=100&fit=crop',
     team: [
-      { id: 'mock-jake', name: 'Jake Morrison', school: 'NYU', role: 'Lead', image: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200&h=200&fit=crop' },
+      { name: 'Jake Morrison', school: 'NYU', role: 'Lead', image: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200&h=200&fit=crop' },
     ]
   },
-  {
-    id: 'my-4',
-    title: 'Campus Events',
-    category: 'Social',
-    school: 'Parsons',
-    image: 'https://images.unsplash.com/photo-1558655146-9f40138edfeb?w=200&h=280&fit=crop',
+  { 
+    id: 'my-4', 
+    title: 'Campus Events', 
+    category: 'Social', 
+    school: 'Parsons', 
+    image: 'https://images.unsplash.com/photo-1558655146-9f40138edfeb?w=200&h=280&fit=crop', 
     joined: true,
     schools: ['Parsons'],
     description: 'Discover events happening across NYC campuses.',
@@ -210,17 +207,17 @@ export const MY_PROJECTS_DEFAULT = [
     author: 'Aisha Patel',
     authorImage: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&h=100&fit=crop',
     team: [
-      { id: 'mock-aisha', name: 'Aisha Patel', school: 'Parsons', role: 'Lead', image: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&h=200&fit=crop' },
+      { name: 'Aisha Patel', school: 'Parsons', role: 'Lead', image: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&h=200&fit=crop' },
     ]
   },
 ]
 
 export const SAVED_PROJECTS = [
-  {
-    id: 'saved-1',
-    title: 'Startup Pitch Deck',
-    category: 'Business',
-    school: 'Stern',
+  { 
+    id: 'saved-1', 
+    title: 'Startup Pitch Deck', 
+    category: 'Business', 
+    school: 'Stern', 
     image: 'https://images.unsplash.com/photo-1552664730-d307ca884978?w=200&h=280&fit=crop',
     schools: ['Stern'],
     description: 'Building the perfect pitch deck for startup fundraising.',
@@ -229,14 +226,14 @@ export const SAVED_PROJECTS = [
     author: 'Alex Johnson',
     authorImage: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop',
     team: [
-      { id: 'mock-alex-j', name: 'Alex Johnson', school: 'Stern', role: 'Lead', image: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200&h=200&fit=crop' },
+      { name: 'Alex Johnson', school: 'Stern', role: 'Lead', image: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200&h=200&fit=crop' },
     ]
   },
-  {
-    id: 'saved-2',
-    title: 'Music Collab Platform',
-    category: 'Creative',
-    school: 'Tisch',
+  { 
+    id: 'saved-2', 
+    title: 'Music Collab Platform', 
+    category: 'Creative', 
+    school: 'Tisch', 
     image: 'https://images.unsplash.com/photo-1511379938547-c1f69419868d?w=200&h=280&fit=crop',
     schools: ['Tisch'],
     description: 'A platform for musicians to collaborate remotely.',
@@ -245,7 +242,7 @@ export const SAVED_PROJECTS = [
     author: 'Maya Thompson',
     authorImage: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=100&h=100&fit=crop',
     team: [
-      { id: 'mock-maya', name: 'Maya Thompson', school: 'Tisch', role: 'Lead', image: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=200&h=200&fit=crop' },
+      { name: 'Maya Thompson', school: 'Tisch', role: 'Lead', image: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=200&h=200&fit=crop' },
     ]
   },
 ]
@@ -365,289 +362,7 @@ export function getSavedProjects() {
   return SAVED_PROJECTS
 }
 
-// ============================================
-// ASYNC SUPABASE-AWARE FUNCTIONS
-// ============================================
 
-/**
- * Transform a Supabase project to the standard component format
- */
-function transformSupabaseProject(p, isOwner = false) {
-  return {
-    id: p.id,
-    title: p.name,
-    category: CATEGORY_LABELS[p.category] || p.category,
-    schools: p.university ? [p.university] : ['NYC'],
-    school: p.university || 'NYC',
-    image: p.image,
-    author: p.author_name || 'Unknown',
-    authorImage: p.author_image || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop',
-    description: p.description,
-    tagline: p.tagline,
-    skillsNeeded: p.roles?.map(r => ROLE_LABELS[r] || r).slice(0, 6) || p.skills || [],
-    spotsLeft: p.spots_left || p.roles?.length || 0,
-    team: p.team_members?.map(m => ({
-      id: m.user_id, // Pass through user_id so profile navigation works
-      name: m.name,
-      school: m.school,
-      role: m.role,
-      image: m.image || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop'
-    })) || [],
-    isSupabaseProject: true,
-    isOwner: isOwner,
-    ownerId: p.owner_id,
-    joined: isOwner,
-    commitment: p.commitment,
-    publishToDiscover: p.publish_to_discover,
-    createdAt: p.created_at
-  }
-}
 
-/**
- * Get current user ID from Supabase
- */
-export async function getCurrentUserId() {
-  if (!isSupabaseConfigured() || !supabase) {
-    return null
-  }
-  const { data: { user } } = await supabase.auth.getUser()
-  return user?.id || null
-}
 
-/**
- * Async: Get all projects for Discover feed (Supabase + localStorage fallback)
- */
-export async function getDiscoverProjectsAsync() {
-  // Always include localStorage/default projects as base
-  const localProjects = getDiscoverProjects()
-
-  if (!isSupabaseConfigured()) {
-    return localProjects
-  }
-
-  try {
-    const { data: dbProjects, error } = await projectService.getDiscoverProjects()
-
-    if (error || !dbProjects) {
-      console.warn('Could not fetch from Supabase, using localStorage:', error?.message)
-      return localProjects
-    }
-
-    const currentUserId = await getCurrentUserId()
-
-    // Transform Supabase projects
-    const transformedDbProjects = dbProjects.map(p =>
-      transformSupabaseProject(p, p.owner_id === currentUserId)
-    )
-
-    // Merge: DB projects first, then local projects (avoiding duplicates)
-    const dbIds = new Set(dbProjects.map(p => p.id))
-    const localOnly = localProjects.filter(p => !dbIds.has(p.id))
-
-    return [...transformedDbProjects, ...localOnly]
-  } catch (err) {
-    console.error('Error fetching projects:', err)
-    return localProjects
-  }
-}
-
-/**
- * Async: Get my projects (Supabase + localStorage fallback)
- */
-export async function getMyProjectsAsync() {
-  // Always include localStorage projects as base
-  const localProjects = getMyProjects()
-
-  if (!isSupabaseConfigured()) {
-    return localProjects
-  }
-
-  try {
-    const { data: dbProjects, error } = await projectService.getMyProjects()
-
-    if (error || !dbProjects) {
-      console.warn('Could not fetch from Supabase, using localStorage:', error?.message)
-      return localProjects
-    }
-
-    // Transform Supabase projects (all owned by current user)
-    const transformedDbProjects = dbProjects.map(p =>
-      transformSupabaseProject(p, true)
-    )
-
-    // Return DB projects first, then local user-created projects
-    return [...transformedDbProjects, ...localProjects.filter(p => p.isUserProject)]
-  } catch (err) {
-    console.error('Error fetching projects:', err)
-    return localProjects
-  }
-}
-
-/**
- * Async: Get a single project by ID (Supabase first, then localStorage/mock fallback)
- */
-export async function getProjectByIdAsync(projectId) {
-  if (!projectId) return null
-
-  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(projectId)
-
-  if (isSupabaseConfigured()) {
-    try {
-      const { data, error } = await projectService.getProject(projectId)
-      if (!error && data) {
-        const currentUserId = await getCurrentUserId()
-        return transformSupabaseProject(data, data.owner_id === currentUserId)
-      }
-      // UUID projects only exist in Supabase; log why we didn't find one (helps debug Vercel vs local)
-      if (isUuid && import.meta.env.DEV) {
-        console.warn('[getProjectByIdAsync] Supabase returned no project for UUID:', projectId, { error: error?.message, hasData: !!data })
-      }
-    } catch (err) {
-      console.error('Error fetching project:', err)
-    }
-  } else if (isUuid && import.meta.env.DEV) {
-    console.warn('[getProjectByIdAsync] Supabase not configured (check VITE_SUPABASE_* env). UUID projects require Supabase.', projectId)
-  }
-
-  return getProjectById(projectId)
-}
-
-/**
- * Async: Create a new project (saves to Supabase if configured, else localStorage)
- */
-export async function createProjectAsync(projectData) {
-  if (!isSupabaseConfigured()) {
-    // Fall back to localStorage
-    const { saveProject } = await import('./projectStorage')
-    const project = {
-      id: Date.now(),
-      ...projectData,
-      createdAt: new Date().toISOString()
-    }
-    saveProject(project)
-    return { data: project, error: null }
-  }
-
-  try {
-    // Get current user profile for author info
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
-      return { data: null, error: { message: 'Not authenticated' } }
-    }
-
-    // Get profile for author name/image
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('first_name, last_name, avatar, university')
-      .eq('id', user.id)
-      .single()
-
-    const authorName = profile
-      ? `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || 'You'
-      : 'You'
-
-    // Transform to DB format
-    const dbProject = {
-      name: projectData.name,
-      tagline: projectData.tagline,
-      description: projectData.description,
-      category: projectData.category,
-      image: projectData.image,
-      university: profile?.university || projectData.university,
-      author_name: authorName,
-      author_image: profile?.avatar,
-      roles: projectData.roles || [],
-      skills: projectData.skills || [],
-      commitment: projectData.commitment,
-      publish_to_discover: projectData.publishToDiscover !== false,
-      spots_left: projectData.roles?.length || 0
-    }
-
-    const { data, error } = await projectService.createProject(dbProject)
-
-    if (error) {
-      console.error('Error creating project in Supabase:', error)
-      // Fall back to localStorage
-      const { saveProject } = await import('./projectStorage')
-      const project = {
-        id: Date.now(),
-        ...projectData,
-        createdAt: new Date().toISOString()
-      }
-      saveProject(project)
-      return { data: project, error: null }
-    }
-
-    return { data: transformSupabaseProject(data, true), error: null }
-  } catch (err) {
-    console.error('Error creating project:', err)
-    return { data: null, error: err }
-  }
-}
-
-/**
- * Async: Update a project
- */
-export async function updateProjectAsync(projectId, updates) {
-  // Check if it's a Supabase project (UUID format)
-  const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(projectId)
-
-  if (isUUID && isSupabaseConfigured()) {
-    try {
-      // Transform updates to DB format
-      const dbUpdates = {}
-      if (updates.name !== undefined) dbUpdates.name = updates.name
-      if (updates.tagline !== undefined) dbUpdates.tagline = updates.tagline
-      if (updates.description !== undefined) dbUpdates.description = updates.description
-      if (updates.category !== undefined) dbUpdates.category = updates.category
-      if (updates.roles !== undefined) dbUpdates.roles = updates.roles
-      if (updates.skills !== undefined) dbUpdates.skills = updates.skills
-      if (updates.commitment !== undefined) dbUpdates.commitment = updates.commitment
-      if (updates.publishToDiscover !== undefined) dbUpdates.publish_to_discover = updates.publishToDiscover
-      if (updates.spotsLeft !== undefined) dbUpdates.spots_left = updates.spotsLeft
-
-      const { data, error } = await projectService.updateProject(projectId, dbUpdates)
-
-      if (error) {
-        console.error('Error updating project in Supabase:', error)
-        return { error }
-      }
-
-      return { data, error: null }
-    } catch (err) {
-      console.error('Error updating project:', err)
-      return { error: err }
-    }
-  }
-
-  // Fall back to localStorage for non-UUID projects
-  updateProject(projectId, updates)
-  return { data: { id: projectId, ...updates }, error: null }
-}
-
-/**
- * Async: Delete a project
- */
-export async function deleteProjectAsync(projectId) {
-  const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(projectId)
-
-  if (isUUID && isSupabaseConfigured()) {
-    try {
-      const { error } = await projectService.deleteProject(projectId)
-      if (error) {
-        console.error('Error deleting project in Supabase:', error)
-        return { error }
-      }
-      return { error: null }
-    } catch (err) {
-      console.error('Error deleting project:', err)
-      return { error: err }
-    }
-  }
-
-  // Fall back to localStorage
-  const { deleteProject } = await import('./projectStorage')
-  deleteProject(projectId)
-  return { error: null }
-}
 

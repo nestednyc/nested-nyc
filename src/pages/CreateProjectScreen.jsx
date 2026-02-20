@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { saveProject } from '../utils/projectStorage'
-import { createProjectAsync } from '../utils/projectData'
 
 /**
  * CreateProjectScreen - Discord-style step-based project creation
@@ -139,8 +138,10 @@ function CreateProjectScreen() {
     setIsSubmitting(true)
 
     // Create project object
-    const projectData = {
+    const project = {
+      id: Date.now(),
       ...formData,
+      createdAt: new Date().toISOString(),
       author: 'You',
       authorImage: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop',
       image: getProjectImage(formData.category),
@@ -148,33 +149,14 @@ function CreateProjectScreen() {
       spotsLeft: formData.roles.length,
     }
 
-    try {
-      // Try to save to Supabase first, falls back to localStorage
-      const { data, error } = await createProjectAsync(projectData)
+    // Save to local storage
+    saveProject(project)
 
-      if (error) {
-        console.error('Error creating project:', error)
-        // Fall back to localStorage
-        const project = {
-          id: Date.now(),
-          ...projectData,
-          createdAt: new Date().toISOString(),
-        }
-        saveProject(project)
-      }
-    } catch (err) {
-      console.error('Error creating project:', err)
-      // Fall back to localStorage
-      const project = {
-        id: Date.now(),
-        ...projectData,
-        createdAt: new Date().toISOString(),
-      }
-      saveProject(project)
-    }
+    // Simulate network delay
+    await new Promise(resolve => setTimeout(resolve, 500))
 
     setIsSubmitting(false)
-
+    
     // Navigate to My Projects with success state
     navigate('/matches', { state: { projectCreated: true, projectName: formData.name } })
   }

@@ -3,9 +3,6 @@ import ReactDOM from 'react-dom/client'
 import App from './App'
 import './index.css'
 
-// Load migration utilities (exposes window.migrateToSupabase and window.checkLocalData)
-import './utils/migrateLocalStorage'
-
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <App />

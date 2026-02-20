@@ -1,15 +1,42 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { getProjectByIdAsync, DEMO_CURRENT_USER_ID } from '../utils/projectData'
-import { projectService } from '../services/projectService'
+import { getProjectById, DEMO_CURRENT_USER_ID } from '../utils/projectData'
 
 /**
  * ProfileDetailScreen - Project Detail View
  * Nested NYC – Student-only project network
- *
+ * 
  * Desktop: Two-column layout (content left, CTA right)
  * Mobile: Single column with sticky bottom CTA
  */
+
+// Mock pending join requests (for demo/MVP)
+const MOCK_PENDING_REQUESTS = [
+  {
+    id: 'req-1',
+    name: 'Jordan Lee',
+    school: 'NYU Tandon',
+    role: 'Frontend Developer',
+    avatar: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=100&h=100&fit=crop',
+    requestedAt: '2 days ago'
+  },
+  {
+    id: 'req-2',
+    name: 'Samantha Wright',
+    school: 'Columbia Engineering',
+    role: 'UI/UX Designer',
+    avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop',
+    requestedAt: '3 days ago'
+  },
+  {
+    id: 'req-3',
+    name: 'Alex Chen',
+    school: 'Parsons',
+    role: 'Product Manager',
+    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop',
+    requestedAt: '1 week ago'
+  }
+]
 
 function ProfileDetailScreen() {
   const navigate = useNavigate()
@@ -19,37 +46,20 @@ function ProfileDetailScreen() {
   const [isRequested, setIsRequested] = useState(false)
   const [project, setProject] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [pendingRequests, setPendingRequests] = useState([])
+  const [pendingRequests, setPendingRequests] = useState(MOCK_PENDING_REQUESTS)
   const [showJoinModal, setShowJoinModal] = useState(false)
-  const [membershipStatus, setMembershipStatus] = useState(null)
-  const [joinLoading, setJoinLoading] = useState(false)
-  const [hasJoined, setHasJoined] = useState(false)
-  const [leaveLoading, setLeaveLoading] = useState(false)
 
-  // Handle accept request - approve the join request
-  const handleAcceptRequest = async (requestId) => {
-    const { error } = await projectService.approveRequest(requestId)
-    if (error) {
-      console.error('Failed to approve request:', error)
-      alert('Failed to approve request. Please try again.')
-      return
-    }
-    // Remove from pending list and refresh project data to show new team member
+  // Handle accept/decline actions (UI only)
+  const handleAcceptRequest = (requestId) => {
     setPendingRequests(prev => prev.filter(r => r.id !== requestId))
-    // Refresh project to get updated team list
-    const foundProject = await getProjectByIdAsync(projectId)
-    setProject(foundProject)
+    // In production, this would call an API
+    console.log('Accepted request:', requestId)
   }
 
-  // Handle decline request - reject/delete the join request
-  const handleDeclineRequest = async (requestId) => {
-    const { error } = await projectService.rejectRequest(requestId)
-    if (error) {
-      console.error('Failed to decline request:', error)
-      alert('Failed to decline request. Please try again.')
-      return
-    }
+  const handleDeclineRequest = (requestId) => {
     setPendingRequests(prev => prev.filter(r => r.id !== requestId))
+    // In production, this would call an API
+    console.log('Declined request:', requestId)
   }
 
   // Responsive check
@@ -60,119 +70,14 @@ function ProfileDetailScreen() {
     return () => window.removeEventListener('resize', check)
   }, [])
   
-  // Load project by ID (async - supports Supabase projects)
+  // Load project by ID
   useEffect(() => {
-    async function loadProject() {
-      if (projectId) {
-        setLoading(true)
-        const foundProject = await getProjectByIdAsync(projectId)
-        setProject(foundProject)
-
-        // Check if user has already joined (only for Supabase projects)
-        if (foundProject?.isSupabaseProject) {
-          const { joined, status } = await projectService.hasJoinedProject(projectId)
-          setMembershipStatus(status)
-          if (status === 'approved') {
-            setHasJoined(true)
-            setIsRequested(true)
-          } else if (status === 'pending') {
-            setHasJoined(false)
-            setIsRequested(true)
-          } else {
-            setHasJoined(false)
-            setIsRequested(false)
-          }
-
-          // Load pending requests if user is the owner
-          if (foundProject?.isOwner) {
-            const { data: requests } = await projectService.getPendingRequests(projectId)
-            // Format requests to match expected UI structure
-            const formattedRequests = (requests || []).map(req => ({
-              id: req.id,
-              name: req.name || 'Team Member',
-              school: req.school || '',
-              role: req.role || 'Team Member',
-              avatar: req.image || `https://ui-avatars.com/api/?name=${encodeURIComponent(req.name || 'TM')}&background=5B4AE6&color=fff`,
-              requestedAt: formatTimeAgo(req.created_at)
-            }))
-            setPendingRequests(formattedRequests)
-          }
-        }
-        setLoading(false)
-      }
+    if (projectId) {
+      const foundProject = getProjectById(projectId)
+      setProject(foundProject)
     }
-    loadProject()
+    setLoading(false)
   }, [projectId])
-
-  // Helper function to format timestamps as relative time
-  function formatTimeAgo(dateString) {
-    if (!dateString) return 'Recently'
-    const date = new Date(dateString)
-    const now = new Date()
-    const diffMs = now - date
-    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
-
-    if (diffDays === 0) return 'Today'
-    if (diffDays === 1) return '1 day ago'
-    if (diffDays < 7) return `${diffDays} days ago`
-    if (diffDays < 14) return '1 week ago'
-    return `${Math.floor(diffDays / 7)} weeks ago`
-  }
-
-  // Handle join request submission (calls Supabase for real projects)
-  const handleJoinSubmit = async (formData) => {
-    // Demo projects don't support real join
-    if (!project?.isSupabaseProject) {
-      alert('This is a demo project. Join is only available for projects created on Nested.')
-      setShowJoinModal(false)
-      return
-    }
-
-    setJoinLoading(true)
-    try {
-      const { error } = await projectService.joinProject(projectId, formData.role)
-      if (error) {
-        console.error('Failed to join:', error)
-        alert(error.message || 'Failed to send request. Please try again.')
-      } else {
-        // Request was sent, now in pending state (not joined yet)
-        setIsRequested(true)
-        setHasJoined(false) // Not joined until approved
-        setMembershipStatus('pending')
-        setShowJoinModal(false)
-      }
-    } catch (err) {
-      console.error('Join error:', err)
-      alert('Failed to send request. Please try again.')
-    } finally {
-      setJoinLoading(false)
-    }
-  }
-
-  // Handle leave project
-  const handleLeaveProject = async () => {
-    if (leaveLoading || !hasJoined) return
-
-    const confirmed = window.confirm('Are you sure you want to leave this project?')
-    if (!confirmed) return
-
-    setLeaveLoading(true)
-    try {
-      const { error } = await projectService.leaveProject(projectId)
-      if (error) {
-        console.error('Failed to leave:', error)
-        alert(error.message || 'Failed to leave project. Please try again.')
-      } else {
-        setHasJoined(false)
-        setIsRequested(false)
-      }
-    } catch (err) {
-      console.error('Leave error:', err)
-      alert('Failed to leave project. Please try again.')
-    } finally {
-      setLeaveLoading(false)
-    }
-  }
 
   // Loading state
   if (loading) {
@@ -836,24 +741,17 @@ function ProfileDetailScreen() {
                   {/* Primary CTA Button */}
                   <button
                     className={`join-btn-desktop ${isRequested ? 'requested' : ''}`}
-                    onClick={() => !isRequested && !hasJoined && setShowJoinModal(true)}
-                    disabled={isRequested || hasJoined}
+                    onClick={() => !isRequested && setShowJoinModal(true)}
+                    disabled={isRequested}
                     style={{
                       width: '100%',
                       marginBottom: isRequested ? '8px' : '12px',
-                      opacity: isRequested || hasJoined ? 0.7 : 1,
-                      cursor: isRequested || hasJoined ? 'default' : 'pointer',
-                      backgroundColor: hasJoined ? '#10B981' : isRequested ? '#9CA3AF' : undefined
+                      opacity: isRequested ? 0.7 : 1,
+                      cursor: isRequested ? 'default' : 'pointer',
+                      backgroundColor: isRequested ? '#9CA3AF' : undefined
                     }}
                   >
-                    {hasJoined ? (
-                      <>
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                          <polyline points="20 6 9 17 4 12"/>
-                        </svg>
-                        Joined!
-                      </>
-                    ) : isRequested ? (
+                    {isRequested ? (
                       <>
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                           <polyline points="20 6 9 17 4 12"/>
@@ -872,39 +770,19 @@ function ProfileDetailScreen() {
                       </>
                     )}
                   </button>
-
-                  {/* Helper text after request sent / joined */}
-                  {(isRequested || hasJoined) && (
-                    <div style={{ marginBottom: '12px', textAlign: 'center' }}>
-                      <p style={{
-                        margin: 0,
-                        fontSize: '12px',
-                        color: hasJoined ? '#10B981' : '#6B7280',
-                        lineHeight: 1.4
-                      }}>
-                        {hasJoined ? "You're now part of the team!" : 'The project owner will review your request.'}
-                      </p>
-                      {hasJoined && (
-                        <button
-                          onClick={handleLeaveProject}
-                          disabled={leaveLoading}
-                          style={{
-                            marginTop: '8px',
-                            padding: '6px 12px',
-                            fontSize: '12px',
-                            fontWeight: 500,
-                            color: leaveLoading ? '#9CA3AF' : '#DC2626',
-                            backgroundColor: 'transparent',
-                            border: 'none',
-                            cursor: leaveLoading ? 'not-allowed' : 'pointer',
-                            textDecoration: 'underline',
-                            opacity: leaveLoading ? 0.6 : 1
-                          }}
-                        >
-                          {leaveLoading ? 'Leaving...' : 'Leave project'}
-                        </button>
-                      )}
-                    </div>
+                  
+                  {/* Helper text after request sent */}
+                  {isRequested && (
+                    <p style={{
+                      margin: 0,
+                      marginBottom: '12px',
+                      fontSize: '12px',
+                      color: '#6B7280',
+                      textAlign: 'center',
+                      lineHeight: 1.4
+                    }}>
+                      The project owner will review your request.
+                    </p>
                   )}
 
                   {/* Secondary Button */}
@@ -1028,8 +906,10 @@ function ProfileDetailScreen() {
         <JoinRequestModal
           project={project}
           onClose={() => setShowJoinModal(false)}
-          onSubmit={handleJoinSubmit}
-          isLoading={joinLoading}
+          onSubmit={(formData) => {
+            setIsRequested(true)
+            setShowJoinModal(false)
+          }}
         />
       )}
       </>
@@ -1577,33 +1457,26 @@ function ProfileDetailScreen() {
             {/* Request to Join Button */}
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
               <button
-                onClick={() => !isRequested && !hasJoined && setShowJoinModal(true)}
-                disabled={isRequested || hasJoined}
+                onClick={() => !isRequested && setShowJoinModal(true)}
+                disabled={isRequested}
                 style={{
                   width: '100%',
                   height: '52px',
-                  backgroundColor: hasJoined ? '#10B981' : isRequested ? '#9CA3AF' : '#5B4AE6',
+                  backgroundColor: isRequested ? '#9CA3AF' : '#5B4AE6',
                   color: 'white',
                   fontSize: '16px',
                   fontWeight: 600,
                   borderRadius: '14px',
                   border: 'none',
-                  cursor: isRequested || hasJoined ? 'default' : 'pointer',
-                  opacity: isRequested || hasJoined ? 0.85 : 1,
+                  cursor: isRequested ? 'default' : 'pointer',
+                  opacity: isRequested ? 0.85 : 1,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   gap: '8px'
                 }}
               >
-                {hasJoined ? (
-                  <>
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
-                      <polyline points="20 6 9 17 4 12"/>
-                    </svg>
-                    Joined!
-                  </>
-                ) : isRequested ? (
+                {isRequested ? (
                   <>
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
                       <polyline points="20 6 9 17 4 12"/>
@@ -1622,36 +1495,15 @@ function ProfileDetailScreen() {
                   </>
                 )}
               </button>
-              {(isRequested || hasJoined) && (
-                <div style={{ textAlign: 'center' }}>
-                  <p style={{
-                    margin: 0,
-                    fontSize: '11px',
-                    color: hasJoined ? '#10B981' : '#6B7280'
-                  }}>
-                    {hasJoined ? "You're now part of the team!" : 'The project owner will review your request.'}
-                  </p>
-                  {hasJoined && (
-                    <button
-                      onClick={handleLeaveProject}
-                      disabled={leaveLoading}
-                      style={{
-                        marginTop: '4px',
-                        padding: '4px 8px',
-                        fontSize: '11px',
-                        fontWeight: 500,
-                        color: leaveLoading ? '#9CA3AF' : '#DC2626',
-                        backgroundColor: 'transparent',
-                        border: 'none',
-                        cursor: leaveLoading ? 'not-allowed' : 'pointer',
-                        textDecoration: 'underline',
-                        opacity: leaveLoading ? 0.6 : 1
-                      }}
-                    >
-                      {leaveLoading ? 'Leaving...' : 'Leave project'}
-                    </button>
-                  )}
-                </div>
+              {isRequested && (
+                <p style={{
+                  margin: 0,
+                  fontSize: '11px',
+                  color: '#6B7280',
+                  textAlign: 'center'
+                }}>
+                  The project owner will review your request.
+                </p>
               )}
             </div>
           </>
@@ -1678,8 +1530,10 @@ function ProfileDetailScreen() {
         <JoinRequestModal
           project={project}
           onClose={() => setShowJoinModal(false)}
-          onSubmit={handleJoinSubmit}
-          isLoading={joinLoading}
+          onSubmit={(formData) => {
+            setIsRequested(true)
+            setShowJoinModal(false)
+          }}
         />
       )}
     </div>
@@ -1690,16 +1544,17 @@ function ProfileDetailScreen() {
  * JoinRequestModal - Fresh, Gen Z-focused modal for joining projects
  * Clean, spacious design with project name as hero element
  */
-function JoinRequestModal({ project, onClose, onSubmit, isLoading = false }) {
+function JoinRequestModal({ project, onClose, onSubmit }) {
   const [selectedRole, setSelectedRole] = useState('')
   const [aboutYourself, setAboutYourself] = useState('')
   const [isRoleFocused, setIsRoleFocused] = useState(false)
   const [isTextareaFocused, setIsTextareaFocused] = useState(false)
 
   const isValid = selectedRole && aboutYourself.length >= 20 && aboutYourself.length <= 300
+  const charCount = aboutYourself.length
 
   const handleSubmit = () => {
-    if (isValid && !isLoading) {
+    if (isValid) {
       onSubmit({
         role: selectedRole,
         aboutYourself,
@@ -1907,40 +1762,36 @@ function JoinRequestModal({ project, onClose, onSubmit, isLoading = false }) {
           {/* Submit Button - Full width pill with structure in disabled state */}
           <button
             onClick={handleSubmit}
-            disabled={!isValid || isLoading}
+            disabled={!isValid}
             style={{
               width: '100%',
               height: '56px',
-              backgroundColor: isLoading ? '#7C6FE6' : isValid ? '#5B4AE6' : 'rgba(91, 74, 230, 0.12)',
-              color: isValid || isLoading ? '#FFFFFF' : 'rgba(91, 74, 230, 0.4)',
+              backgroundColor: isValid ? '#5B4AE6' : 'rgba(91, 74, 230, 0.12)',
+              color: isValid ? '#FFFFFF' : 'rgba(91, 74, 230, 0.4)',
               fontSize: '16px',
               fontWeight: 600,
               borderRadius: '9999px',
               border: 'none',
-              cursor: isValid && !isLoading ? 'pointer' : 'not-allowed',
+              cursor: isValid ? 'pointer' : 'not-allowed',
               transition: 'all 0.2s ease',
-              boxShadow: isValid && !isLoading ? '0 4px 14px rgba(91, 74, 230, 0.4)' : 'none',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '8px',
+              boxShadow: isValid ? '0 4px 14px rgba(91, 74, 230, 0.4)' : 'none',
             }}
             onMouseEnter={(e) => {
-              if (isValid && !isLoading) {
+              if (isValid) {
                 e.currentTarget.style.backgroundColor = '#4F3ED9'
                 e.currentTarget.style.boxShadow = '0 6px 20px rgba(91, 74, 230, 0.5)'
                 e.currentTarget.style.transform = 'translateY(-1px)'
               }
             }}
             onMouseLeave={(e) => {
-              if (isValid && !isLoading) {
+              if (isValid) {
                 e.currentTarget.style.backgroundColor = '#5B4AE6'
                 e.currentTarget.style.boxShadow = '0 4px 14px rgba(91, 74, 230, 0.4)'
                 e.currentTarget.style.transform = 'translateY(0)'
               }
             }}
           >
-            {isLoading ? 'Sending...' : 'Send Request'}
+            Send Request
           </button>
         </div>
       </div>

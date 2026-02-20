@@ -7,7 +7,6 @@ import WebLayout from './components/WebLayout'
 
 // Auth Flow (UI only)
 import AuthGateScreen from './pages/AuthGateScreen'
-import AuthConfirmScreen from './pages/AuthConfirmScreen'
 
 // Main App Pages
 import DiscoverScreen from './pages/DiscoverScreen'
@@ -18,14 +17,13 @@ import ChatScreen from './pages/ChatScreen'
 import FiltersScreen from './pages/FiltersScreen'
 import ProfileDetailScreen from './pages/ProfileDetailScreen'
 import CreateProjectScreen from './pages/CreateProjectScreen'
-import CreateEventScreen from './pages/CreateEventScreen'
 import EventDetailScreen from './pages/EventDetailScreen'
 // Nest screens - imports kept but routes redirect for MVP
 // import NestDetailScreen from './pages/NestDetailScreen'
 // import CreateNestScreen from './pages/CreateNestScreen'
 import EditProjectScreen from './pages/EditProjectScreen'
 import ProfileEditScreen from './pages/ProfileEditScreen'
-import ProfileViewScreen from './pages/ProfileViewScreen'
+import UserProfileScreen from './pages/UserProfileScreen'
 
 /**
  * useIsDesktop - Hook to detect desktop screen width
@@ -73,18 +71,11 @@ function AppContent() {
       
       {/* Auth Page - UI only, no redirects */}
       <Route path="/auth" element={
-        useDesktopLayout
+        useDesktopLayout 
           ? <WebLayout layoutType="auth"><AuthGateScreen /></WebLayout>
           : <MobileFrame><AuthGateScreen /></MobileFrame>
       } />
-
-      {/* Auth Confirm - handles email verification callback */}
-      <Route path="/auth/confirm" element={
-        useDesktopLayout
-          ? <WebLayout layoutType="auth"><AuthConfirmScreen /></WebLayout>
-          : <MobileFrame><AuthConfirmScreen /></MobileFrame>
-      } />
-
+      
       {/* Legacy login route */}
       <Route path="/login" element={<Navigate to="/auth" replace />} />
       
@@ -95,9 +86,9 @@ function AppContent() {
           : <MobileFrame><ProfileEditScreen /></MobileFrame>
       } />
       <Route path="/profile/:userId" element={
-        isDesktop 
-          ? <WebLayout layoutType="app"><ProfileViewScreen /></WebLayout>
-          : <MobileFrame><ProfileViewScreen /></MobileFrame>
+        isDesktop
+          ? <WebLayout layoutType="app"><UserProfileScreen /></WebLayout>
+          : <MobileFrame><UserProfileScreen /></MobileFrame>
       } />
       
       {/* Main App Routes */}
@@ -132,15 +123,9 @@ function AppContent() {
       <Route path="/my-profile" element={<Navigate to="/profile/current-user" replace />} />
       
       <Route path="/create-project" element={
-        isDesktop
+        isDesktop 
           ? <WebLayout layoutType="form"><CreateProjectScreen /></WebLayout>
           : <MobileFrame><CreateProjectScreen /></MobileFrame>
-      } />
-
-      <Route path="/create-event" element={
-        isDesktop
-          ? <WebLayout layoutType="form"><CreateEventScreen /></WebLayout>
-          : <MobileFrame><CreateEventScreen /></MobileFrame>
       } />
       
       {/* Chat */}

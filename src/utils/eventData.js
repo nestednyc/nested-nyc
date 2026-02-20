@@ -1,36 +1,9 @@
 /**
  * Event Data Store
  * Centralized data for all events
- * Supabase-first with localStorage/mock fallback
  */
 
-import { eventService } from '../services/eventService'
-
-// Transform DB event to UI format
-function transformEvent(dbEvent) {
-  if (!dbEvent) return null
-  return {
-    id: dbEvent.id,
-    title: dbEvent.title,
-    description: dbEvent.description,
-    date: dbEvent.date,
-    time: dbEvent.time,
-    location: dbEvent.location,
-    address: dbEvent.address,
-    attendees: dbEvent.attendees || 0,
-    maxAttendees: dbEvent.max_attendees,
-    image: dbEvent.image,
-    tags: dbEvent.tags || [],
-    highlights: dbEvent.highlights || [],
-    organizer: {
-      name: dbEvent.organizer_name || 'Organizer',
-      image: dbEvent.organizer_image
-    },
-    isPast: dbEvent.is_past || false
-  }
-}
-
-// All events data (mock fallback)
+// All events data
 export const EVENTS = [
   {
     id: 'event-1',
@@ -229,79 +202,6 @@ export function getPastEvents() {
  */
 export function getEventById(eventId) {
   return EVENTS.find(e => e.id === eventId) || null
-}
-
-// ============================================
-// ASYNC FUNCTIONS (Supabase-first with fallback)
-// ============================================
-
-/**
- * Get upcoming events from Supabase, fallback to mock
- * @returns {Promise<Array>}
- */
-export async function getUpcomingEventsAsync() {
-  try {
-    const { data, error } = await eventService.getUpcomingEvents()
-    if (error) {
-      console.warn('Supabase events error, using mock:', error.message)
-      return getUpcomingEvents()
-    }
-    if (data && data.length > 0) {
-      return data.map(transformEvent)
-    }
-    // No events in DB yet, return mock for demo
-    console.log('No events in DB, using mock data')
-    return getUpcomingEvents()
-  } catch (err) {
-    console.warn('Events fetch failed, using mock:', err.message)
-    return getUpcomingEvents()
-  }
-}
-
-/**
- * Get past events from Supabase, fallback to mock
- * @returns {Promise<Array>}
- */
-export async function getPastEventsAsync() {
-  try {
-    const { data, error } = await eventService.getPastEvents()
-    if (error) {
-      console.warn('Supabase events error, using mock:', error.message)
-      return getPastEvents()
-    }
-    if (data && data.length > 0) {
-      return data.map(transformEvent)
-    }
-    // No events in DB yet, return mock for demo
-    console.log('No past events in DB, using mock data')
-    return getPastEvents()
-  } catch (err) {
-    console.warn('Events fetch failed, using mock:', err.message)
-    return getPastEvents()
-  }
-}
-
-/**
- * Get single event by ID from Supabase, fallback to mock
- * @param {string} eventId
- * @returns {Promise<Object|null>}
- */
-export async function getEventByIdAsync(eventId) {
-  try {
-    const { data, error } = await eventService.getEvent(eventId)
-    if (error) {
-      console.warn('Supabase event error, using mock:', error.message)
-      return getEventById(eventId)
-    }
-    if (data) {
-      return transformEvent(data)
-    }
-    // Try mock data
-    return getEventById(eventId)
-  } catch (err) {
-    console.warn('Event fetch failed, using mock:', err.message)
-    return getEventById(eventId)
-  }
 }
 
 

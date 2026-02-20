@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { getEventByIdAsync } from '../utils/eventData'
-import { eventService } from '../services/eventService'
+import { getEventById } from '../utils/eventData'
 
 /**
  * EventDetailScreen - Event Detail View
@@ -39,7 +38,6 @@ function EventDetailScreen() {
   const { eventId } = useParams()
   const [isDesktop, setIsDesktop] = useState(false)
   const [isRsvped, setIsRsvped] = useState(false)
-  const [rsvpLoading, setRsvpLoading] = useState(false)
   const [event, setEvent] = useState(null)
   const [loading, setLoading] = useState(true)
 
@@ -51,66 +49,14 @@ function EventDetailScreen() {
     return () => window.removeEventListener('resize', check)
   }, [])
   
-  // Load event by ID from Supabase (with mock fallback)
+  // Load event by ID
   useEffect(() => {
-    async function loadEvent() {
-      if (eventId) {
-        setLoading(true)
-        try {
-          const foundEvent = await getEventByIdAsync(eventId)
-          setEvent(foundEvent)
-
-          // Check if user is already registered
-          const registered = await eventService.isRegistered(eventId)
-          setIsRsvped(registered)
-        } catch (err) {
-          console.error('Failed to load event:', err)
-        } finally {
-          setLoading(false)
-        }
-      }
+    if (eventId) {
+      const foundEvent = getEventById(eventId)
+      setEvent(foundEvent)
     }
-    loadEvent()
+    setLoading(false)
   }, [eventId])
-
-  // Handle RSVP toggle
-  const handleRsvp = async () => {
-    if (rsvpLoading) return
-
-    setRsvpLoading(true)
-    try {
-      if (isRsvped) {
-        // Unregister
-        const { error } = await eventService.unregisterFromEvent(eventId)
-        if (!error) {
-          setIsRsvped(false)
-          // Update local attendee count
-          if (event) {
-            setEvent(prev => ({ ...prev, attendees: Math.max(0, (prev.attendees || 0) - 1) }))
-          }
-        } else {
-          console.error('Failed to unregister:', error)
-        }
-      } else {
-        // Register
-        const { data, error } = await eventService.registerForEvent(eventId)
-        if (!error && data) {
-          setIsRsvped(true)
-          // Update local attendee count
-          if (event) {
-            setEvent(prev => ({ ...prev, attendees: (prev.attendees || 0) + 1 }))
-          }
-        } else {
-          console.error('Failed to register:', error)
-          alert(error?.message || 'Failed to RSVP. Please try again.')
-        }
-      }
-    } catch (err) {
-      console.error('RSVP error:', err)
-    } finally {
-      setRsvpLoading(false)
-    }
-  }
 
   // Loading state
   if (loading) {
@@ -391,17 +337,11 @@ function EventDetailScreen() {
 
               {/* RSVP Button */}
               {!event.isPast ? (
-                <button
+                <button 
                   className={`rsvp-btn-desktop ${isRsvped ? 'rsvped' : ''}`}
-                  onClick={handleRsvp}
-                  disabled={rsvpLoading}
+                  onClick={() => setIsRsvped(!isRsvped)}
                 >
-                  {rsvpLoading ? (
-                    <>
-                      <span className="submit-spinner" style={{ width: '18px', height: '18px' }} />
-                      {isRsvped ? 'Cancelling...' : 'Saving...'}
-                    </>
-                  ) : isRsvped ? (
+                  {isRsvped ? (
                     <>
                       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                         <path d="M9 12l2 2 4-4"/>
@@ -756,19 +696,18 @@ function EventDetailScreen() {
           
           {/* RSVP Button */}
         {!event.isPast ? (
-          <button
-            onClick={handleRsvp}
-            disabled={rsvpLoading}
+          <button 
+            onClick={() => setIsRsvped(!isRsvped)}
             style={{
               flex: 1,
               height: '52px',
-              backgroundColor: rsvpLoading ? '#9CA3AF' : isRsvped ? '#10B981' : '#5B4AE6',
+              backgroundColor: isRsvped ? '#10B981' : '#5B4AE6',
               color: 'white',
               fontSize: '16px',
               fontWeight: 600,
               borderRadius: '14px',
               border: 'none',
-              cursor: rsvpLoading ? 'wait' : 'pointer',
+              cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -776,9 +715,7 @@ function EventDetailScreen() {
               transition: 'background-color 0.2s ease'
             }}
           >
-            {rsvpLoading ? (
-              isRsvped ? 'Cancelling...' : 'Saving...'
-            ) : isRsvped ? (
+            {isRsvped ? (
               <>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
                   <path d="M9 12l2 2 4-4"/>
