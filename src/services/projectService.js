@@ -281,7 +281,7 @@ export const projectService = {
    * @param {string} role - Optional role the user wants to fill
    * @returns {Promise<{data: object|null, error: object|null}>}
    */
-  async joinProject(projectId, role = null) {
+  async joinProject(projectId, role = null, message = null) {
     if (!isSupabaseConfigured() || !supabase) {
       return { data: null, error: { message: 'Supabase not configured' } }
     }
@@ -320,17 +320,20 @@ export const projectService = {
     }
 
     // Add as team member with 'pending' status (requires owner approval)
+    const insertData = {
+      project_id: projectId,
+      user_id: user.id,
+      name: memberName,
+      school: profile?.university || null,
+      role: role,
+      image: profile?.avatar || null,
+      status: 'pending'
+    }
+    if (message) insertData.message = message
+
     const { data, error } = await supabase
       .from('team_members')
-      .insert({
-        project_id: projectId,
-        user_id: user.id,
-        name: memberName,
-        school: profile?.university || null,
-        role: role,
-        image: profile?.avatar || null,
-        status: 'pending'
-      })
+      .insert(insertData)
       .select()
       .single()
 
@@ -381,7 +384,7 @@ export const projectService = {
 
     const { data } = await supabase
       .from('team_members')
-      .select('id, status')
+      .select('*')
       .eq('project_id', projectId)
       .eq('user_id', user.id)
       .single()
@@ -404,7 +407,7 @@ export const projectService = {
       .select('*')
       .eq('project_id', projectId)
       .eq('status', 'pending')
-      .order('created_at', { ascending: false })
+      .order('joined_at', { ascending: false })
 
     return { data: data || [], error }
   },
@@ -425,6 +428,22 @@ export const projectService = {
       .eq('id', memberId)
       .select()
       .single()
+
+    // Decrement spots_left on the project
+    if (data && !error) {
+      const { data: project } = await supabase
+        .from('projects')
+        .select('spots_left')
+        .eq('id', data.project_id)
+        .single()
+
+      if (project) {
+        await supabase
+          .from('projects')
+          .update({ spots_left: Math.max((project.spots_left || 0) - 1, 0) })
+          .eq('id', data.project_id)
+      }
+    }
 
     return { data, error }
   },

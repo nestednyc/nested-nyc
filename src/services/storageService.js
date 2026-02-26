@@ -89,6 +89,55 @@ export const storageService = {
   },
 
   /**
+   * Upload a project icon image
+   * @param {string} projectId - The project's ID
+   * @param {File} file - The image file to upload
+   * @returns {Promise<{url: string|null, error: object|null}>}
+   */
+  async uploadProjectIcon(projectId, file) {
+    if (!isSupabaseConfigured() || !supabase) {
+      return { url: null, error: { message: 'Supabase not configured' } }
+    }
+
+    if (!file) {
+      return { url: null, error: { message: 'No file provided' } }
+    }
+
+    const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+    if (!validTypes.includes(file.type)) {
+      return { url: null, error: { message: 'Invalid file type. Please use JPG, PNG, GIF, or WebP.' } }
+    }
+
+    const maxSize = 2 * 1024 * 1024
+    if (file.size > maxSize) {
+      return { url: null, error: { message: 'File too large. Maximum size is 2MB.' } }
+    }
+
+    try {
+      const fileExt = file.name.split('.').pop()
+      const fileName = `project-${projectId}-${Date.now()}.${fileExt}`
+
+      const { data, error: uploadError } = await supabase.storage
+        .from('project-icons')
+        .upload(fileName, file, { cacheControl: '3600', upsert: true })
+
+      if (uploadError) {
+        console.error('Project icon upload error:', uploadError)
+        return { url: null, error: uploadError }
+      }
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('project-icons')
+        .getPublicUrl(fileName)
+
+      return { url: publicUrl, error: null }
+    } catch (err) {
+      console.error('Project icon upload error:', err)
+      return { url: null, error: err }
+    }
+  },
+
+  /**
    * Convert a file to base64 data URL (for localStorage fallback)
    * @param {File} file - The image file
    * @returns {Promise<string>}

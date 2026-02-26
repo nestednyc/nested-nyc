@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import { getProjectByIdAsync, DEMO_CURRENT_USER_ID } from '../utils/projectData'
 import { projectService } from '../services/projectService'
+import { getInitialsAvatar } from '../utils/avatarUtils'
 
 /**
  * ProfileDetailScreen - Project Detail View
@@ -14,6 +15,7 @@ import { projectService } from '../services/projectService'
 function ProfileDetailScreen() {
   const navigate = useNavigate()
   const { projectId } = useParams()
+  const location = useLocation()
   const [isDesktop, setIsDesktop] = useState(false)
   const [isSaved, setIsSaved] = useState(false)
   const [isRequested, setIsRequested] = useState(false)
@@ -25,6 +27,7 @@ function ProfileDetailScreen() {
   const [joinLoading, setJoinLoading] = useState(false)
   const [hasJoined, setHasJoined] = useState(false)
   const [leaveLoading, setLeaveLoading] = useState(false)
+  const [showCopied, setShowCopied] = useState(false)
 
   // Handle accept request - approve the join request
   const handleAcceptRequest = async (requestId) => {
@@ -72,10 +75,10 @@ function ProfileDetailScreen() {
         if (foundProject?.isSupabaseProject) {
           const { joined, status } = await projectService.hasJoinedProject(projectId)
           setMembershipStatus(status)
-          if (status === 'approved') {
+          if (joined && status === 'approved') {
             setHasJoined(true)
             setIsRequested(true)
-          } else if (status === 'pending') {
+          } else if (joined && status === 'pending') {
             setHasJoined(false)
             setIsRequested(true)
           } else {
@@ -92,7 +95,7 @@ function ProfileDetailScreen() {
               name: req.name || 'Team Member',
               school: req.school || '',
               role: req.role || 'Team Member',
-              avatar: req.image || `https://ui-avatars.com/api/?name=${encodeURIComponent(req.name || 'TM')}&background=5B4AE6&color=fff`,
+              avatar: req.image || getInitialsAvatar(req.name || 'Team Member'),
               requestedAt: formatTimeAgo(req.created_at)
             }))
             setPendingRequests(formattedRequests)
@@ -102,7 +105,7 @@ function ProfileDetailScreen() {
       }
     }
     loadProject()
-  }, [projectId])
+  }, [projectId, location.key])
 
   // Helper function to format timestamps as relative time
   function formatTimeAgo(dateString) {
@@ -130,7 +133,7 @@ function ProfileDetailScreen() {
 
     setJoinLoading(true)
     try {
-      const { error } = await projectService.joinProject(projectId, formData.role)
+      const { error } = await projectService.joinProject(projectId, formData.role, formData.aboutYourself)
       if (error) {
         console.error('Failed to join:', error)
         alert(error.message || 'Failed to send request. Please try again.')
@@ -652,24 +655,23 @@ function ProfileDetailScreen() {
               </div>
             )}
 
-            {/* Team Communication Section - MVP */}
-            <div className="project-detail-section">
-              <h3 className="section-title-desktop">Team Communication</h3>
-              <p style={{ fontSize: '14px', color: '#6B7280', marginBottom: '16px', lineHeight: 1.5 }}>
-                Primary communication happens off-platform for now. Join the team's preferred channels to collaborate.
-              </p>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
-                {/* Discord Link */}
+            {/* Team Communication Section */}
+            {project.communicationLink ? (
+              <div className="project-detail-section">
+                <h3 className="section-title-desktop">Team Communication</h3>
+                <p style={{ fontSize: '14px', color: '#6B7280', marginBottom: '16px', lineHeight: 1.5 }}>
+                  Join the team's communication channel to collaborate.
+                </p>
                 <a
-                  href="https://discord.gg/nested-nyc"
+                  href={project.communicationLink}
                   target="_blank"
                   rel="noopener noreferrer"
                   style={{
-                    display: 'flex',
+                    display: 'inline-flex',
                     alignItems: 'center',
                     gap: '8px',
-                    padding: '10px 16px',
-                    backgroundColor: '#5865F2',
+                    padding: '10px 20px',
+                    backgroundColor: '#5B4AE6',
                     color: 'white',
                     fontSize: '13px',
                     fontWeight: 600,
@@ -680,67 +682,22 @@ function ProfileDetailScreen() {
                   onMouseEnter={(e) => e.currentTarget.style.opacity = '0.9'}
                   onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
                 >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03z"/>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+                    <polyline points="15 3 21 3 21 9"/>
+                    <line x1="10" y1="14" x2="21" y2="3"/>
                   </svg>
-                  Open Discord
-                </a>
-
-                {/* GitHub Link */}
-                <a
-                  href="https://github.com/nested-nyc"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    padding: '10px 16px',
-                    backgroundColor: '#24292F',
-                    color: 'white',
-                    fontSize: '13px',
-                    fontWeight: 600,
-                    borderRadius: '10px',
-                    textDecoration: 'none',
-                    transition: 'opacity 0.15s'
-                  }}
-                  onMouseEnter={(e) => e.currentTarget.style.opacity = '0.9'}
-                  onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
-                >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/>
-                  </svg>
-                  View GitHub Repo
-                </a>
-
-                {/* Slack Link (secondary style) */}
-                <a
-                  href="#"
-                  onClick={(e) => { e.preventDefault(); alert('Slack invite link would go here') }}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    padding: '10px 16px',
-                    backgroundColor: '#F3F4F6',
-                    color: '#374151',
-                    fontSize: '13px',
-                    fontWeight: 600,
-                    borderRadius: '10px',
-                    textDecoration: 'none',
-                    border: '1px solid #E5E7EB',
-                    transition: 'background-color 0.15s'
-                  }}
-                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#E5E7EB'}
-                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#F3F4F6'}
-                >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52zM6.313 15.165a2.527 2.527 0 0 1 2.521-2.52 2.527 2.527 0 0 1 2.521 2.52v6.313A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.521-2.522v-6.313zM8.834 5.042a2.528 2.528 0 0 1-2.521-2.52A2.528 2.528 0 0 1 8.834 0a2.528 2.528 0 0 1 2.521 2.522v2.52H8.834zM8.834 6.313a2.528 2.528 0 0 1 2.521 2.521 2.528 2.528 0 0 1-2.521 2.521H2.522A2.528 2.528 0 0 1 0 8.834a2.528 2.528 0 0 1 2.522-2.521h6.312zM18.956 8.834a2.528 2.528 0 0 1 2.522-2.521A2.528 2.528 0 0 1 24 8.834a2.528 2.528 0 0 1-2.522 2.521h-2.522V8.834zM17.688 8.834a2.528 2.528 0 0 1-2.523 2.521 2.527 2.527 0 0 1-2.52-2.521V2.522A2.527 2.527 0 0 1 15.165 0a2.528 2.528 0 0 1 2.523 2.522v6.312zM15.165 18.956a2.528 2.528 0 0 1 2.523 2.522A2.528 2.528 0 0 1 15.165 24a2.527 2.527 0 0 1-2.52-2.522v-2.522h2.52zM15.165 17.688a2.527 2.527 0 0 1-2.52-2.523 2.526 2.526 0 0 1 2.52-2.52h6.313A2.527 2.527 0 0 1 24 15.165a2.528 2.528 0 0 1-2.522 2.523h-6.313z"/>
-                  </svg>
-                  Join Slack
+                  Open Communication Channel
                 </a>
               </div>
-            </div>
+            ) : isOwner ? (
+              <div className="project-detail-section">
+                <h3 className="section-title-desktop">Team Communication</h3>
+                <p style={{ fontSize: '14px', color: '#9CA3AF', lineHeight: 1.5 }}>
+                  No communication link set. Add one by editing your project.
+                </p>
+              </div>
+            ) : null}
           </div>
 
           {/* Right Column - Action Card */}
@@ -978,19 +935,58 @@ function ProfileDetailScreen() {
                   Share this project
                 </h4>
                 <div className="share-buttons">
-                  <button 
-                    className="share-btn" 
-                    title="Copy link"
-                    onClick={() => {
-                      navigator.clipboard.writeText(window.location.href)
-                      // Could add toast notification here
-                    }}
-                  >
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
-                      <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
-                    </svg>
-                  </button>
+                  <div style={{ position: 'relative', display: 'inline-block' }}>
+                    <button
+                      className="share-btn"
+                      title="Copy link"
+                      onClick={async () => {
+                        try {
+                          await navigator.clipboard.writeText(window.location.href)
+                        } catch {
+                          // Fallback for older browsers
+                          const textarea = document.createElement('textarea')
+                          textarea.value = window.location.href
+                          textarea.style.position = 'fixed'
+                          textarea.style.opacity = '0'
+                          document.body.appendChild(textarea)
+                          textarea.select()
+                          document.execCommand('copy')
+                          document.body.removeChild(textarea)
+                        }
+                        setShowCopied(true)
+                        setTimeout(() => setShowCopied(false), 2000)
+                      }}
+                    >
+                      {showCopied ? (
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#10B981" strokeWidth="2.5">
+                          <polyline points="20 6 9 17 4 12"/>
+                        </svg>
+                      ) : (
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+                          <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+                        </svg>
+                      )}
+                    </button>
+                    {showCopied && (
+                      <span style={{
+                        position: 'absolute',
+                        bottom: 'calc(100% + 6px)',
+                        left: '50%',
+                        transform: 'translateX(-50%)',
+                        padding: '4px 10px',
+                        fontSize: '12px',
+                        fontWeight: 600,
+                        color: 'white',
+                        backgroundColor: '#10B981',
+                        borderRadius: '6px',
+                        whiteSpace: 'nowrap',
+                        pointerEvents: 'none'
+                      }}>
+                        Copied!
+                      </span>
+                    )}
+                  </div>
                   <button 
                     className="share-btn" 
                     title="Share on LinkedIn"
@@ -1286,7 +1282,7 @@ function ProfileDetailScreen() {
                     }}
                   >
                     <img
-                      src={member.image}
+                      src={member.image || getInitialsAvatar(member.name, 48)}
                       alt={member.name}
                       style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                     />
@@ -1438,33 +1434,33 @@ function ProfileDetailScreen() {
             </div>
           )}
 
-          {/* Team Communication Section - MVP (Mobile) */}
-          <div style={{ marginTop: '24px' }}>
-            <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: '#231429' }}>
-              Team Communication
-            </h3>
-            <p style={{ 
-              margin: 0, 
-              marginTop: '8px', 
-              marginBottom: '14px',
-              fontSize: '13px', 
-              color: '#6B7280', 
-              lineHeight: 1.5 
-            }}>
-              Primary communication happens off-platform for now.
-            </p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              {/* Discord */}
+          {/* Team Communication Section (Mobile) */}
+          {project.communicationLink ? (
+            <div style={{ marginTop: '24px' }}>
+              <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: '#231429' }}>
+                Team Communication
+              </h3>
+              <p style={{
+                margin: 0,
+                marginTop: '8px',
+                marginBottom: '14px',
+                fontSize: '13px',
+                color: '#6B7280',
+                lineHeight: 1.5
+              }}>
+                Join the team's communication channel to collaborate.
+              </p>
               <a
-                href="https://discord.gg/nested-nyc"
+                href={project.communicationLink}
                 target="_blank"
                 rel="noopener noreferrer"
                 style={{
                   display: 'flex',
                   alignItems: 'center',
+                  justifyContent: 'center',
                   gap: '10px',
                   padding: '12px 14px',
-                  backgroundColor: '#5865F2',
+                  backgroundColor: '#5B4AE6',
                   color: 'white',
                   fontSize: '14px',
                   fontWeight: 600,
@@ -1472,36 +1468,30 @@ function ProfileDetailScreen() {
                   textDecoration: 'none'
                 }}
               >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03z"/>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+                  <polyline points="15 3 21 3 21 9"/>
+                  <line x1="10" y1="14" x2="21" y2="3"/>
                 </svg>
-                Open Discord
-              </a>
-              {/* GitHub */}
-              <a
-                href="https://github.com/nested-nyc"
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '10px',
-                  padding: '12px 14px',
-                  backgroundColor: '#24292F',
-                  color: 'white',
-                  fontSize: '14px',
-                  fontWeight: 600,
-                  borderRadius: '12px',
-                  textDecoration: 'none'
-                }}
-              >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/>
-                </svg>
-                View GitHub Repo
+                Open Communication Channel
               </a>
             </div>
-          </div>
+          ) : isOwner ? (
+            <div style={{ marginTop: '24px' }}>
+              <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: '#231429' }}>
+                Team Communication
+              </h3>
+              <p style={{
+                margin: 0,
+                marginTop: '8px',
+                fontSize: '13px',
+                color: '#9CA3AF',
+                lineHeight: 1.5
+              }}>
+                No communication link set. Add one by editing your project.
+              </p>
+            </div>
+          ) : null}
         </div>
       </div>
       
@@ -1901,6 +1891,23 @@ function JoinRequestModal({ project, onClose, onSubmit, isLoading = false }) {
                   outline: 'none',
                 }}
               />
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                marginTop: '8px',
+                fontSize: '12px',
+                color: aboutYourself.length < 20 ? '#A1A1AA' : '#10B981',
+                fontWeight: 500,
+              }}>
+                <span>
+                  {aboutYourself.length < 20
+                    ? `${20 - aboutYourself.length} more characters needed`
+                    : 'Looks good!'}
+                </span>
+                <span style={{ color: '#A1A1AA' }}>
+                  {aboutYourself.length}/300
+                </span>
+              </div>
             </div>
           </div>
 
@@ -1942,6 +1949,18 @@ function JoinRequestModal({ project, onClose, onSubmit, isLoading = false }) {
           >
             {isLoading ? 'Sending...' : 'Send Request'}
           </button>
+
+          {/* Helper text when button is disabled */}
+          {!isValid && !isLoading && (
+            <p style={{
+              margin: '12px 0 0 0',
+              fontSize: '13px',
+              color: '#A1A1AA',
+              textAlign: 'center',
+            }}>
+              {!selectedRole ? 'Select a role to continue' : 'Write at least 20 characters in your pitch'}
+            </p>
+          )}
         </div>
       </div>
 

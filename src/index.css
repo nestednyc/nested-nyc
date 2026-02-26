@@ -187,13 +187,17 @@ html, body, #root {
 .web-main {
   flex: 1;
   padding: 24px;
+  overflow: hidden;
 }
 
 .web-content-wrapper {
-  max-width: 1400px;
+  width: 100%;
+  max-width: 1600px;
   margin: 0 auto;
   display: flex;
   gap: 24px;
+  height: 100%;
+  padding: 0 16px;
 }
 
 .web-content-wrapper.with-sidebar {
@@ -206,7 +210,7 @@ html, body, #root {
 
 .web-content {
   flex: 1;
-  max-width: 900px;
+  min-width: 0;
   background-color: white;
   border-radius: 16px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
@@ -222,6 +226,12 @@ html, body, #root {
 .web-sidebar {
   width: 340px;
   flex-shrink: 0;
+}
+
+@media (min-width: 1400px) {
+  .web-content-wrapper {
+    padding: 0 32px;
+  }
 }
 
 /* ============================================

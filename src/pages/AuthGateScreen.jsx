@@ -31,8 +31,10 @@ function AuthGateScreen() {
       alignItems: 'center',
       justifyContent: 'center',
       padding: '24px 16px',
+      paddingBottom: 'max(24px, env(safe-area-inset-bottom, 24px))',
       position: 'relative',
-      overflow: 'hidden'
+      overflow: 'auto',
+      WebkitOverflowScrolling: 'touch'
     }}>
       {/* Purple Circle Background Accents - Behind everything */}
       <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 0 }}>
@@ -406,15 +408,18 @@ function SignUpForm({ step, setStep, navigate, onSwitchToLogin }) {
   // Step 2 -> Step 3 (Create account in Supabase)
   const handleCreateAccount = async (e) => {
     e.preventDefault()
+    console.log('[DEBUG] handleCreateAccount called', { email: form.email, passwordLen: form.password.length })
     setIsLoading(true)
     setError(null)
     setEmailTakenError(false)
 
     try {
+      console.log('[DEBUG] Calling authService.signUpWithEmailPassword...')
       const { data, error: signUpError } = await authService.signUpWithEmailPassword(
         form.email,
         form.password
       )
+      console.log('[DEBUG] signUp result:', { data, error: signUpError })
 
       // Handle specific error cases
       if (signUpError) {
@@ -624,7 +629,7 @@ function SignUpForm({ step, setStep, navigate, onSwitchToLogin }) {
         </div>
 
         {/* Continue */}
-        <button type="submit" style={primaryButtonStyle}>
+        <button type="submit" onClick={(e) => { e.preventDefault(); handleContinue(e); }} style={primaryButtonStyle}>
           Continue
         </button>
       </form>
@@ -760,7 +765,7 @@ function SignUpForm({ step, setStep, navigate, onSwitchToLogin }) {
       )}
 
       {/* Buttons */}
-      <button type="submit" style={primaryButtonStyle} disabled={isLoading}>
+      <button type="submit" onClick={(e) => { e.preventDefault(); handleCreateAccount(e); }} style={primaryButtonStyle} disabled={isLoading}>
         {isLoading ? 'Creating...' : 'Create Account'}
       </button>
       <button
@@ -1021,14 +1026,17 @@ function LoginForm({ navigate }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    console.log('[DEBUG] handleSubmit (login) called', { email: form.email, passwordLen: form.password.length })
     setIsLoading(true)
     setError(null)
 
     try {
+      console.log('[DEBUG] Calling authService.signInWithEmailPassword...')
       const { data, error: signInError } = await authService.signInWithEmailPassword(
         form.email,
         form.password
       )
+      console.log('[DEBUG] signIn result:', { data, error: signInError })
 
       if (signInError) {
         setError(getErrorMessage(signInError))
@@ -1082,7 +1090,7 @@ function LoginForm({ navigate }) {
       )}
 
       {/* Submit */}
-      <button type="submit" style={primaryButtonStyle} disabled={isLoading}>
+      <button type="submit" onClick={(e) => { e.preventDefault(); handleSubmit(e); }} style={primaryButtonStyle} disabled={isLoading}>
         {isLoading ? 'Signing in...' : 'Log In'}
       </button>
     </form>

@@ -3,9 +3,10 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import ContextSidebar from './ContextSidebar'
 import { authService, supabase, isSupabaseConfigured } from '../lib/supabase'
 import { profileService } from '../services/profileService'
+import { getInitialsAvatar } from '../utils/avatarUtils'
 
 // Default avatar for users without a profile picture
-const DEFAULT_AVATAR = 'https://ui-avatars.com/api/?background=5B4AE6&color=fff&name=N&size=100'
+const DEFAULT_AVATAR = getInitialsAvatar('User')
 
 /**
  * WebLayout - Desktop layout wrapper with header navigation and contextual sidebar
@@ -22,11 +23,18 @@ function WebLayout({ children, layoutType = 'app' }) {
   const pathname = location.pathname
 
   // Determine if sidebar should be shown based on route
-  const shouldShowSidebar = layoutType === 'app' && !['/messages'].includes(pathname)
+  // Hide on /messages, /discover (has its own sidebar), /events (wide layout), /matches (focused workspace)
+  const shouldShowSidebar = layoutType === 'app' && !['/messages', '/discover', '/events', '/matches'].includes(pathname)
   const isOnboardingRoute = pathname.startsWith('/onboarding') || pathname === '/uni-email'
-  
+
   // Never show sidebar on onboarding routes
   const showSidebar = shouldShowSidebar && !isOnboardingRoute
+
+  // Events page gets a special wide layout class
+  const isEventsPage = pathname === '/events'
+
+  // My Projects page gets a focused workspace layout
+  const isMyProjectsPage = pathname === '/matches'
 
   // Navigation items (Messages hidden for MVP - feature preserved in code)
   const navItems = [
@@ -76,9 +84,9 @@ function WebLayout({ children, layoutType = 'app' }) {
 
       {/* Main Content Area */}
       <div className="web-main">
-        <div className={`web-content-wrapper ${showSidebar ? 'with-sidebar' : 'centered'}`}>
+        <div className={`web-content-wrapper ${showSidebar ? 'with-sidebar' : 'centered'} ${isEventsPage ? 'events-wide' : ''} ${isMyProjectsPage ? 'projects-focused' : ''}`}>
           {/* Main Content */}
-          <main className={`web-content ${layoutType === 'auth' || layoutType === 'form' ? 'web-content-centered' : ''}`}>
+          <main className={`web-content ${layoutType === 'auth' || layoutType === 'form' ? 'web-content-centered' : ''} ${isEventsPage ? 'web-content-events' : ''} ${isMyProjectsPage ? 'web-content-projects' : ''}`}>
             {children}
           </main>
 
@@ -105,30 +113,31 @@ function ProfileDropdown({ navigate }) {
   // Fetch user's avatar on mount
   useEffect(() => {
     const fetchAvatar = async () => {
-      // Helper to get avatar from localStorage
-      const getLocalStorageAvatar = () => {
+      // Helper to get profile from localStorage
+      const getLocalStorageProfile = () => {
         try {
           const saved = localStorage.getItem('nested_user_profile')
           if (saved) {
-            const profile = JSON.parse(saved)
-            return profile.avatar || null
+            return JSON.parse(saved)
           }
         } catch (e) {}
         return null
       }
 
       // Try localStorage first for immediate display
-      const localAvatar = getLocalStorageAvatar()
-      if (localAvatar) {
-        setAvatarUrl(localAvatar)
+      const localProfile = getLocalStorageProfile()
+      if (localProfile) {
+        const name = `${localProfile.firstName || localProfile.first_name || ''} ${localProfile.lastName || localProfile.last_name || ''}`.trim()
+        setAvatarUrl(localProfile.avatar || getInitialsAvatar(name))
       }
 
       // Then try Supabase for the most up-to-date avatar
       if (isSupabaseConfigured()) {
         try {
           const { data, error } = await profileService.getCurrentProfile()
-          if (!error && data?.avatar) {
-            setAvatarUrl(data.avatar)
+          if (!error && data) {
+            const name = `${data.first_name || ''} ${data.last_name || ''}`.trim()
+            setAvatarUrl(data.avatar || getInitialsAvatar(name))
           }
         } catch (err) {
           // Silently fail, we already have localStorage fallback
@@ -155,10 +164,42 @@ function ProfileDropdown({ navigate }) {
     navigate('/auth')
   }
 
+  const handleDeleteAccount = async () => {
+    const confirmed = window.confirm(
+      'Are you sure you want to delete your account? This will permanently remove your profile, projects, and team memberships. This action cannot be undone.'
+    )
+    if (!confirmed) return
+
+    try {
+      // Get current user ID
+      if (isSupabaseConfigured()) {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) {
+          await profileService.deleteProfile(user.id)
+        }
+      }
+
+      // Sign out
+      await authService.signOut()
+
+      // Clear all localStorage data
+      localStorage.removeItem('nested_user_profile')
+      localStorage.removeItem('nested_projects')
+      localStorage.removeItem('nested_tutorial_seen')
+
+      setIsOpen(false)
+      navigate('/auth')
+    } catch (err) {
+      console.error('Delete account error:', err)
+      alert('Failed to delete account. Please try again.')
+    }
+  }
+
   const menuItems = [
     { label: 'Profile', onClick: () => { navigate('/profile/current-user'); setIsOpen(false) } },
     { label: 'Edit Profile', onClick: () => { navigate('/profile/edit'); setIsOpen(false) } },
     { label: 'Log out', onClick: handleLogout, isDanger: true },
+    { label: 'Delete Account', onClick: handleDeleteAccount, isDanger: true },
   ]
 
   return (

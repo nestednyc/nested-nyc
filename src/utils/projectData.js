@@ -399,6 +399,7 @@ function transformSupabaseProject(p, isOwner = false) {
     joined: isOwner,
     commitment: p.commitment,
     publishToDiscover: p.publish_to_discover,
+    communicationLink: p.communication_link || null,
     createdAt: p.created_at
   }
 }
@@ -560,7 +561,8 @@ export async function createProjectAsync(projectData) {
       skills: projectData.skills || [],
       commitment: projectData.commitment,
       publish_to_discover: projectData.publishToDiscover !== false,
-      spots_left: projectData.roles?.length || 0
+      spots_left: projectData.roles?.length || 0,
+      communication_link: projectData.communicationLink || null
     }
 
     const { data, error } = await projectService.createProject(dbProject)
@@ -576,6 +578,18 @@ export async function createProjectAsync(projectData) {
       }
       saveProject(project)
       return { data: project, error: null }
+    }
+
+    // Insert the creator as an approved team member
+    if (data?.id) {
+      await projectService.addTeamMember(data.id, {
+        user_id: user.id,
+        name: authorName,
+        school: profile?.university || null,
+        role: 'Creator',
+        image: profile?.avatar || null,
+        status: 'approved'
+      })
     }
 
     return { data: transformSupabaseProject(data, true), error: null }
