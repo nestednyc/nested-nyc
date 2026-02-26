@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { getMyProjects, getMyProjectsAsync, DEMO_CURRENT_USER_ID } from '../utils/projectData'
 import { supabase, isSupabaseConfigured } from '../lib/supabase'
 import { profileService } from '../services/profileService'
+import { getInitialsAvatar } from '../utils/avatarUtils'
 
 /**
  * ProfileViewScreen - Public read-only profile view
@@ -215,6 +216,13 @@ function ProfileViewScreen() {
   const [nestedProjects, setNestedProjects] = useState([])
   const [loading, setLoading] = useState(true)
   const [isOwner, setIsOwner] = useState(userId === CURRENT_USER_ID || userId === 'me')
+  const [isWideScreen, setIsWideScreen] = useState(window.innerWidth >= 768)
+
+  useEffect(() => {
+    const handleResize = () => setIsWideScreen(window.innerWidth >= 768)
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -422,7 +430,7 @@ function ProfileViewScreen() {
 
       {/* Content */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
-        <div style={{ maxWidth: '700px', margin: '0 auto', display: 'grid', gridTemplateColumns: '1fr 260px', gap: '16px' }}>
+        <div style={{ maxWidth: '700px', margin: '0 auto', display: 'grid', gridTemplateColumns: isWideScreen ? '1fr 260px' : '1fr', gap: '16px' }}>
           
           {/* MAIN COLUMN */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
@@ -443,18 +451,11 @@ function ProfileViewScreen() {
                 border: '2px solid #E5E7EB', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
                 overflow: 'hidden'
               }}>
-                {profile.avatar ? (
-                  <img 
-                    src={profile.avatar} 
-                    alt={fullName}
-                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                  />
-                ) : (
-                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="1.5">
-                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-                    <circle cx="12" cy="7" r="4"/>
-                  </svg>
-                )}
+                <img
+                  src={profile.avatar || getInitialsAvatar(fullName)}
+                  alt={fullName}
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                />
               </div>
 
               <div style={{ flex: 1 }}>

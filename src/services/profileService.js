@@ -120,6 +120,33 @@ export const profileService = {
   },
 
   /**
+   * Delete a user's profile and related data (MVP: profile data only, auth record stays)
+   * @param {string} userId - The user's UUID
+   * @returns {Promise<{error: object|null}>}
+   */
+  async deleteProfile(userId) {
+    if (!isSupabaseConfigured() || !supabase) {
+      return { error: { message: 'Supabase not configured' } }
+    }
+
+    try {
+      // Delete team memberships
+      await supabase.from('team_members').delete().eq('user_id', userId)
+
+      // Delete user's owned projects
+      await supabase.from('projects').delete().eq('owner_id', userId)
+
+      // Delete profile
+      const { error } = await supabase.from('profiles').delete().eq('id', userId)
+
+      return { error }
+    } catch (err) {
+      console.error('Delete profile error:', err)
+      return { error: err }
+    }
+  },
+
+  /**
    * Get all profiles (for discovery/matching)
    * @param {object} options - Query options (limit, offset, filters)
    * @returns {Promise<{data: array|null, error: object|null}>}

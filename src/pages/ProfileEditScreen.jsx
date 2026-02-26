@@ -45,6 +45,14 @@ function ProfileEditScreen() {
   const inputRef = useRef(null)
   const avatarInputRef = useRef(null)
 
+  // Responsive grid check
+  const [isWideScreen, setIsWideScreen] = useState(window.innerWidth >= 768)
+  useEffect(() => {
+    const handleResize = () => setIsWideScreen(window.innerWidth >= 768)
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
+
   // Check if this is first-time setup (profile not yet complete)
   const [isFirstTimeSetup, setIsFirstTimeSetup] = useState(false)
 
@@ -443,7 +451,7 @@ function ProfileEditScreen() {
 
       {/* Content - Two Column Layout */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
-        <div style={{ maxWidth: '800px', margin: '0 auto', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+        <div style={{ maxWidth: '800px', margin: '0 auto', display: 'grid', gridTemplateColumns: isWideScreen ? '1fr 1fr' : '1fr', gap: '14px' }}>
           
           {/* LEFT COLUMN */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
