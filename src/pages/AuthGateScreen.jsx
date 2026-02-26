@@ -408,25 +408,42 @@ function SignUpForm({ step, setStep, navigate, onSwitchToLogin }) {
   // Step 2 -> Step 3 (Create account in Supabase)
   const handleCreateAccount = async (e) => {
     e.preventDefault()
-    console.log('[DEBUG] handleCreateAccount called', { email: form.email, passwordLen: form.password.length })
     setIsLoading(true)
     setError(null)
     setEmailTakenError(false)
 
+    // Validate passwords match before calling Supabase
+    if (form.password !== form.confirmPassword) {
+      setError('Passwords do not match.')
+      setIsLoading(false)
+      return
+    }
+
     try {
-      console.log('[DEBUG] Calling authService.signUpWithEmailPassword...')
       const { data, error: signUpError } = await authService.signUpWithEmailPassword(
         form.email,
         form.password
       )
-      console.log('[DEBUG] signUp result:', { data, error: signUpError })
 
       // Handle specific error cases
       if (signUpError) {
         const errorMsg = signUpError.message?.toLowerCase() || ''
 
-        // If user already exists, show special banner
+        // If user already exists, try signing in (handles back-button case where account was already created)
         if (errorMsg.includes('already registered') || signUpError.code === 'USER_EXISTS' || errorMsg.includes('user already registered')) {
+          const { data: signInData, error: signInError } = await authService.signInWithEmailPassword(
+            form.email,
+            form.password
+          )
+
+          if (!signInError && signInData?.user?.id) {
+            setUserId(signInData.user.id)
+            setStep(3)
+            setIsLoading(false)
+            return
+          }
+
+          // Sign-in failed — wrong password or different account
           setEmailTakenError(true)
           setIsLoading(false)
           return

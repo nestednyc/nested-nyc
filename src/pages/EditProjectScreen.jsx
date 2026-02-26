@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { getProjectById, DEMO_CURRENT_USER_ID, saveProjectEdits } from '../utils/projectData'
+import { getProjectByIdAsync, DEMO_CURRENT_USER_ID, saveProjectEdits } from '../utils/projectData'
+import { projectService } from '../services/projectService'
 
 /**
  * EditProjectScreen - Edit project details
@@ -79,31 +80,34 @@ function EditProjectScreen() {
 
   // Load project data
   useEffect(() => {
-    if (projectId) {
-      const foundProject = getProjectById(projectId)
-      if (foundProject) {
-        // Check ownership
-        const isOwner = foundProject.isOwner || foundProject.ownerId === DEMO_CURRENT_USER_ID
-        if (!isOwner) {
-          navigate(-1)
-          return
-        }
+    async function loadProject() {
+      if (projectId) {
+        const foundProject = await getProjectByIdAsync(projectId)
+        if (foundProject) {
+          // Check ownership
+          const isOwner = foundProject.isOwner || foundProject.ownerId === DEMO_CURRENT_USER_ID
+          if (!isOwner) {
+            navigate(-1)
+            return
+          }
 
-        setProject(foundProject)
-        
-        // Pre-fill form with existing data
-        const existingRoles = (foundProject.skillsNeeded || [])
-          .map(skill => ROLE_LABEL_TO_ID[skill] || null)
-          .filter(Boolean)
-        
-        setFormData({
-          description: foundProject.description || '',
-          roles: existingRoles.length > 0 ? [...new Set(existingRoles)] : [],
-          commitment: getCommitmentFromCategory(foundProject.category),
-        })
+          setProject(foundProject)
+
+          // Pre-fill form with existing data
+          const existingRoles = (foundProject.skillsNeeded || [])
+            .map(skill => ROLE_LABEL_TO_ID[skill] || null)
+            .filter(Boolean)
+
+          setFormData({
+            description: foundProject.description || '',
+            roles: existingRoles.length > 0 ? [...new Set(existingRoles)] : [],
+            commitment: getCommitmentFromCategory(foundProject.category),
+          })
+        }
+        setLoading(false)
       }
-      setLoading(false)
     }
+    loadProject()
   }, [projectId, navigate])
 
   const updateField = (field, value) => {
@@ -143,11 +147,22 @@ function EditProjectScreen() {
       commitment: formData.commitment,
     }
 
-    // Save edits to localStorage
-    saveProjectEdits(projectId, edits)
-
-    // Brief delay for UX feedback
-    await new Promise(resolve => setTimeout(resolve, 400))
+    // Save edits — Supabase for real projects, localStorage for demo
+    if (project?.isSupabaseProject) {
+      const { error } = await projectService.updateProject(projectId, {
+        description: edits.description,
+        skills: edits.skillsNeeded,
+        commitment: edits.commitment,
+      })
+      if (error) {
+        console.error('Failed to save project:', error)
+        alert('Failed to save changes. Please try again.')
+        setIsSaving(false)
+        return
+      }
+    } else {
+      saveProjectEdits(projectId, edits)
+    }
 
     setIsSaving(false)
     setShowSuccess(true)
