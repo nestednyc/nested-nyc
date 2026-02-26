@@ -419,6 +419,18 @@ function SignUpForm({ step, setStep, navigate, onSwitchToLogin }) {
       return
     }
 
+    // Validate username is set and not taken
+    if (!form.username) {
+      setError('Please choose a username.')
+      setIsLoading(false)
+      return
+    }
+    if (usernameError) {
+      setError(usernameError)
+      setIsLoading(false)
+      return
+    }
+
     try {
       const { data, error: signUpError } = await authService.signUpWithEmailPassword(
         form.email,
@@ -528,9 +540,16 @@ function SignUpForm({ step, setStep, navigate, onSwitchToLogin }) {
       }
       localStorage.setItem('nested_user_profile', JSON.stringify(profileData))
 
-      // Try to save to Supabase if we have a user (upsert in case trigger hasn't run yet)
-      if (userId) {
-        const { error: saveErr } = await profileService.upsertProfile(userId, {
+      // Get user ID — prefer stored userId, fall back to current auth session
+      let uid = userId
+      if (!uid) {
+        const { data: { user } } = await authService.getUser()
+        uid = user?.id
+      }
+
+      // Save to Supabase (upsert in case trigger hasn't run yet)
+      if (uid) {
+        const { error: saveErr } = await profileService.upsertProfile(uid, {
           first_name: form.firstName,
           last_name: form.lastName,
           username: form.username || null,
@@ -543,6 +562,9 @@ function SignUpForm({ step, setStep, navigate, onSwitchToLogin }) {
         })
         if (saveErr) console.error('Profile save error:', saveErr)
       }
+
+      // Clear tutorial flag so new user sees welcome popup
+      localStorage.removeItem('nested_tutorial_seen')
 
       // Navigate to app
       navigate('/discover')
