@@ -72,10 +72,10 @@ function ProfileDetailScreen() {
         if (foundProject?.isSupabaseProject) {
           const { joined, status } = await projectService.hasJoinedProject(projectId)
           setMembershipStatus(status)
-          if (status === 'approved') {
+          if (joined && status === 'approved') {
             setHasJoined(true)
             setIsRequested(true)
-          } else if (status === 'pending') {
+          } else if (joined && status === 'pending') {
             setHasJoined(false)
             setIsRequested(true)
           } else {
