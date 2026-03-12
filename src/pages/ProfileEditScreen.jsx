@@ -28,8 +28,6 @@ const SKILLS = [
   'React', 'Python', 'JavaScript', 'TypeScript', 'Node.js', 'Backend', 'Frontend',
   'Full Stack', 'UI/UX', 'Figma', 'Product', 'Data', 'ML/AI', 'Mobile', 'Marketing'
 ]
-const ROLES = ['Frontend', 'Backend', 'Full Stack', 'Designer', 'PM', 'Data', 'Marketing', 'Other']
-
 const STORAGE_KEY = 'nested_user_profile'
 const USER_ID = 'current-user' // For demo, use a static ID
 
@@ -174,17 +172,10 @@ function ProfileEditScreen() {
 
   const update = (field, value) => setProfile(p => ({ ...p, [field]: value }))
   const toggleArray = (field, item, max = 99) => {
-    const arr = profile[field]
+    const arr = profile[field] || []
     if (arr.includes(item)) update(field, arr.filter(i => i !== item))
     else if (arr.length < max) update(field, [...arr, item])
   }
-
-  const updateProject = (idx, key, val) => {
-    const projects = (profile.projects || []).map((p, i) => i === idx ? { ...p, [key]: val } : p)
-    update('projects', projects)
-  }
-  const addProject = () => update('projects', [...profile.projects, { name: '', description: '', link: '', role: '' }])
-  const removeProject = (idx) => update('projects', profile.projects.filter((_, i) => i !== idx))
 
   const updateLink = (key, val) => update('links', { ...profile.links, [key]: val })
 
@@ -390,8 +381,11 @@ function ProfileEditScreen() {
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#F9FAFB', display: 'flex', flexDirection: 'column' }}>
-      {/* Header */}
+      {/* Header - sticky so Save Profile stays fixed in top-right */}
       <div style={{
+        position: 'sticky',
+        top: 0,
+        zIndex: 20,
         padding: '12px 16px',
         backgroundColor: 'white',
         borderBottom: '1px solid #E5E7EB',
@@ -451,7 +445,6 @@ function ProfileEditScreen() {
             {/* Basic Info Card */}
             <div style={cardStyle}>
               <h3 style={{ margin: '0 0 12px 0', fontSize: '13px', fontWeight: 700, color: '#111827' }}>Basic Info</h3>
-
               {/* Avatar Upload */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '14px' }}>
                 <div
@@ -460,20 +453,20 @@ function ProfileEditScreen() {
                     width: '72px',
                     height: '72px',
                     borderRadius: '50%',
-                    backgroundColor: avatarPreview ? 'transparent' : '#F3F4F6',
-                    border: avatarPreview ? '3px solid #5B4AE6' : '2px dashed #D1D5DB',
+                    backgroundColor: (avatarPreview || profile.avatar) ? 'transparent' : '#F3F4F6',
+                    border: (avatarPreview || profile.avatar) ? '3px solid #5B4AE6' : '2px dashed #D1D5DB',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     cursor: 'pointer',
                     overflow: 'hidden',
                     flexShrink: 0,
-                    backgroundImage: avatarPreview ? `url(${avatarPreview})` : 'none',
+                    backgroundImage: (avatarPreview || profile.avatar) ? `url(${avatarPreview || profile.avatar})` : 'none',
                     backgroundSize: 'cover',
                     backgroundPosition: 'center'
                   }}
                 >
-                  {!avatarPreview && (
+                  {!(avatarPreview || profile.avatar) && (
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="2">
                       <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
                       <circle cx="12" cy="13" r="4"/>
@@ -503,9 +496,9 @@ function ProfileEditScreen() {
                       marginBottom: '4px'
                     }}
                   >
-                    {avatarPreview ? 'Change Photo' : 'Upload Photo'}
+                    {(avatarPreview || profile.avatar) ? 'Change Photo' : 'Upload Photo'}
                   </button>
-                  {avatarPreview && (
+                  {(avatarPreview || profile.avatar) && (
                     <button
                       type="button"
                       onClick={() => { setAvatarFile(null); setAvatarPreview(null); update('avatar', ''); }}
@@ -592,7 +585,7 @@ function ProfileEditScreen() {
                 </div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
                   {FIELDS.map(f => (
-                    <button key={f} onClick={() => toggleArray('fields', f)} style={chipStyle(profile.fields.includes(f))}>{f}</button>
+                    <button key={f} onClick={() => toggleArray('fields', f)} style={chipStyle((profile.fields || []).includes(f))}>{f}</button>
                   ))}
                 </div>
                 {showErrors && errors.fields && (
@@ -607,7 +600,7 @@ function ProfileEditScreen() {
                 </div>
                 <div style={{ display: 'flex', gap: '8px' }}>
                   {LOOKING_FOR.map(item => {
-                    const sel = profile.lookingFor.includes(item.id)
+                    const sel = (profile.lookingFor || []).includes(item.id)
                     return (
                       <button key={item.id} onClick={() => toggleArray('lookingFor', item.id)} style={{
                         flex: 1, padding: '10px', borderRadius: '8px', border: sel ? '2px solid #5B4AE6' : '1px solid #E5E7EB',
@@ -629,11 +622,11 @@ function ProfileEditScreen() {
             <div style={cardStyle}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
                 <h3 style={{ margin: 0, fontSize: '13px', fontWeight: 700, color: '#111827' }}>Skills</h3>
-                <span style={{ fontSize: '11px', color: '#6B7280' }}>{profile.skills.length}/7</span>
+                <span style={{ fontSize: '11px', color: '#6B7280' }}>{(profile.skills || []).length}/7</span>
               </div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
                 {SKILLS.map(s => (
-                  <button key={s} onClick={() => toggleArray('skills', s, 7)} style={chipStyle(profile.skills.includes(s))}>{s}</button>
+                  <button key={s} onClick={() => toggleArray('skills', s, 7)} style={chipStyle((profile.skills || []).includes(s))}>{s}</button>
                 ))}
               </div>
             </div>
@@ -641,47 +634,6 @@ function ProfileEditScreen() {
 
           {/* RIGHT COLUMN */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-            
-            {/* Projects */}
-            <div style={cardStyle}>
-              <h3 style={{ margin: '0 0 10px 0', fontSize: '13px', fontWeight: 700, color: '#111827' }}>Projects & Work</h3>
-              
-              {(profile.projects || []).map((proj, idx) => (
-                <div key={idx} style={{ padding: '10px', backgroundColor: '#FAFAFA', borderRadius: '8px', marginBottom: '8px', position: 'relative' }}>
-                  <button onClick={() => removeProject(idx)} style={{
-                    position: 'absolute', top: '6px', right: '6px', width: '18px', height: '18px', borderRadius: '4px',
-                    border: 'none', backgroundColor: 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'
-                  }}>
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
-                  </button>
-                  <input type="text" value={proj.name} onChange={e => updateProject(idx, 'name', e.target.value)}
-                    placeholder="Project name" style={{ ...inputStyle, marginBottom: '6px', fontWeight: 600 }} />
-                  <input type="text" value={proj.description} onChange={e => updateProject(idx, 'description', e.target.value.slice(0, 120))}
-                    placeholder="One-line description" maxLength={120} style={{ ...inputStyle, marginBottom: '6px', fontSize: '12px' }} />
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 90px', gap: '6px' }}>
-                    <input type="url" value={proj.link} onChange={e => updateProject(idx, 'link', e.target.value)}
-                      placeholder="Link" style={{ ...inputStyle, fontSize: '12px' }} />
-                    <select value={proj.role} onChange={e => updateProject(idx, 'role', e.target.value)}
-                      style={{ ...inputStyle, fontSize: '11px', color: proj.role ? '#111827' : '#9CA3AF' }}>
-                      <option value="">Role</option>
-                      {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
-                    </select>
-                  </div>
-                </div>
-              ))}
-
-              <button onClick={addProject} style={{
-                width: '100%', padding: '10px', fontSize: '12px', fontWeight: 600, color: '#5B4AE6',
-                backgroundColor: 'transparent', border: '1.5px dashed #D1D5DB', borderRadius: '8px', cursor: 'pointer',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px'
-              }}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-                </svg>
-                Add project
-              </button>
-            </div>
-
             {/* Links */}
             <div style={cardStyle}>
               <h3 style={{ margin: '0 0 10px 0', fontSize: '13px', fontWeight: 700, color: '#111827' }}>Links</h3>
@@ -692,7 +644,7 @@ function ProfileEditScreen() {
                     <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/>
                   </svg>
                 )},
-                { key: 'portfolio', label: 'Portfolio', placeholder: 'yoursite.com', icon: (
+                { key: 'portfolio', label: 'Website', placeholder: 'yoursite.com', icon: (
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#374151" strokeWidth="2">
                     <circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/>
                     <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>

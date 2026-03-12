@@ -25,6 +25,8 @@ function ProfileDetailScreen() {
   const [joinLoading, setJoinLoading] = useState(false)
   const [hasJoined, setHasJoined] = useState(false)
   const [leaveLoading, setLeaveLoading] = useState(false)
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   // Handle accept request - approve the join request
   const handleAcceptRequest = async (requestId) => {
@@ -50,6 +52,25 @@ function ProfileDetailScreen() {
       return
     }
     setPendingRequests(prev => prev.filter(r => r.id !== requestId))
+  }
+
+  const handleDeleteProject = async () => {
+    setIsDeleting(true)
+    try {
+      const { error } = await projectService.deleteProject(projectId)
+      if (error) {
+        console.error('Failed to delete project:', error)
+        alert(error.message || 'Failed to delete project. Please try again.')
+      } else {
+        navigate('/discover')
+      }
+    } catch (error) {
+      console.error('Error deleting project:', error)
+      alert('An error occurred while deleting the project.')
+    } finally {
+      setIsDeleting(false)
+      setShowDeleteModal(false)
+    }
   }
 
   // Responsive check
@@ -799,6 +820,24 @@ function ProfileDetailScreen() {
                     Edit Project
                   </button>
 
+                  {/* Delete Project Button */}
+                  <button 
+                    className="delete-btn-desktop"
+                    onClick={() => setShowDeleteModal(true)}
+                    style={{
+                      width: '100%',
+                      marginBottom: '12px'
+                    }}
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <polyline points="3 6 5 6 21 6"/>
+                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                      <line x1="10" y1="11" x2="10" y2="17"/>
+                      <line x1="14" y1="11" x2="14" y2="17"/>
+                    </svg>
+                    Delete Project
+                  </button>
+
                   {/* Secondary Actions */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '24px' }}>
                     <button 
@@ -1524,7 +1563,7 @@ function ProfileDetailScreen() {
         {isOwner ? (
           /* Owner Actions - Mobile */
           <>
-            {/* Edit Project Button - Full Width */}
+            {/* Edit Project Button */}
             <button 
               onClick={() => navigate(`/projects/${projectId}/edit`)}
               style={{
@@ -1547,7 +1586,31 @@ function ProfileDetailScreen() {
                 <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
                 <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
               </svg>
-              Edit Project
+              Edit
+            </button>
+            
+            {/* Delete Project Button - Mobile */}
+            <button 
+              onClick={() => setShowDeleteModal(true)}
+              style={{
+                width: '52px',
+                height: '52px',
+                backgroundColor: '#DC2626',
+                borderRadius: '14px',
+                border: 'none',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0
+              }}
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
+                <polyline points="3 6 5 6 21 6"/>
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                <line x1="10" y1="11" x2="10" y2="17"/>
+                <line x1="14" y1="11" x2="14" y2="17"/>
+              </svg>
             </button>
           </>
         ) : (
@@ -1682,6 +1745,187 @@ function ProfileDetailScreen() {
           isLoading={joinLoading}
         />
       )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && (
+        <DeleteConfirmationModal
+          projectName={project?.name}
+          onClose={() => setShowDeleteModal(false)}
+          onConfirm={handleDeleteProject}
+          isDeleting={isDeleting}
+        />
+      )}
+    </div>
+  )
+}
+
+/**
+ * DeleteConfirmationModal - Confirmation dialog for deleting projects
+ */
+function DeleteConfirmationModal({ projectName, onClose, onConfirm, isDeleting }) {
+  const handleBackdropClick = (e) => {
+    if (e.target === e.currentTarget && !isDeleting) {
+      onClose()
+    }
+  }
+
+  return (
+    <div
+      onClick={handleBackdropClick}
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: 'rgba(0, 0, 0, 0.6)',
+        backdropFilter: 'blur(12px)',
+        WebkitBackdropFilter: 'blur(12px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 100,
+        padding: '24px',
+        animation: 'modalFadeIn 0.2s ease-out',
+      }}
+    >
+      <div
+        style={{
+          backgroundColor: '#FFFFFF',
+          borderRadius: '24px',
+          width: '100%',
+          maxWidth: '380px',
+          padding: '32px 24px 24px',
+          position: 'relative',
+          boxShadow: '0 24px 48px -12px rgba(0, 0, 0, 0.25)',
+          animation: 'modalSlideUp 0.25s ease-out',
+        }}
+      >
+        {/* Warning Icon */}
+        <div style={{
+          width: '56px',
+          height: '56px',
+          borderRadius: '50%',
+          backgroundColor: 'rgba(220, 38, 38, 0.1)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          margin: '0 auto 20px',
+        }}>
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#DC2626" strokeWidth="2">
+            <polyline points="3 6 5 6 21 6"/>
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+            <line x1="10" y1="11" x2="10" y2="17"/>
+            <line x1="14" y1="11" x2="14" y2="17"/>
+          </svg>
+        </div>
+
+        {/* Title */}
+        <h2 style={{
+          margin: 0,
+          fontSize: '20px',
+          fontWeight: 700,
+          color: '#111827',
+          textAlign: 'center',
+          marginBottom: '12px',
+        }}>
+          Delete Project?
+        </h2>
+
+        {/* Message */}
+        <p style={{
+          margin: 0,
+          fontSize: '15px',
+          color: '#6B7280',
+          textAlign: 'center',
+          lineHeight: 1.5,
+          marginBottom: '8px',
+        }}>
+          Are you sure you want to delete{' '}
+          <span style={{ fontWeight: 600, color: '#374151' }}>
+            {projectName || 'this project'}
+          </span>
+          ?
+        </p>
+        <p style={{
+          margin: 0,
+          fontSize: '13px',
+          color: '#9CA3AF',
+          textAlign: 'center',
+          marginBottom: '28px',
+        }}>
+          This action cannot be undone.
+        </p>
+
+        {/* Actions */}
+        <div style={{
+          display: 'flex',
+          gap: '12px',
+        }}>
+          <button
+            onClick={onClose}
+            disabled={isDeleting}
+            style={{
+              flex: 1,
+              height: '48px',
+              borderRadius: '12px',
+              border: '1.5px solid #E5E7EB',
+              backgroundColor: 'white',
+              color: '#374151',
+              fontSize: '15px',
+              fontWeight: 600,
+              cursor: isDeleting ? 'not-allowed' : 'pointer',
+              opacity: isDeleting ? 0.5 : 1,
+              transition: 'all 0.15s ease',
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={isDeleting}
+            style={{
+              flex: 1,
+              height: '48px',
+              borderRadius: '12px',
+              border: 'none',
+              backgroundColor: '#DC2626',
+              color: 'white',
+              fontSize: '15px',
+              fontWeight: 600,
+              cursor: isDeleting ? 'not-allowed' : 'pointer',
+              opacity: isDeleting ? 0.7 : 1,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+              transition: 'all 0.15s ease',
+            }}
+          >
+            {isDeleting ? (
+              <>
+                <div style={{
+                  width: '16px',
+                  height: '16px',
+                  border: '2px solid rgba(255,255,255,0.3)',
+                  borderTopColor: 'white',
+                  borderRadius: '50%',
+                  animation: 'spin 0.8s linear infinite',
+                }} />
+                Deleting...
+              </>
+            ) : (
+              <>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <polyline points="3 6 5 6 21 6"/>
+                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                </svg>
+                Delete
+              </>
+            )}
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
