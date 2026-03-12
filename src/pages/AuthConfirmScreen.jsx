@@ -25,7 +25,7 @@ function AuthConfirmScreen() {
    * Determine where to redirect after successful auth
    */
   const getPostAuthRedirect = () => {
-    return hasOnboarded ? '/discover' : '/profile'
+    return hasOnboarded ? '/discover' : '/profile/edit'
   }
 
   useEffect(() => {

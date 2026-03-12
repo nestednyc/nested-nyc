@@ -463,20 +463,40 @@ export async function getMyProjectsAsync() {
   }
 
   try {
-    const { data: dbProjects, error } = await projectService.getMyProjects()
+    const [
+      { data: ownedProjects, error: ownedError },
+      { data: joinedProjects, error: joinedError }
+    ] = await Promise.all([
+      projectService.getMyProjects(),
+      projectService.getJoinedProjects()
+    ])
 
-    if (error || !dbProjects) {
-      console.warn('Could not fetch from Supabase, using localStorage:', error?.message)
+    if (ownedError && joinedError) {
+      console.warn('Could not fetch from Supabase, using localStorage:', ownedError?.message || joinedError?.message)
       return localProjects
     }
 
-    // Transform Supabase projects (all owned by current user)
-    const transformedDbProjects = dbProjects.map(p =>
+    const transformedOwnedProjects = (ownedProjects || []).map(p =>
       transformSupabaseProject(p, true)
     )
+    const transformedJoinedProjects = (joinedProjects || []).map(p =>
+      transformSupabaseProject(p, false)
+    )
 
-    // Return DB projects first, then local user-created projects
-    return [...transformedDbProjects, ...localProjects.filter(p => p.isUserProject)]
+    // Merge owned + joined projects without duplicates, then append local-only user projects
+    const mergedDbProjects = [...transformedOwnedProjects]
+    const seenIds = new Set(transformedOwnedProjects.map(p => p.id))
+    transformedJoinedProjects.forEach(project => {
+      if (!seenIds.has(project.id)) {
+        mergedDbProjects.push(project)
+      }
+    })
+
+    const localOnlyUserProjects = localProjects.filter(
+      p => p.isUserProject && !seenIds.has(p.id)
+    )
+
+    return [...mergedDbProjects, ...localOnlyUserProjects]
   } catch (err) {
     console.error('Error fetching projects:', err)
     return localProjects
