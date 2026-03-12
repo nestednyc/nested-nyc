@@ -123,7 +123,7 @@ function UniEmailScreen() {
         navigate('/verify', { state: { email, isSignUp: true } })
       } else if (data?.session) {
         // User is signed in (auto-confirmed) - go to onboarding
-        navigate('/profile/edit', { replace: true })
+        navigate('/profile', { replace: true })
       } else {
         // Fallback - go to verify screen
         navigate('/verify', { state: { email, isSignUp: true } })
