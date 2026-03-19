@@ -273,7 +273,7 @@ function ProfileDropdown({ navigate }) {
  * NavIcon - Navigation icons
  */
 function NavIcon({ type, active }) {
-  const color = active ? '#5B4AE6' : '#6B7280'
+  const color = active ? '#6366F1' : '#6B7280'
   
   switch (type) {
     case 'discover':
