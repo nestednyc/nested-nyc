@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { saveProject } from '../utils/projectStorage'
 import { createProjectAsync } from '../utils/projectData'
+import { storageService } from '../services/storageService'
 
 /**
  * CreateProjectScreen - Discord-style step-based project creation
@@ -50,32 +51,53 @@ const COMMITMENTS = [
   { id: 'startup', label: 'Startup Mode', description: 'Full dedication', hours: '30+ hrs/week' },
 ]
 
+const CATEGORY_ICONS = {
+  'startup': '🚀',
+  'class-project': '📚',
+  'hackathon': '⚡',
+  'side-project': '🛠',
+  'research': '🔬',
+  'default': '📦'
+}
+
+const PROJECT_EMOJIS = [
+  '🚀', '💡', '🔥', '⚡', '🎯', '🧠', '🎨', '📱', '💻', '🌐',
+  '🔬', '📊', '🎵', '🎮', '📚', '🏗️', '🌿', '🤖', '💰', '🛠',
+]
+
 const TOTAL_STEPS = 5
 
 function CreateProjectScreen() {
   const navigate = useNavigate()
   const [currentStep, setCurrentStep] = useState(1)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false)
+  const [iconFile, setIconFile] = useState(null)
+  const [iconPreview, setIconPreview] = useState(null)
+  const iconInputRef = useRef(null)
+
   // Form state
   const [formData, setFormData] = useState({
     // Step 1: Category
     category: '',
-    
+
     // Step 2: Stage
     stage: '',
-    
+
     // Step 3: Identity
     name: '',
     tagline: '',
-    
+    iconType: 'emoji', // 'emoji' | 'image'
+    iconEmoji: '', // Selected emoji (empty = use category default)
+
     // Step 4: Details
     description: '',
     roles: [],
     skills: [],
     commitment: '',
-    
-    // Step 5: Visibility
+
+    // Step 5: Visibility & Communication
+    communicationLink: '',
     publishToDiscover: true,
   })
 
@@ -135,8 +157,49 @@ function CreateProjectScreen() {
     setCurrentStep(prev => Math.max(prev - 1, 1))
   }
 
+  const handleIconFileChange = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+    if (!validTypes.includes(file.type)) {
+      alert('Please use JPG, PNG, GIF, or WebP images.')
+      return
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      alert('Image must be under 2MB.')
+      return
+    }
+
+    setIconFile(file)
+    updateField('iconType', 'image')
+    updateField('iconEmoji', '')
+    setShowEmojiPicker(false)
+
+    // Generate preview
+    const reader = new FileReader()
+    reader.onload = () => setIconPreview(reader.result)
+    reader.readAsDataURL(file)
+  }
+
   const handleSubmit = async () => {
     setIsSubmitting(true)
+
+    let iconImageUrl = null
+
+    // Upload icon image if selected
+    if (formData.iconType === 'image' && iconFile) {
+      const tempId = Date.now().toString()
+      const { url, error: uploadErr } = await storageService.uploadProjectIcon(tempId, iconFile)
+      if (!uploadErr && url) {
+        iconImageUrl = url
+      } else {
+        // Fall back to data URL for localStorage
+        try {
+          iconImageUrl = await storageService.fileToDataUrl(iconFile)
+        } catch {}
+      }
+    }
 
     // Create project object
     const projectData = {
@@ -144,6 +207,7 @@ function CreateProjectScreen() {
       author: 'You',
       authorImage: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop',
       image: getProjectImage(formData.category),
+      iconImage: iconImageUrl,
       team: [],
       spotsLeft: formData.roles.length,
     }
@@ -154,7 +218,6 @@ function CreateProjectScreen() {
 
       if (error) {
         console.error('Error creating project:', error)
-        // Fall back to localStorage
         const project = {
           id: Date.now(),
           ...projectData,
@@ -164,7 +227,6 @@ function CreateProjectScreen() {
       }
     } catch (err) {
       console.error('Error creating project:', err)
-      // Fall back to localStorage
       const project = {
         id: Date.now(),
         ...projectData,
@@ -174,8 +236,6 @@ function CreateProjectScreen() {
     }
 
     setIsSubmitting(false)
-
-    // Navigate to My Projects with success state
     navigate('/matches', { state: { projectCreated: true, projectName: formData.name } })
   }
 
@@ -306,16 +366,93 @@ function CreateProjectScreen() {
           {/* Step 3: Project Identity */}
           {currentStep === 3 && (
             <div className="step-content">
-              {/* Project Icon Placeholder */}
-              <div className="project-icon-upload">
-                <div className="project-icon-preview">
-                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="1.5">
-                    <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
-                    <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
-                    <line x1="12" y1="22.08" x2="12" y2="12"/>
-                  </svg>
+              {/* Project Icon Picker */}
+              <div style={{ marginBottom: '24px' }}>
+                <label className="step-form-label" style={{ marginBottom: '12px', display: 'block' }}>Project Icon</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                  {/* Icon Preview */}
+                  <div style={{
+                    width: '72px', height: '72px', borderRadius: '18px',
+                    backgroundColor: '#EEF2FF', border: '2px dashed #D1D5DB',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: '32px', overflow: 'hidden', flexShrink: 0,
+                    ...(formData.iconType === 'image' && iconPreview ? { border: '2px solid #5B4AE6' } : {}),
+                    ...(formData.iconEmoji ? { border: '2px solid #5B4AE6', backgroundColor: '#F5F3FF' } : {})
+                  }}>
+                    {formData.iconType === 'image' && iconPreview ? (
+                      <img src={iconPreview} alt="Icon" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : formData.iconEmoji ? (
+                      formData.iconEmoji
+                    ) : (
+                      CATEGORY_ICONS[formData.category] || '📦'
+                    )}
+                  </div>
+
+                  {/* Buttons */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <button
+                      type="button"
+                      onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                      style={{
+                        padding: '8px 16px', fontSize: '13px', fontWeight: 600,
+                        color: '#5B4AE6', backgroundColor: '#EEF2FF', border: 'none',
+                        borderRadius: '8px', cursor: 'pointer'
+                      }}
+                    >
+                      Choose Emoji
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => iconInputRef.current?.click()}
+                      style={{
+                        padding: '8px 16px', fontSize: '13px', fontWeight: 600,
+                        color: '#374151', backgroundColor: '#F3F4F6', border: 'none',
+                        borderRadius: '8px', cursor: 'pointer'
+                      }}
+                    >
+                      Upload Image
+                    </button>
+                    <input
+                      ref={iconInputRef}
+                      type="file"
+                      accept="image/jpeg,image/png,image/gif,image/webp"
+                      onChange={handleIconFileChange}
+                      style={{ display: 'none' }}
+                    />
+                  </div>
                 </div>
-                <span className="project-icon-label">Project icon (optional)</span>
+
+                {/* Emoji Grid */}
+                {showEmojiPicker && (
+                  <div style={{
+                    marginTop: '12px', padding: '12px', backgroundColor: '#FAFAFA',
+                    borderRadius: '12px', border: '1px solid #E5E7EB',
+                    display: 'flex', flexWrap: 'wrap', gap: '8px'
+                  }}>
+                    {PROJECT_EMOJIS.map(emoji => (
+                      <button
+                        key={emoji}
+                        type="button"
+                        onClick={() => {
+                          updateField('iconType', 'emoji')
+                          updateField('iconEmoji', emoji)
+                          setIconFile(null)
+                          setIconPreview(null)
+                          setShowEmojiPicker(false)
+                        }}
+                        style={{
+                          width: '40px', height: '40px', fontSize: '22px',
+                          backgroundColor: formData.iconEmoji === emoji ? '#EEF2FF' : 'white',
+                          border: formData.iconEmoji === emoji ? '2px solid #5B4AE6' : '1px solid #E5E7EB',
+                          borderRadius: '10px', cursor: 'pointer',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center'
+                        }}
+                      >
+                        {emoji}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="step-form-group">
@@ -456,6 +593,46 @@ function CreateProjectScreen() {
                   <span className="publish-badge">{STAGES.find(s => s.id === formData.stage)?.label || 'Stage'}</span>
                   <span className="publish-badge">{formData.roles.length} role{formData.roles.length !== 1 ? 's' : ''}</span>
                 </div>
+              </div>
+
+              {/* Team Communication Link */}
+              <div style={{ marginBottom: '20px' }}>
+                <label style={{
+                  display: 'block',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  color: '#374151',
+                  marginBottom: '8px'
+                }}>
+                  Team Communication Link <span style={{ fontWeight: 400, color: '#9CA3AF' }}>(optional)</span>
+                </label>
+                <input
+                  type="url"
+                  value={formData.communicationLink}
+                  onChange={(e) => updateField('communicationLink', e.target.value)}
+                  placeholder="https://discord.gg/your-server"
+                  style={{
+                    width: '100%',
+                    padding: '12px 14px',
+                    fontSize: '14px',
+                    border: '1.5px solid #E5E7EB',
+                    borderRadius: '10px',
+                    outline: 'none',
+                    backgroundColor: '#FAFAFA',
+                    boxSizing: 'border-box',
+                    transition: 'border-color 0.15s ease'
+                  }}
+                  onFocus={(e) => e.target.style.borderColor = '#5B4AE6'}
+                  onBlur={(e) => e.target.style.borderColor = '#E5E7EB'}
+                />
+                <p style={{
+                  fontSize: '12px',
+                  color: '#9CA3AF',
+                  marginTop: '6px',
+                  marginBottom: 0
+                }}>
+                  Discord, Slack, or any link where your team communicates
+                </p>
               </div>
 
               {/* Visibility Toggle */}

@@ -232,7 +232,8 @@ function ProfileSetupScreen() {
         flex: 1,
         overflowY: 'auto',
         padding: '20px',
-        paddingBottom: '120px'
+        paddingBottom: '20px',
+        WebkitOverflowScrolling: 'touch'
       }}>
         <div style={{ maxWidth: '600px', margin: '0 auto' }}>
 
@@ -825,13 +826,11 @@ function ProfileSetupScreen() {
         </div>
       </div>
 
-      {/* Fixed Bottom CTA */}
+      {/* Bottom CTA */}
       <div style={{
-        position: 'absolute',
-        bottom: 0,
-        left: 0,
-        right: 0,
-        padding: '16px 20px 32px',
+        flexShrink: 0,
+        padding: '16px 20px',
+        paddingBottom: 'max(32px, env(safe-area-inset-bottom, 32px))',
         backgroundColor: 'white',
         borderTop: '1px solid #E5E7EB'
       }}>

@@ -27,6 +27,8 @@ import EditProjectScreen from './pages/EditProjectScreen'
 import ProfileEditScreen from './pages/ProfileEditScreen'
 import ProfileViewScreen from './pages/ProfileViewScreen'
 import CreateEventScreen from './pages/CreateEventScreen'
+import InviteMembersScreen from './pages/InviteMembersScreen'
+import ManageRequestsScreen from './pages/ManageRequestsScreen'
 
 /**
  * useIsDesktop - Hook to detect desktop screen width
@@ -160,11 +162,25 @@ function AppContent() {
       
       {/* Edit Project */}
       <Route path="/projects/:projectId/edit" element={
-        isDesktop 
+        isDesktop
           ? <WebLayout layoutType="form"><EditProjectScreen /></WebLayout>
           : <MobileFrame><EditProjectScreen /></MobileFrame>
       } />
-      
+
+      {/* Invite Members */}
+      <Route path="/projects/:projectId/invite" element={
+        isDesktop
+          ? <WebLayout layoutType="app"><InviteMembersScreen /></WebLayout>
+          : <MobileFrame><InviteMembersScreen /></MobileFrame>
+      } />
+
+      {/* Manage Requests */}
+      <Route path="/projects/:projectId/requests" element={
+        isDesktop
+          ? <WebLayout layoutType="app"><ManageRequestsScreen /></WebLayout>
+          : <MobileFrame><ManageRequestsScreen /></MobileFrame>
+      } />
+
       {/* Nest routes - redirect to discover for MVP (feature hidden) */}
       <Route path="/nests/:nestId" element={<Navigate to="/discover" replace />} />
       <Route path="/create-nest" element={<Navigate to="/discover" replace />} />

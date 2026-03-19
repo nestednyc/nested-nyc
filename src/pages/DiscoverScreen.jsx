@@ -6,11 +6,10 @@ import { getDiscoverNests, getDiscoverNestsAsync, DEMO_CURRENT_USER_ID } from '.
 import { SHOW_NESTS, SHOW_FILTERS } from '../config/features'
 
 /**
- * DiscoverScreen - Projects Feed + Nests Discovery
+ * DiscoverScreen - Projects Feed
  * Nested NYC – Student-only project network
- * 
- * Text-first project cards - no stock images
- * Clean, scannable layout for MVP demo
+ *
+ * Clean card-based layout with project discovery
  */
 
 // Project category icons
@@ -45,11 +44,10 @@ const PLACEHOLDER_MEMBERS = [
 function getProjectMembers(project) {
   if (project.team && project.team.length > 0) {
     return project.team.slice(0, 4).map(member => ({
-      name: member.name.split(' ')[0], // First name only
+      name: member.name.split(' ')[0],
       image: member.image
     }))
   }
-  // Return placeholder members for demo
   return PLACEHOLDER_MEMBERS.slice(0, 3)
 }
 
@@ -69,17 +67,16 @@ function DiscoverScreen() {
   const [nestsFeed, setNestsFeed] = useState([])
   const [loading, setLoading] = useState(true)
   const [currentUserId, setCurrentUserId] = useState(null)
+  const [searchQuery, setSearchQuery] = useState('')
 
   // Load projects and nests from centralized store (with Supabase support)
   useEffect(() => {
     const loadData = async () => {
       setLoading(true)
 
-      // Get current user ID
       const userId = await getCurrentUserId()
       setCurrentUserId(userId)
 
-      // Load projects from Supabase or localStorage
       try {
         const projects = await getDiscoverProjectsAsync()
         setProjectsFeed(projects)
@@ -88,7 +85,6 @@ function DiscoverScreen() {
         setProjectsFeed(getDiscoverProjects())
       }
 
-      // Load nests (async if available)
       try {
         if (typeof getDiscoverNestsAsync === 'function') {
           const nests = await getDiscoverNestsAsync()
@@ -106,375 +102,252 @@ function DiscoverScreen() {
 
     loadData()
   }, [])
-  
-  // Legacy static nests (now using dynamic nestsFeed)
-  const discoverableNests = [
-    {
-      id: 'nest-legacy-1',
-      name: 'NYU Builders',
-      description: 'Build cool stuff with NYU students',
-      members: 248,
-      image: 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=200&h=200&fit=crop',
-      tags: ['Tech', 'Startups']
-    },
-    {
-      id: 2,
-      name: 'Columbia AI',
-      description: 'ML research & projects at Columbia',
-      members: 156,
-      image: 'https://images.unsplash.com/photo-1620712943543-bcc4688e7485?w=200&h=200&fit=crop',
-      tags: ['AI', 'Research']
-    },
-    {
-      id: 3,
-      name: 'NYC Design',
-      description: 'Designers across NYC schools',
-      members: 312,
-      image: 'https://images.unsplash.com/photo-1558655146-9f40138edfeb?w=200&h=200&fit=crop',
-      tags: ['Design', 'UI/UX']
-    },
-    {
-      id: 4,
-      name: 'Startup Founders',
-      description: 'Student entrepreneurs building companies',
-      members: 89,
-      image: 'https://images.unsplash.com/photo-1552664730-d307ca884978?w=200&h=200&fit=crop',
-      tags: ['Business', 'Startups']
-    },
-    {
-      id: 5,
-      name: 'Data Science NYC',
-      description: 'Analytics & data projects',
-      members: 124,
-      image: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=200&h=200&fit=crop',
-      tags: ['Data', 'Python']
-    },
-    {
-      id: 6,
-      name: 'Creative Coders',
-      description: 'Art meets technology',
-      members: 67,
-      image: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?w=200&h=200&fit=crop',
-      tags: ['Creative', 'Code']
-    },
-  ]
+
+  // Filter projects by search query
+  const filteredProjects = projectsFeed.filter(project => {
+    if (!searchQuery.trim()) return true
+    const q = searchQuery.toLowerCase()
+    return (
+      (project.title && project.title.toLowerCase().includes(q)) ||
+      (project.description && project.description.toLowerCase().includes(q)) ||
+      (project.tagline && project.tagline.toLowerCase().includes(q)) ||
+      (project.category && project.category.toLowerCase().includes(q)) ||
+      (project.tags && project.tags.some(t => t.toLowerCase().includes(q))) ||
+      (project.schools && project.schools.some(s => s.toLowerCase().includes(q)))
+    )
+  })
 
   return (
     <div className="flex flex-col h-full bg-white relative">
-      {/* Header */}
-      <div 
-        style={{ 
-          paddingTop: '50px',
-          paddingLeft: '20px',
-          paddingRight: '20px',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'flex-start'
+      {/* Scrollable Content */}
+      <div
+        style={{
+          flex: 1,
+          overflowY: 'auto',
+          paddingBottom: '100px',
+          padding: '16px 16px 100px 16px'
         }}
       >
-        {/* Left: Title + Location */}
-        <div>
-          <h1 
-            style={{ 
-              margin: 0,
-              fontSize: '24px',
-              fontWeight: 700,
-              color: '#5B4AE6'
-            }}
-          >
-            Discover
-          </h1>
-          <p 
-            style={{ 
-              margin: 0,
-              marginTop: '4px',
-              fontSize: '12px',
-              color: '#ADAFBB'
-            }}
-          >
-            NYC
-          </p>
-        </div>
-        
-        {/* Right: Filter Icon - Hidden for MVP */}
-        {SHOW_FILTERS && (
-          <button 
-            onClick={() => navigate('/filters')}
-            style={{
-              width: '52px',
-              height: '52px',
-              borderRadius: '15px',
-              border: '1px solid #E5E7EB',
-              backgroundColor: 'transparent',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer'
-            }}
-          >
-            <FilterIcon />
-          </button>
-        )}
-      </div>
-      
-      {/* Tab Bar - Only show if Nests feature is enabled */}
-      {SHOW_NESTS && (
-        <div 
-          style={{ 
+        {/* NYC label */}
+        <p
+          style={{
+            margin: 0,
+            marginBottom: '8px',
+            fontSize: '13px',
+            fontWeight: 500,
+            color: '#9CA3AF',
+            letterSpacing: '0.5px'
+          }}
+        >
+          NYC
+        </p>
+
+        {/* Search Bar */}
+        <div
+          style={{
             display: 'flex',
-            marginTop: '16px',
-            borderBottom: '1px solid #E5E7EB'
+            alignItems: 'center',
+            backgroundColor: '#FFFFFF',
+            border: '1px solid #E5E7EB',
+            borderRadius: '12px',
+            padding: '12px 16px',
+            gap: '12px',
+            marginBottom: '24px'
           }}
         >
-          <button
-            onClick={() => setActiveTab('projects')}
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="2">
+            <circle cx="11" cy="11" r="8"/>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          <input
+            type="text"
+            placeholder="Search projects..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
             style={{
               flex: 1,
-              padding: '14px 0',
-              backgroundColor: 'transparent',
               border: 'none',
-              borderBottom: activeTab === 'projects' ? '2px solid #5B4AE6' : '2px solid transparent',
-              cursor: 'pointer',
-              fontSize: '14px',
-              fontWeight: 600,
-              color: activeTab === 'projects' ? '#5B4AE6' : '#ADAFBB',
-              transition: 'all 0.2s ease'
-            }}
-          >
-            Projects
-          </button>
-          <button
-            onClick={() => setActiveTab('nests')}
-            style={{
-              flex: 1,
-              padding: '14px 0',
               backgroundColor: 'transparent',
-              border: 'none',
-              borderBottom: activeTab === 'nests' ? '2px solid #5B4AE6' : '2px solid transparent',
-              cursor: 'pointer',
+              outline: 'none',
               fontSize: '14px',
-              fontWeight: 600,
-              color: activeTab === 'nests' ? '#5B4AE6' : '#ADAFBB',
-              transition: 'all 0.2s ease'
+              color: '#111827'
             }}
-          >
-            Nests
-          </button>
+          />
         </div>
-      )}
-      
-      {/* Tab Content - Default to projects, only show nests if feature enabled */}
-      {(activeTab === 'projects' || !SHOW_NESTS) ? (
-        /* Projects Feed - Text-First Layout */
-        <div 
-          style={{ 
-            flex: 1, 
-            overflowY: 'auto', 
-            paddingBottom: '100px',
-            padding: '16px'
+
+        {/* Section Heading */}
+        <h2
+          style={{
+            margin: 0,
+            marginBottom: '16px',
+            fontSize: '18px',
+            fontWeight: 700,
+            color: '#111827'
           }}
         >
-          {/* Search Projects */}
-          <div 
+          Projects for you
+        </h2>
+
+        {/* Loading State */}
+        {loading && (
+          <div style={{ textAlign: 'center', padding: '40px 0', color: '#9CA3AF', fontSize: '14px' }}>
+            Loading projects...
+          </div>
+        )}
+
+        {/* Projects List */}
+        {!loading && (
+          <div
             style={{
               display: 'flex',
-              alignItems: 'center',
-              backgroundColor: '#F3F3F3',
-              borderRadius: '15px',
-              padding: '12px 16px',
-              gap: '12px',
-              marginBottom: '20px'
+              flexDirection: 'column',
+              gap: '14px'
             }}
           >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ADAFBB" strokeWidth="2">
-              <circle cx="11" cy="11" r="8"/>
-              <line x1="21" y1="21" x2="16.65" y2="16.65"/>
-            </svg>
-            <input 
-              type="text"
-              placeholder="Search projects..."
-              style={{
-                flex: 1,
-                border: 'none',
-                backgroundColor: 'transparent',
-                outline: 'none',
-                fontSize: '14px',
-                color: '#231429'
-              }}
-            />
-          </div>
-          
-          {/* Featured Project Section */}
-          {(() => {
-            const featuredProject = projectsFeed.find(p => p.isUserProject)
-            if (!featuredProject) return null
-            
-            const members = getProjectMembers(featuredProject)
-            
-            return (
-              <div style={{ marginBottom: '24px' }}>
-                <p style={{ 
-                  margin: 0, 
-                  marginBottom: '12px', 
-                  fontSize: '14px', 
-                  fontWeight: 700, 
-                  color: '#5B4AE6' 
-                }}>
-                  Your Project
-                </p>
+            {filteredProjects.map(project => {
+              const members = getProjectMembers(project)
+              const locationText = project.schools && project.schools.length > 0
+                ? project.schools.slice(0, 2).join(', ')
+                : 'NYC'
+
+              return (
                 <div
-                  onClick={() => navigate(`/projects/${featuredProject.id}`)}
+                  key={project.id}
+                  onClick={() => navigate(`/projects/${project.id}`)}
                   style={{
-                    padding: '17px',
-                    borderRadius: '16px',
-                    background: 'linear-gradient(135deg, rgba(91, 74, 230, 0.08) 0%, rgba(91, 74, 230, 0.03) 100%)',
-                    border: '1px solid rgba(91, 74, 230, 0.15)',
+                    padding: '16px',
+                    backgroundColor: '#FFFFFF',
+                    borderRadius: '12px',
+                    border: '1px solid #E5E7EB',
                     cursor: 'pointer',
-                    transition: 'all 0.15s ease'
+                    transition: 'box-shadow 0.15s ease'
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.boxShadow = '0 4px 16px rgba(91, 74, 230, 0.15)'
-                    e.currentTarget.style.transform = 'translateY(-2px)'
+                    e.currentTarget.style.boxShadow = '0 2px 12px rgba(0,0,0,0.08)'
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.boxShadow = 'none'
-                    e.currentTarget.style.transform = 'translateY(0)'
                   }}
                 >
-                  {/* Top Row */}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px' }}>
-                    {/* Left: Icon + Content */}
-                    <div style={{ display: 'flex', gap: '14px', flex: 1, minWidth: 0 }}>
-                      {/* Project Icon */}
-                      <div
-                        style={{
-                          width: '52px',
-                          height: '52px',
-                          borderRadius: '14px',
-                          backgroundColor: 'rgba(91, 74, 230, 0.15)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontSize: '26px',
-                          flexShrink: 0
-                        }}
-                      >
-                        {getProjectIcon(featuredProject.category)}
-                      </div>
-
-                      {/* Content */}
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        {/* Title + Featured Badge */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-                          <h3 style={{ 
-                            margin: 0, 
-                            fontSize: '18px', 
-                            fontWeight: 700, 
-                            color: '#111827' 
-                          }}>
-                            {featuredProject.title}
-                          </h3>
-                          <span 
-                            style={{
-                              fontSize: '10px',
-                              color: 'white',
-                              backgroundColor: '#5B4AE6',
-                              padding: '3px 10px',
-                              borderRadius: '10px',
-                              fontWeight: 600
-                            }}
-                          >
-                            Featured
-                          </span>
-                        </div>
-
-                        {/* Description */}
-                        <p 
-                          style={{ 
-                            margin: 0, 
-                            marginTop: '6px',
-                            fontSize: '13px', 
-                            color: '#6B7280',
-                            display: '-webkit-box',
-                            WebkitLineClamp: 2,
-                            WebkitBoxOrient: 'vertical',
-                            overflow: 'hidden',
-                            lineHeight: 1.5
-                          }}
-                        >
-                          {featuredProject.description || featuredProject.tagline || 'Building something awesome with fellow students'}
-                        </p>
-
-                        {/* Tags */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '12px', flexWrap: 'wrap' }}>
-                          {featuredProject.category && (
-                            <span 
-                              style={{
-                                fontSize: '11px',
-                                color: '#5B4AE6',
-                                backgroundColor: 'rgba(91, 74, 230, 0.1)',
-                                padding: '4px 10px',
-                                borderRadius: '12px',
-                                fontWeight: 500
-                              }}
-                            >
-                              {featuredProject.category}
-                            </span>
-                          )}
-                          {featuredProject.spotsLeft > 0 && (
-                            <span 
-                              style={{
-                                fontSize: '11px',
-                                color: '#059669',
-                                backgroundColor: 'rgba(5, 150, 105, 0.1)',
-                                padding: '4px 10px',
-                                borderRadius: '12px',
-                                fontWeight: 500
-                              }}
-                            >
-                              {featuredProject.spotsLeft} spots open
-                            </span>
-                          )}
-                          {featuredProject.schools && featuredProject.schools[0] && (
-                            <span 
-                              style={{
-                                fontSize: '11px',
-                                color: '#6B7280',
-                                backgroundColor: '#F3F4F6',
-                                padding: '4px 10px',
-                                borderRadius: '12px',
-                                fontWeight: 500
-                              }}
-                            >
-                              {featuredProject.schools[0]}
-                            </span>
-                          )}
-                        </div>
-                      </div>
+                  {/* Card Header: Icon + Name + Location */}
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', marginBottom: '10px' }}>
+                    {/* Project Icon */}
+                    <div
+                      style={{
+                        width: '44px',
+                        height: '44px',
+                        borderRadius: '10px',
+                        backgroundColor: '#6366F1',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '22px',
+                        flexShrink: 0
+                      }}
+                    >
+                      {getProjectIcon(project.category)}
                     </div>
 
-                    {/* Right: Facepile + Button */}
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '10px', flexShrink: 0 }}>
-                      {/* Facepile */}
-                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
+                    {/* Name + Location */}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{
+                        margin: 0,
+                        fontSize: '16px',
+                        fontWeight: 700,
+                        color: '#111827'
+                      }}>
+                        {project.title}
+                      </p>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2">
+                          <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+                          <circle cx="12" cy="10" r="3"/>
+                        </svg>
+                        <span style={{ fontSize: '13px', color: '#6B7280' }}>
+                          {locationText}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Description */}
+                  <p
+                    style={{
+                      margin: 0,
+                      marginBottom: '12px',
+                      fontSize: '14px',
+                      color: '#6B7280',
+                      lineHeight: 1.5,
+                      display: '-webkit-box',
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: 'vertical',
+                      overflow: 'hidden'
+                    }}
+                  >
+                    {project.description || project.tagline || 'Building something awesome with fellow students'}
+                  </p>
+
+                  {/* Tags Row */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginBottom: '12px' }}>
+                    {/* Category tag (purple) */}
+                    {project.category && (
+                      <span
+                        style={{
+                          fontSize: '12px',
+                          color: '#FFFFFF',
+                          backgroundColor: '#6366F1',
+                          padding: '4px 12px',
+                          borderRadius: '9999px',
+                          fontWeight: 500
+                        }}
+                      >
+                        {project.category}
+                      </span>
+                    )}
+                    {/* Tech tags (gray) */}
+                    {project.tags && project.tags.slice(0, 4).map((tag, idx) => (
+                      <span
+                        key={idx}
+                        style={{
+                          fontSize: '12px',
+                          color: '#4B5563',
+                          backgroundColor: '#F3F4F6',
+                          padding: '4px 12px',
+                          borderRadius: '9999px',
+                          fontWeight: 500
+                        }}
+                      >
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+
+                  {/* Divider */}
+                  <div style={{ borderTop: '1px solid #E5E7EB', marginBottom: '12px' }} />
+
+                  {/* Card Footer */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+                    {/* Left: Facepile + Spots */}
+                    <div>
+                      {/* Facepile + Joined text */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
                         <div style={{ display: 'flex', alignItems: 'center' }}>
                           {members.map((member, idx) => (
                             <div
                               key={idx}
                               style={{
-                                width: '30px',
-                                height: '30px',
+                                width: '26px',
+                                height: '26px',
                                 borderRadius: '50%',
                                 border: '2px solid white',
                                 backgroundColor: '#E5E7EB',
-                                marginLeft: idx > 0 ? '-10px' : 0,
+                                marginLeft: idx > 0 ? '-8px' : 0,
                                 overflow: 'hidden',
                                 position: 'relative',
-                                zIndex: 4 - idx,
-                                boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+                                zIndex: 4 - idx
                               }}
                             >
-                              <img 
+                              <img
                                 src={member.image}
                                 alt={member.name}
                                 style={{
@@ -486,557 +359,71 @@ function DiscoverScreen() {
                             </div>
                           ))}
                         </div>
-                        <span style={{ 
-                          fontSize: '10px', 
-                          color: '#6B7280',
-                          whiteSpace: 'nowrap'
+                        <span style={{
+                          fontSize: '12px',
+                          color: '#6B7280'
                         }}>
                           {getJoinedByText(members)}
                         </span>
                       </div>
 
-                      {/* View Project Button */}
-                      <button 
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          navigate(`/projects/${featuredProject.id}`)
-                        }}
-                        style={{
-                          padding: '10px 20px',
-                          backgroundColor: '#5B4AE6',
-                          color: 'white',
-                          fontSize: '13px',
-                          fontWeight: 600,
-                          borderRadius: '20px',
-                          border: 'none',
-                          cursor: 'pointer',
-                          transition: 'all 0.15s ease',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '6px'
-                        }}
-                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#4A3CD4'}
-                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#5B4AE6'}
-                      >
-                        View Project
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path d="M5 12h14M12 5l7 7-7 7"/>
-                        </svg>
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )
-          })()}
-          
-          {/* All Projects Label */}
-          <p style={{ 
-            margin: 0, 
-            marginBottom: '12px', 
-            fontSize: '14px', 
-            fontWeight: 700, 
-            color: '#5B4AE6' 
-          }}>
-            All Projects
-          </p>
-
-          {/* Projects List - Text First */}
-          <div 
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '10px'
-            }}
-          >
-            {projectsFeed.filter(p => !p.isUserProject).map(project => (
-              <div 
-                key={project.id}
-                onClick={() => navigate(`/projects/${project.id}`)}
-                style={{
-                  padding: '14px',
-                  backgroundColor: project.isUserProject ? 'rgba(91, 74, 230, 0.04)' : '#FFFFFF',
-                  borderRadius: '14px',
-                  border: project.isUserProject ? '1px solid rgba(91, 74, 230, 0.2)' : '1px solid #E5E7EB',
-                  borderLeft: '4px solid #5B4AE6',
-                  cursor: 'pointer',
-                  transition: 'all 0.15s ease'
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.borderColor = '#5B4AE6'
-                  e.currentTarget.style.boxShadow = project.isUserProject 
-                    ? '0 2px 12px rgba(91, 74, 230, 0.15)' 
-                    : '0 2px 8px rgba(91, 74, 230, 0.1)'
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.borderColor = project.isUserProject ? 'rgba(91, 74, 230, 0.2)' : '#E5E7EB'
-                  e.currentTarget.style.borderLeftColor = '#5B4AE6'
-                  e.currentTarget.style.boxShadow = 'none'
-                }}
-              >
-                {/* Top Row: Icon + Title + Badge */}
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
-                  {/* Project Icon */}
-                <div 
-                  style={{
-                      width: '44px',
-                      height: '44px',
-                      borderRadius: '12px',
-                      backgroundColor: 'rgba(91, 74, 230, 0.1)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: '22px',
-                      flexShrink: 0
-                    }}
-                  >
-                    {getProjectIcon(project.category)}
-                </div>
-                
-                  {/* Content */}
-                <div style={{ flex: 1, minWidth: 0 }}>
-                    {/* Title Row */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                      <p style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: '#111827' }}>
-                      {project.title}
-                    </p>
-                    {project.isUserProject && (
-                      <span 
-                        style={{
-                          fontSize: '10px',
-                          color: '#5B4AE6',
-                            backgroundColor: 'rgba(91, 74, 230, 0.1)',
-                            padding: '3px 8px',
-                            borderRadius: '10px',
+                      {/* Spots open */}
+                      {project.spotsLeft !== undefined && project.spotsLeft > 0 && (
+                        <span style={{
+                          fontSize: '12px',
+                          color: '#22C55E',
                           fontWeight: 600
-                        }}
-                      >
-                        Your Project
-                      </span>
-                    )}
-                  </div>
-
-                    {/* Description */}
-                  <p 
-                    style={{ 
-                      margin: 0, 
-                        marginTop: '4px',
-                        fontSize: '13px', 
-                        color: '#6B7280',
-                      display: '-webkit-box',
-                        WebkitLineClamp: 2,
-                      WebkitBoxOrient: 'vertical',
-                      overflow: 'hidden',
-                        lineHeight: 1.4
-                    }}
-                  >
-                    {project.description || project.tagline || 'Building something awesome with fellow students'}
-                  </p>
-
-                    {/* Metadata Row */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '10px', flexWrap: 'wrap' }}>
-                      {/* Spots left */}
-                    {project.spotsLeft !== undefined && project.spotsLeft > 0 && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#5B4AE6" strokeWidth="2">
-                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-                            <circle cx="9" cy="7" r="4"/>
-                            <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
-                            <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-                          </svg>
-                          <span style={{ fontSize: '11px', color: '#5B4AE6', fontWeight: 500 }}>
-                            {project.spotsLeft} spots
-                        </span>
-                        </div>
-                      )}
-
-                      {/* Location */}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2">
-                          <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
-                          <circle cx="12" cy="10" r="3"/>
-                        </svg>
-                        <span style={{ fontSize: '11px', color: '#6B7280' }}>
-                          {project.schools && project.schools.length > 0 
-                            ? project.schools.slice(0, 1).join(', ')
-                            : 'NYC'}
-                        </span>
-                      </div>
-
-                    {/* Category Tag */}
-                    {project.category && (
-                      <span 
-                        style={{
-                          fontSize: '10px',
-                          color: '#5B4AE6',
-                            backgroundColor: 'rgba(91, 74, 230, 0.1)',
-                            padding: '3px 8px',
-                            borderRadius: '10px',
-                            fontWeight: 500
-                        }}
-                      >
-                        {project.category}
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                  {/* Right side: Facepile + Button */}
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px', flexShrink: 0 }}>
-                    {/* Facepile */}
-                    {(() => {
-                      const members = getProjectMembers(project)
-                      return (
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
-                          <div style={{ display: 'flex', alignItems: 'center' }}>
-                            {members.map((member, idx) => (
-                              <div
-                                key={idx}
-                                style={{
-                                  width: '26px',
-                                  height: '26px',
-                                  borderRadius: '50%',
-                                  border: '2px solid white',
-                                  backgroundColor: '#E5E7EB',
-                                  marginLeft: idx > 0 ? '-8px' : 0,
-                                  overflow: 'hidden',
-                                  position: 'relative',
-                                  zIndex: 4 - idx
-                                }}
-                              >
-                                <img 
-                                  src={member.image}
-                                  alt={member.name}
-                                  style={{
-                                    width: '100%',
-                                    height: '100%',
-                                    objectFit: 'cover'
-                                  }}
-                                />
-                              </div>
-                            ))}
-                          </div>
-                          <span style={{ 
-                            fontSize: '10px', 
-                            color: '#9CA3AF',
-                            whiteSpace: 'nowrap'
-                          }}>
-                            {getJoinedByText(members)}
-                          </span>
-                        </div>
-                      )
-                    })()}
-                
-                {/* Join/View Button */}
-                <button 
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    navigate(`/projects/${project.id}`)
-                  }}
-                  style={{
-                        padding: '8px 16px',
-                    backgroundColor: project.isUserProject ? 'transparent' : '#5B4AE6',
-                    color: project.isUserProject ? '#5B4AE6' : 'white',
-                    fontSize: '13px',
-                    fontWeight: 600,
-                    borderRadius: '20px',
-                        border: project.isUserProject ? '1.5px solid #5B4AE6' : 'none',
-                    cursor: 'pointer',
-                        transition: 'all 0.15s ease'
-                  }}
-                  onMouseEnter={(e) => {
-                    if (!project.isUserProject) {
-                      e.currentTarget.style.backgroundColor = '#4A3CD4'
-                        } else {
-                          e.currentTarget.style.backgroundColor = 'rgba(91, 74, 230, 0.1)'
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!project.isUserProject) {
-                      e.currentTarget.style.backgroundColor = '#5B4AE6'
-                        } else {
-                          e.currentTarget.style.backgroundColor = 'transparent'
-                    }
-                  }}
-                >
-                  {project.isUserProject ? 'View' : 'Join'}
-                </button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-          
-          {/* Create Project CTA */}
-          <div 
-            style={{
-              marginTop: '24px',
-              padding: '24px 20px',
-              backgroundColor: 'rgba(91, 74, 230, 0.05)',
-              borderRadius: '15px',
-              border: '2px dashed rgba(91, 74, 230, 0.15)',
-              textAlign: 'center'
-            }}
-          >
-            <p style={{ margin: 0, fontSize: '15px', fontWeight: 600, color: '#5B4AE6' }}>
-              Can't find a project to join?
-            </p>
-            <p style={{ margin: '6px 0 0 0', fontSize: '13px', color: '#9CA3AF' }}>
-              Start your own and find teammates.
-            </p>
-            <button 
-              onClick={() => navigate('/create-project')}
-              style={{
-                marginTop: '16px',
-                padding: '12px 28px',
-                backgroundColor: '#5B4AE6',
-                color: 'white',
-                fontSize: '14px',
-                fontWeight: 600,
-                borderRadius: '20px',
-                border: 'none',
-                cursor: 'pointer',
-                transition: 'background-color 0.15s ease'
-              }}
-              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#4A3CD4'}
-              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#5B4AE6'}
-            >
-              Create a Project
-            </button>
-          </div>
-        </div>
-      ) : SHOW_NESTS ? (
-        /* Nests Discovery - Only rendered if SHOW_NESTS is true */
-        <div 
-          style={{ 
-            flex: 1, 
-            overflowY: 'auto', 
-            paddingBottom: '100px',
-            padding: '16px'
-          }}
-        >
-          {/* Search Nests */}
-          <div 
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              backgroundColor: '#F3F3F3',
-              borderRadius: '15px',
-              padding: '12px 16px',
-              gap: '12px',
-              marginBottom: '20px'
-            }}
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ADAFBB" strokeWidth="2">
-              <circle cx="11" cy="11" r="8"/>
-              <line x1="21" y1="21" x2="16.65" y2="16.65"/>
-            </svg>
-            <input 
-              type="text"
-              placeholder="Search nests..."
-              style={{
-                flex: 1,
-                border: 'none',
-                backgroundColor: 'transparent',
-                outline: 'none',
-                fontSize: '14px',
-                color: '#231429'
-              }}
-            />
-          </div>
-          
-          {/* Suggested Nests Label */}
-          <p 
-            style={{ 
-              margin: 0, 
-              marginBottom: '16px',
-              fontSize: '14px', 
-              fontWeight: 700, 
-              color: '#5B4AE6' 
-            }}
-          >
-            Suggested for you
-          </p>
-          
-          {/* Nests Grid */}
-          <div 
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '12px'
-            }}
-          >
-            {nestsFeed.map(nest => {
-              const isOwner = nest.isOwner || nest.ownerId === DEMO_CURRENT_USER_ID
-              return (
-                <div 
-                  key={nest.id}
-                  onClick={() => navigate(`/nests/${nest.id}`)}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    padding: '14px',
-                    backgroundColor: '#FAFAFA',
-                    borderRadius: '15px',
-                    gap: '14px',
-                    cursor: 'pointer',
-                    transition: 'background-color 0.15s ease'
-                  }}
-                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#F3F4F6'}
-                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#FAFAFA'}
-                >
-                  {/* Nest Image */}
-                  <div 
-                    style={{
-                      width: '60px',
-                      height: '60px',
-                      borderRadius: '15px',
-                      overflow: 'hidden',
-                      flexShrink: 0
-                    }}
-                  >
-                    <img 
-                      src={nest.image}
-                      alt={nest.name}
-                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                    />
-                  </div>
-                  
-                  {/* Nest Info */}
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <p style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: '#231429' }}>
-                        {nest.name}
-                      </p>
-                      {isOwner && (
-                        <span 
-                          style={{
-                            fontSize: '9px',
-                            fontWeight: 700,
-                            color: '#059669',
-                            backgroundColor: 'rgba(5, 150, 105, 0.1)',
-                            padding: '2px 6px',
-                            borderRadius: '6px'
-                          }}
-                        >
-                          Owner
+                        }}>
+                          {project.spotsLeft} spots open
                         </span>
                       )}
                     </div>
-                    <p 
-                      style={{ 
-                        margin: 0, 
-                        marginTop: '2px',
-                        fontSize: '12px', 
-                        color: '#ADAFBB',
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis'
+
+                    {/* Right: Join button */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        navigate(`/projects/${project.id}`)
                       }}
+                      style={{
+                        padding: '8px 20px',
+                        backgroundColor: '#6366F1',
+                        color: 'white',
+                        fontSize: '14px',
+                        fontWeight: 600,
+                        borderRadius: '20px',
+                        border: 'none',
+                        cursor: 'pointer',
+                        transition: 'background-color 0.15s ease',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        flexShrink: 0
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#4F46E5'}
+                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#6366F1'}
                     >
-                      {nest.description}
-                    </p>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px' }}>
-                      <span style={{ fontSize: '11px', color: '#ADAFBB' }}>
-                        {nest.members} members
-                      </span>
-                      <span style={{ fontSize: '11px', color: '#ADAFBB' }}>•</span>
-                      {nest.tags?.map((tag, idx) => (
-                        <span 
-                          key={idx}
-                          style={{
-                            fontSize: '10px',
-                            color: '#5B4AE6',
-                            backgroundColor: 'rgba(109, 93, 246, 0.1)',
-                            padding: '2px 6px',
-                            borderRadius: '8px'
-                          }}
-                        >
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
+                      Join
+                      <span style={{ fontSize: '14px' }}>&rarr;</span>
+                    </button>
                   </div>
-                  
-                  {/* Action Button */}
-                  <button 
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      if (isOwner) {
-                        navigate(`/nests/${nest.id}`)
-                      } else {
-                        navigate(`/nests/${nest.id}`)
-                      }
-                    }}
-                    style={{
-                      padding: '8px 18px',
-                      backgroundColor: isOwner ? 'rgba(91, 74, 230, 0.1)' : '#5B4AE6',
-                      color: isOwner ? '#5B4AE6' : 'white',
-                      fontSize: '13px',
-                      fontWeight: 600,
-                      borderRadius: '20px',
-                      border: 'none',
-                      cursor: 'pointer',
-                      flexShrink: 0
-                    }}
-                  >
-                    {isOwner ? 'Manage' : 'View'}
-                  </button>
                 </div>
               )
             })}
           </div>
-          
-          {/* Create Nest CTA */}
-          <div 
-            style={{
-              marginTop: '24px',
-              padding: '20px',
-              backgroundColor: 'rgba(109, 93, 246, 0.05)',
-              borderRadius: '15px',
-              border: '2px dashed rgba(109, 93, 246, 0.15)',
-              textAlign: 'center'
-            }}
-          >
-            <p style={{ margin: 0, fontSize: '14px', fontWeight: 600, color: '#5B4AE6' }}>
-              Can't find your community?
-            </p>
-            <button 
-              onClick={() => navigate('/create-nest')}
-              style={{
-                marginTop: '12px',
-                padding: '10px 24px',
-                backgroundColor: 'transparent',
-                color: '#5B4AE6',
-                fontSize: '14px',
-                fontWeight: 700,
-                borderRadius: '20px',
-                border: '2px solid #5B4AE6',
-                cursor: 'pointer'
-              }}
-            >
-              Create a Nest
-            </button>
+        )}
+
+        {/* Empty state for search */}
+        {!loading && filteredProjects.length === 0 && searchQuery.trim() && (
+          <div style={{ textAlign: 'center', padding: '40px 0', color: '#9CA3AF', fontSize: '14px' }}>
+            No projects found matching "{searchQuery}"
           </div>
-        </div>
-      ) : null}
-      
+        )}
+      </div>
+
       {/* Bottom Navigation */}
       <BottomNav />
     </div>
-  )
-}
-
-function FilterIcon() {
-  return (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#5B4AE6" strokeWidth="2">
-      <line x1="4" y1="6" x2="20" y2="6"/>
-      <line x1="8" y1="12" x2="20" y2="12"/>
-      <line x1="4" y1="18" x2="20" y2="18"/>
-      <circle cx="6" cy="6" r="2" fill="#5B4AE6"/>
-      <circle cx="10" cy="12" r="2" fill="#5B4AE6"/>
-      <circle cx="6" cy="18" r="2" fill="#5B4AE6"/>
-    </svg>
   )
 }
 

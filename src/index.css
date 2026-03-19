@@ -97,8 +97,7 @@ html, body, #root {
   top: 0;
   z-index: 100;
   background-color: white;
-  border-bottom: 1px solid #E5E7EB;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
 }
 
 .web-header-content {
@@ -119,10 +118,10 @@ html, body, #root {
 }
 
 .web-logo-text {
-  font-size: 16px;
-  font-weight: 700;
-  color: #5B4AE6;
-  letter-spacing: 0.1em;
+  font-size: 20px;
+  font-weight: 800;
+  color: #6366F1;
+  letter-spacing: 0.05em;
 }
 
 /* Navigation */
@@ -136,13 +135,13 @@ html, body, #root {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 16px;
+  padding: 10px 20px;
   font-size: 14px;
   font-weight: 500;
   color: #6B7280;
   background: transparent;
   border: none;
-  border-radius: 8px;
+  border-radius: 9999px;
   cursor: pointer;
   transition: all 0.15s ease;
 }
@@ -153,8 +152,8 @@ html, body, #root {
 }
 
 .web-nav-item.active {
-  background-color: rgba(91, 74, 230, 0.1);
-  color: #5B4AE6;
+  background-color: rgba(99, 102, 241, 0.1);
+  color: #6366F1;
 }
 
 .web-header-right {
@@ -187,13 +186,17 @@ html, body, #root {
 .web-main {
   flex: 1;
   padding: 24px;
+  overflow: hidden;
 }
 
 .web-content-wrapper {
-  max-width: 1400px;
+  width: 100%;
+  max-width: 1600px;
   margin: 0 auto;
   display: flex;
   gap: 24px;
+  height: 100%;
+  padding: 0 16px;
 }
 
 .web-content-wrapper.with-sidebar {
@@ -206,7 +209,7 @@ html, body, #root {
 
 .web-content {
   flex: 1;
-  max-width: 900px;
+  min-width: 0;
   background-color: white;
   border-radius: 16px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
@@ -222,6 +225,12 @@ html, body, #root {
 .web-sidebar {
   width: 340px;
   flex-shrink: 0;
+}
+
+@media (min-width: 1400px) {
+  .web-content-wrapper {
+    padding: 0 32px;
+  }
 }
 
 /* ============================================
@@ -257,16 +266,18 @@ html, body, #root {
 }
 
 .sidebar-section-title {
-  font-size: 15px;
-  font-weight: 700;
-  color: #111827;
+  font-size: 11px;
+  font-weight: 600;
+  color: #6B7280;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
   margin: 0;
 }
 
 .sidebar-see-all {
   font-size: 13px;
   font-weight: 500;
-  color: #5B4AE6;
+  color: #6366F1;
   background: transparent;
   border: none;
   cursor: pointer;
@@ -290,8 +301,7 @@ html, body, #root {
   gap: 12px;
   padding: 10px;
   border-radius: 10px;
-  border-left: 3px solid #5B4AE6;
-  background-color: #FAFAFA;
+  background-color: transparent;
   cursor: pointer;
   transition: all 0.15s ease;
 }
@@ -328,7 +338,7 @@ html, body, #root {
 .sidebar-event-datetime {
   font-size: 11px;
   font-weight: 500;
-  color: #5B4AE6;
+  color: #6366F1;
   margin: 3px 0 0 0;
 }
 
