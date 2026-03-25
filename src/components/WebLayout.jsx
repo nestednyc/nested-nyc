@@ -23,8 +23,9 @@ function WebLayout({ children, layoutType = 'app' }) {
   const pathname = location.pathname
 
   // Determine if sidebar should be shown based on route
-  // Hide on /messages, /discover (has its own sidebar), /events (wide layout), /matches (focused workspace)
-  const shouldShowSidebar = layoutType === 'app' && !['/messages', '/discover', '/events', '/matches'].includes(pathname)
+  // Hide on /messages, /events (wide layout), /matches (focused workspace)
+  // Show on /discover (right sidebar with saved projects, recently active, upcoming events)
+  const shouldShowSidebar = layoutType === 'app' && !['/messages', '/events', '/matches'].includes(pathname)
   const isOnboardingRoute = pathname.startsWith('/onboarding') || pathname === '/uni-email'
 
   // Never show sidebar on onboarding routes

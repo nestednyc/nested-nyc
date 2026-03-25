@@ -225,6 +225,11 @@ html, body, #root {
 .web-sidebar {
   width: 340px;
   flex-shrink: 0;
+  position: sticky;
+  top: 80px;
+  align-self: flex-start;
+  max-height: calc(100vh - 96px);
+  overflow-y: auto;
 }
 
 @media (min-width: 1400px) {
@@ -240,7 +245,7 @@ html, body, #root {
 .context-sidebar {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 16px;
 }
 
 .sidebar-section {

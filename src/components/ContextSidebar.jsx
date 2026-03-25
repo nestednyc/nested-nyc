@@ -41,23 +41,26 @@ function ContextSidebar() {
   )
 }
 
-/* ─── Shared Styles ─── */
-
-const sectionStyle = {
-  marginBottom: '24px',
+/* ─── Card wrapper for each sidebar section ─── */
+const cardStyle = {
+  backgroundColor: '#FFFFFF',
+  borderRadius: '12px',
+  border: '1px solid #E5E7EB',
+  padding: '16px',
 }
 
-const sectionDeEmphasizedStyle = {
-  ...sectionStyle,
+const cardDeEmphasizedStyle = {
+  ...cardStyle,
   opacity: 0.6,
 }
+
+/* ─── Shared Styles ─── */
 
 const sectionHeaderStyle = {
   display: 'flex',
   justifyContent: 'space-between',
   alignItems: 'center',
   marginBottom: '12px',
-  padding: '0 4px',
 }
 
 const sectionTitleStyle = {
@@ -130,6 +133,7 @@ const itemSubStyle = {
 function SavedProjectsSection({ deEmphasized = false }) {
   const navigate = useNavigate()
 
+  // TODO: Wire up to real saved/bookmarked projects data
   const savedProjects = [
     {
       id: 'saved-1',
@@ -155,7 +159,7 @@ function SavedProjectsSection({ deEmphasized = false }) {
   ]
 
   return (
-    <div style={deEmphasized ? sectionDeEmphasizedStyle : sectionStyle}>
+    <div style={deEmphasized ? cardDeEmphasizedStyle : cardStyle}>
       <div style={sectionHeaderStyle}>
         <h3 style={sectionTitleStyle}>SAVED PROJECTS</h3>
         <button
@@ -167,39 +171,43 @@ function SavedProjectsSection({ deEmphasized = false }) {
       </div>
 
       <div>
-        {savedProjects.map((project) => (
-          <div
-            key={project.id}
-            style={listItemStyle}
-            onClick={() => navigate(`/projects/${project.id}`)}
-            onMouseEnter={(e) => (e.currentTarget.style.background = '#F9FAFB')}
-            onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-          >
-            {/* Avatar */}
-            <div style={avatarStyle(project.color)}>
-              {project.initial}
-            </div>
-
-            {/* Info */}
-            <div style={itemInfoStyle}>
-              <p style={itemNameStyle}>{project.name}</p>
-              <p style={itemSubStyle}>{project.category}</p>
-            </div>
-
-            {/* Bookmark Icon */}
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="#6366F1"
-              stroke="#6366F1"
-              strokeWidth="2"
-              style={{ flexShrink: 0, marginLeft: '8px' }}
+        {savedProjects.length === 0 ? (
+          <p style={{ fontSize: '13px', color: '#9CA3AF', margin: 0, padding: '8px 0' }}>No saved projects yet</p>
+        ) : (
+          savedProjects.map((project) => (
+            <div
+              key={project.id}
+              style={listItemStyle}
+              onClick={() => navigate(`/projects/${project.id}`)}
+              onMouseEnter={(e) => (e.currentTarget.style.background = '#F9FAFB')}
+              onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
             >
-              <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
-            </svg>
-          </div>
-        ))}
+              {/* Avatar */}
+              <div style={avatarStyle(project.color)}>
+                {project.initial}
+              </div>
+
+              {/* Info */}
+              <div style={itemInfoStyle}>
+                <p style={itemNameStyle}>{project.name}</p>
+                <p style={itemSubStyle}>{project.category}</p>
+              </div>
+
+              {/* Bookmark Icon */}
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="#6366F1"
+                stroke="#6366F1"
+                strokeWidth="2"
+                style={{ flexShrink: 0, marginLeft: '8px' }}
+              >
+                <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+              </svg>
+            </div>
+          ))
+        )}
       </div>
     </div>
   )
@@ -210,6 +218,7 @@ function SavedProjectsSection({ deEmphasized = false }) {
 function RecentlyActiveSection({ deEmphasized = false }) {
   const navigate = useNavigate()
 
+  // TODO: Wire up to real recently active projects data
   const recentProjects = [
     {
       id: 'recent-1',
@@ -235,44 +244,48 @@ function RecentlyActiveSection({ deEmphasized = false }) {
   ]
 
   return (
-    <div style={deEmphasized ? sectionDeEmphasizedStyle : sectionStyle}>
+    <div style={deEmphasized ? cardDeEmphasizedStyle : cardStyle}>
       <div style={sectionHeaderStyle}>
         <h3 style={sectionTitleStyle}>RECENTLY ACTIVE</h3>
       </div>
 
       <div>
-        {recentProjects.map((project) => (
-          <div
-            key={project.id}
-            style={listItemStyle}
-            onClick={() => navigate(`/projects/${project.id}`)}
-            onMouseEnter={(e) => (e.currentTarget.style.background = '#F9FAFB')}
-            onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-          >
-            {/* Avatar */}
-            <div style={avatarStyle(project.color)}>
-              {project.initial}
-            </div>
-
-            {/* Info */}
-            <div style={itemInfoStyle}>
-              <p style={itemNameStyle}>{project.name}</p>
-              <p style={itemSubStyle}>{project.timestamp}</p>
-            </div>
-
-            {/* Green active dot */}
+        {recentProjects.length === 0 ? (
+          <p style={{ fontSize: '13px', color: '#9CA3AF', margin: 0, padding: '8px 0' }}>No recent activity</p>
+        ) : (
+          recentProjects.map((project) => (
             <div
-              style={{
-                width: '8px',
-                height: '8px',
-                borderRadius: '50%',
-                backgroundColor: '#10B981',
-                flexShrink: 0,
-                marginLeft: '8px',
-              }}
-            />
-          </div>
-        ))}
+              key={project.id}
+              style={listItemStyle}
+              onClick={() => navigate(`/projects/${project.id}`)}
+              onMouseEnter={(e) => (e.currentTarget.style.background = '#F9FAFB')}
+              onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+            >
+              {/* Avatar */}
+              <div style={avatarStyle(project.color)}>
+                {project.initial}
+              </div>
+
+              {/* Info */}
+              <div style={itemInfoStyle}>
+                <p style={itemNameStyle}>{project.name}</p>
+                <p style={itemSubStyle}>{project.timestamp}</p>
+              </div>
+
+              {/* Green active dot */}
+              <div
+                style={{
+                  width: '8px',
+                  height: '8px',
+                  borderRadius: '50%',
+                  backgroundColor: '#22C55E',
+                  flexShrink: 0,
+                  marginLeft: '8px',
+                }}
+              />
+            </div>
+          ))
+        )}
       </div>
     </div>
   )
@@ -283,6 +296,7 @@ function RecentlyActiveSection({ deEmphasized = false }) {
 function UpcomingEventsSection({ deEmphasized = false }) {
   const navigate = useNavigate()
 
+  // TODO: Wire up to real upcoming events data
   const events = [
     {
       id: 'event-1',
@@ -305,7 +319,7 @@ function UpcomingEventsSection({ deEmphasized = false }) {
   ]
 
   return (
-    <div style={deEmphasized ? sectionDeEmphasizedStyle : sectionStyle}>
+    <div style={deEmphasized ? cardDeEmphasizedStyle : cardStyle}>
       <div style={sectionHeaderStyle}>
         <h3 style={sectionTitleStyle}>UPCOMING EVENTS</h3>
         <button
@@ -317,60 +331,64 @@ function UpcomingEventsSection({ deEmphasized = false }) {
       </div>
 
       <div>
-        {events.map((event) => (
-          <div
-            key={event.id}
-            style={listItemStyle}
-            onClick={() => navigate(`/events/${event.id}`)}
-            onMouseEnter={(e) => (e.currentTarget.style.background = '#F9FAFB')}
-            onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-          >
-            {/* Calendar Icon */}
+        {events.length === 0 ? (
+          <p style={{ fontSize: '13px', color: '#9CA3AF', margin: 0, padding: '8px 0' }}>No upcoming events</p>
+        ) : (
+          events.map((event) => (
             <div
-              style={{
-                width: '36px',
-                height: '36px',
-                minWidth: '36px',
-                borderRadius: '8px',
-                backgroundColor: '#EEF2FF',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                marginRight: '12px',
-              }}
+              key={event.id}
+              style={listItemStyle}
+              onClick={() => navigate('/events')}
+              onMouseEnter={(e) => (e.currentTarget.style.background = '#F9FAFB')}
+              onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
             >
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="#6366F1"
-                strokeWidth="2"
-              >
-                <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-                <line x1="16" y1="2" x2="16" y2="6" />
-                <line x1="8" y1="2" x2="8" y2="6" />
-                <line x1="3" y1="10" x2="21" y2="10" />
-              </svg>
-            </div>
-
-            {/* Event Info */}
-            <div style={itemInfoStyle}>
-              <p style={itemNameStyle}>{event.title}</p>
-              <p
+              {/* Calendar Icon */}
+              <div
                 style={{
-                  fontSize: '11px',
-                  color: '#6366F1',
-                  margin: 0,
-                  marginTop: '2px',
-                  fontWeight: 500,
+                  width: '36px',
+                  height: '36px',
+                  minWidth: '36px',
+                  borderRadius: '8px',
+                  backgroundColor: '#EEF2FF',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  marginRight: '12px',
                 }}
               >
-                {event.date} &bull; {event.time}
-              </p>
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="#6366F1"
+                  strokeWidth="2"
+                >
+                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                  <line x1="16" y1="2" x2="16" y2="6" />
+                  <line x1="8" y1="2" x2="8" y2="6" />
+                  <line x1="3" y1="10" x2="21" y2="10" />
+                </svg>
+              </div>
+
+              {/* Event Info */}
+              <div style={itemInfoStyle}>
+                <p style={itemNameStyle}>{event.title}</p>
+                <p
+                  style={{
+                    fontSize: '11px',
+                    color: '#6366F1',
+                    margin: 0,
+                    marginTop: '2px',
+                    fontWeight: 500,
+                  }}
+                >
+                  {event.date} &bull; {event.time}
+                </p>
+              </div>
             </div>
-          </div>
-        ))}
+          ))
+        )}
       </div>
     </div>
   )
