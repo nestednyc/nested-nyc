@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { getProjectById, DEMO_CURRENT_USER_ID, saveProjectEdits } from '../utils/projectData'
-import { deleteProject } from '../utils/projectStorage'
+import { getProjectByIdAsync, updateProjectAsync, deleteProjectAsync, DEMO_CURRENT_USER_ID } from '../utils/projectData'
 import { supabase, isSupabaseConfigured } from '../lib/supabase'
 
 // Role options
@@ -67,15 +66,6 @@ function getCommitmentFromProject(project) {
   return 'side-project'
 }
 
-function getRawProjectId(projectId) {
-  if (!projectId) return null
-  if (projectId.startsWith('user-')) {
-    const raw = projectId.replace('user-', '')
-    return parseInt(raw) || raw
-  }
-  return projectId
-}
-
 function EditProjectScreen() {
   const navigate = useNavigate()
   const { projectId } = useParams()
@@ -105,7 +95,7 @@ function EditProjectScreen() {
         return
       }
 
-      const foundProject = getProjectById(projectId)
+      const foundProject = await getProjectByIdAsync(projectId)
 
       if (!foundProject) {
         setError('Project not found. It may have been deleted or the link is incorrect.')
@@ -172,20 +162,22 @@ function EditProjectScreen() {
   const handleSave = async () => {
     setIsSaving(true)
 
-    const edits = {
-      description: formData.description,
-      skillsNeeded: formData.roles.map(r => ROLE_ID_TO_LABEL[r] || r),
-      commitment: formData.commitment,
-      title: formData.title,
+    const updates = {
       name: formData.title,
-      university: formData.university,
-      school: formData.university,
+      description: formData.description,
+      roles: formData.roles,
+      commitment: formData.commitment,
+      location: formData.university,
       spotsLeft: Number(formData.spotsLeft) || 0,
     }
 
-    saveProjectEdits(projectId, edits)
+    const { error } = await updateProjectAsync(projectId, updates)
 
-    await new Promise(resolve => setTimeout(resolve, 400))
+    if (error) {
+      console.error('Failed to save project:', error)
+      setIsSaving(false)
+      return
+    }
 
     setIsSaving(false)
     setShowSuccess(true)
@@ -198,10 +190,14 @@ function EditProjectScreen() {
   const handleDelete = async () => {
     setIsDeleting(true)
 
-    const rawId = getRawProjectId(projectId)
-    deleteProject(rawId)
+    const { error } = await deleteProjectAsync(projectId)
 
-    await new Promise(resolve => setTimeout(resolve, 300))
+    if (error) {
+      console.error('Failed to delete project:', error)
+      setIsDeleting(false)
+      setShowDeleteModal(false)
+      return
+    }
 
     navigate('/discover', { replace: true })
   }
