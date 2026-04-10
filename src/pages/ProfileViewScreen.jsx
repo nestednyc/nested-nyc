@@ -247,13 +247,21 @@ function ProfileViewScreen() {
 
       // Check if viewing current user or another user
       if (isViewingOwnProfile) {
-        // Try to fetch from Supabase first (use authUserId we already have)
-        if (isSupabaseConfigured() && authUserId) {
+        // localStorage is the primary data store for own profile (always written on save).
+        // Load it first so edits show immediately without waiting for Supabase.
+        const saved = localStorage.getItem(STORAGE_KEY)
+        if (saved) {
+          try {
+            setProfile(JSON.parse(saved))
+          } catch (e) {}
+        }
+
+        // Only hit Supabase if localStorage has no data (first-time load on new device)
+        if (!saved && isSupabaseConfigured() && authUserId) {
           try {
             const { data, error } = await profileService.getProfile(authUserId)
 
             if (!error && data) {
-              // Transform DB format to component format
               const transformedProfile = {
                 firstName: data.first_name || '',
                 lastName: data.last_name || '',
@@ -267,24 +275,12 @@ function ProfileViewScreen() {
                 links: data.links || { github: '', portfolio: '', linkedin: '', discord: '' }
               }
               setProfile(transformedProfile)
-
-              // Also update localStorage as cache
               localStorage.setItem(STORAGE_KEY, JSON.stringify(transformedProfile))
-
-              setLoading(false)
-              loadNestedProjects()
-              return
             }
           } catch (err) {
             console.error('Failed to fetch profile from Supabase:', err)
           }
         }
-
-        // Fall back to localStorage if Supabase fetch failed
-        try {
-          const saved = localStorage.getItem(STORAGE_KEY)
-          if (saved) setProfile(JSON.parse(saved))
-        } catch (e) {}
 
         loadNestedProjects()
       } else {

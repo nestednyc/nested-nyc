@@ -44,6 +44,8 @@ function ProfileEditScreen() {
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(true)
   const [showErrors, setShowErrors] = useState(false)
+  const [saveError, setSaveError] = useState(null)
+  const [saveSuccess, setSaveSuccess] = useState(false)
   const [currentUserId, setCurrentUserId] = useState(null)
   const [avatarFile, setAvatarFile] = useState(null)
   const [avatarPreview, setAvatarPreview] = useState(null)
@@ -246,6 +248,8 @@ function ProfileEditScreen() {
     }
 
     setSaving(true)
+    setSaveError(null)
+    setSaveSuccess(false)
 
     let avatarUrl = profile.avatar || avatarPreview
 
@@ -284,17 +288,39 @@ function ProfileEditScreen() {
           onboarding_completed: true
         }
 
-        const { error } = await profileService.updateProfile(currentUserId, dbProfile)
+        console.log('[ProfileEdit] Saving to Supabase. userId:', currentUserId, 'payload:', dbProfile)
+
+        // Use upsert so it works whether the row exists or not
+        const { data, error } = await profileService.upsertProfile(currentUserId, dbProfile)
+
+        console.log('[ProfileEdit] Supabase response:', { data, error })
+
         if (error) {
-          console.error('Failed to save profile to DB:', error)
+          console.error('[ProfileEdit] Supabase save failed:', error)
+          setSaveError(error.message || 'Failed to save profile. Please try again.')
+          setSaving(false)
+          return
         }
+
+        if (!data) {
+          console.warn('[ProfileEdit] No data returned from upsert — RLS may be blocking the write.')
+          setSaveError('Profile may not have saved. Check your Supabase RLS policies.')
+          setSaving(false)
+          return
+        }
+
+        console.log('[ProfileEdit] Save successful:', data)
       } catch (err) {
-        console.error('Failed to save profile to DB:', err)
+        console.error('[ProfileEdit] Unexpected error saving profile:', err)
+        setSaveError(err.message || 'Unexpected error saving profile.')
+        setSaving(false)
+        return
       }
     }
 
+    setSaveSuccess(true)
     // Navigate after save - always use 'current-user' for own profile view
-    setTimeout(() => navigate('/profile/current-user'), 400)
+    setTimeout(() => navigate('/profile/current-user'), 600)
   }
 
   const filteredUnis = uniQuery
@@ -458,6 +484,41 @@ function ProfileEditScreen() {
           {saving ? 'Saving...' : 'Save Profile'}
         </button>
       </div>
+
+      {/* Save error banner */}
+      {saveError && (
+        <div style={{
+          padding: '12px 24px',
+          backgroundColor: '#FEF2F2',
+          borderBottom: '1px solid #FECACA',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px'
+        }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#DC2626" strokeWidth="2" flexShrink={0}>
+            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+          <span style={{ fontSize: '14px', color: '#DC2626', flex: 1 }}>{saveError}</span>
+          <button onClick={() => setSaveError(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#DC2626', fontSize: '18px', lineHeight: 1 }}>×</button>
+        </div>
+      )}
+
+      {/* Save success banner */}
+      {saveSuccess && (
+        <div style={{
+          padding: '12px 24px',
+          backgroundColor: '#F0FDF4',
+          borderBottom: '1px solid #BBF7D0',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px'
+        }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16A34A" strokeWidth="2">
+            <path d="M20 6L9 17l-5-5"/>
+          </svg>
+          <span style={{ fontSize: '14px', color: '#16A34A' }}>Profile updated successfully!</span>
+        </div>
+      )}
 
       {/* Content - Two Column Layout */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '24px' }}>
