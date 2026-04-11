@@ -33,15 +33,29 @@ export function saveProjectEdits(projectId, edits) {
   // Check if it's a user-created project
   const userProjects = getProjects()
   const userProject = userProjects.find(p => `user-${p.id}` === projectId || String(p.id) === projectId)
-  
+
   if (userProject) {
-    // Update user-created project directly
+    // Update user-created project directly — map edits to raw storage fields
     const rawId = projectId.startsWith('user-') ? projectId.replace('user-', '') : projectId
-    updateProject(parseInt(rawId) || rawId, {
-      description: edits.description,
-      roles: edits.skillsNeeded, // Store as roles for user projects
-      commitment: edits.commitment,
-    })
+    const updates = {}
+    if (edits.description !== undefined) updates.description = edits.description
+    if (edits.skillsNeeded !== undefined) {
+      // Convert display names back to role IDs for storage
+      const labelToId = {
+        'Frontend Dev': 'frontend', 'Backend Dev': 'backend', 'Full Stack': 'fullstack',
+        'UI/UX Designer': 'designer', 'Data Science': 'data', 'ML/AI': 'ml',
+        'Mobile Dev': 'mobile', 'Product Manager': 'pm', 'Marketing': 'marketing',
+        'Business/Strategy': 'business',
+      }
+      updates.roles = edits.skillsNeeded.map(s => labelToId[s] || s)
+    }
+    if (edits.commitment !== undefined) updates.commitment = edits.commitment
+    if (edits.title !== undefined) updates.name = edits.title
+    if (edits.name !== undefined) updates.name = edits.name
+    if (edits.university !== undefined) updates.university = edits.university
+    if (edits.school !== undefined && !updates.university) updates.university = edits.school
+    if (edits.spotsLeft !== undefined) updates.spotsLeft = edits.spotsLeft
+    updateProject(parseInt(rawId) || rawId, updates)
   } else {
     // Store edits for default projects
     const allEdits = getProjectEdits()
@@ -282,16 +296,18 @@ function transformUserProject(p) {
     category: CATEGORY_LABELS[p.category] || p.category,
     schools: p.university ? [p.university] : ['NYC'],
     school: p.university || 'NYC',
+    university: p.university || 'NYC',
     image: p.image,
     author: p.author || 'You',
     authorImage: p.authorImage || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop',
     description: p.description,
     skillsNeeded: p.roles?.map(r => ROLE_LABELS[r] || r).slice(0, 6) || p.skills || [],
-    spotsLeft: p.roles?.length || 0,
-    team: [{ 
-      name: p.author || 'You', 
-      school: p.university || 'NYC', 
-      role: 'Project Lead', 
+    spotsLeft: p.spotsLeft ?? p.roles?.length ?? 0,
+    commitment: p.commitment || 'side-project',
+    team: [{
+      name: p.author || 'You',
+      school: p.university || 'NYC',
+      role: 'Project Lead',
       image: p.authorImage || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop'
     }],
     isUserProject: true,
