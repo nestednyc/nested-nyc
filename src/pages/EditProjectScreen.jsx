@@ -1,9 +1,15 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { getProjectByIdAsync, updateProjectAsync, deleteProjectAsync, DEMO_CURRENT_USER_ID } from '../utils/projectData'
-import { supabase, isSupabaseConfigured } from '../lib/supabase'
+import { getProjectByIdAsync, updateProjectAsync, deleteProjectAsync, getCurrentUserId, DEMO_CURRENT_USER_ID } from '../utils/projectData'
 
-// Role options
+/**
+ * EditProjectScreen - Edit project details
+ * Allows owners to update: title, description, roles, commitment, spots available
+ * Includes delete functionality with confirmation modal
+ * Owner-only access with proper permission checks
+ */
+
+// Role options (matching CreateProjectScreen)
 const ROLES = [
   { id: 'frontend', label: 'Frontend Dev', color: '#3B82F6' },
   { id: 'backend', label: 'Backend Dev', color: '#10B981' },
@@ -17,6 +23,14 @@ const ROLES = [
   { id: 'business', label: 'Business/Strategy', color: '#84CC16' },
 ]
 
+// Commitment options
+const COMMITMENTS = [
+  { id: 'side-project', label: 'Side Project', description: 'Few hours per week', hours: '5-10 hrs/week' },
+  { id: 'serious', label: 'Serious Build', description: 'Significant time commitment', hours: '15-25 hrs/week' },
+  { id: 'startup', label: 'Startup Mode', description: 'Full dedication', hours: '30+ hrs/week' },
+]
+
+// Map skillsNeeded labels back to role IDs
 const ROLE_LABEL_TO_ID = {
   'Frontend Dev': 'frontend',
   'Backend Dev': 'backend',
@@ -39,26 +53,8 @@ const ROLE_LABEL_TO_ID = {
   'Firebase': 'backend',
 }
 
-const ROLE_ID_TO_LABEL = {
-  'frontend': 'Frontend Dev',
-  'backend': 'Backend Dev',
-  'fullstack': 'Full Stack',
-  'designer': 'UI/UX Designer',
-  'data': 'Data Science',
-  'ml': 'ML/AI',
-  'mobile': 'Mobile Dev',
-  'pm': 'Product Manager',
-  'marketing': 'Marketing',
-  'business': 'Business/Strategy',
-}
-
-const COMMITMENTS = [
-  { id: 'side-project', label: 'Side Project', description: 'Few hours per week', hours: '5-10 hrs/week' },
-  { id: 'serious', label: 'Serious Build', description: 'Significant time commitment', hours: '15-25 hrs/week' },
-  { id: 'startup', label: 'Startup Mode', description: 'Full dedication', hours: '30+ hrs/week' },
-]
-
-function getCommitmentFromProject(project) {
+// Derive commitment from category string or commitment field
+function resolveCommitment(project) {
   if (project.commitment) return project.commitment
   const cat = (project.category || '').toLowerCase()
   if (cat.includes('startup')) return 'startup'
@@ -69,82 +65,84 @@ function getCommitmentFromProject(project) {
 function EditProjectScreen() {
   const navigate = useNavigate()
   const { projectId } = useParams()
-
   const [project, setProject] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [isSaving, setIsSaving] = useState(false)
-  const [showSuccess, setShowSuccess] = useState(false)
   const [error, setError] = useState(null)
-  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [showSuccess, setShowSuccess] = useState(false)
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
 
+  // Form state
   const [formData, setFormData] = useState({
     title: '',
     description: '',
     roles: [],
     commitment: 'side-project',
-    university: '',
     spotsLeft: 0,
   })
 
+  // Load project data (async - supports Supabase)
   useEffect(() => {
+    let cancelled = false
+
     async function loadProject() {
       if (!projectId) {
-        setError('No project ID provided.')
+        setError('No project ID provided')
         setLoading(false)
         return
       }
 
-      const foundProject = await getProjectByIdAsync(projectId)
+      try {
+        const foundProject = await getProjectByIdAsync(projectId)
 
-      if (!foundProject) {
-        setError('Project not found. It may have been deleted or the link is incorrect.')
-        setLoading(false)
-        return
-      }
+        if (cancelled) return
 
-      // Ownership check: isOwner flag, demo user match, OR real Supabase user match
-      let currentUserId = null
-      if (isSupabaseConfigured() && supabase) {
-        try {
-          const { data: { user } } = await supabase.auth.getUser()
-          currentUserId = user?.id || null
-        } catch {
-          // Ignore auth errors — fallback to demo check
+        if (!foundProject) {
+          setError('Project not found')
+          setLoading(false)
+          return
         }
+
+        // Check ownership
+        const currentUserId = await getCurrentUserId()
+        const isOwner = foundProject.isOwner ||
+          foundProject.ownerId === currentUserId ||
+          foundProject.ownerId === DEMO_CURRENT_USER_ID
+
+        if (!isOwner) {
+          setError('unauthorized')
+          setLoading(false)
+          return
+        }
+
+        setProject(foundProject)
+
+        // Pre-fill form with existing data
+        const existingRoles = (foundProject.skillsNeeded || [])
+          .map(skill => ROLE_LABEL_TO_ID[skill] || null)
+          .filter(Boolean)
+
+        setFormData({
+          title: foundProject.title || '',
+          description: foundProject.description || '',
+          roles: existingRoles.length > 0 ? [...new Set(existingRoles)] : [],
+          commitment: resolveCommitment(foundProject),
+          spotsLeft: foundProject.spotsLeft || 0,
+        })
+      } catch (err) {
+        if (!cancelled) {
+          console.error('Error loading project for edit:', err)
+          setError('Failed to load project')
+        }
+      } finally {
+        if (!cancelled) setLoading(false)
       }
-
-      const isOwner =
-        foundProject.isOwner === true ||
-        foundProject.ownerId === DEMO_CURRENT_USER_ID ||
-        (currentUserId && (foundProject.ownerId === currentUserId || foundProject.owner_id === currentUserId))
-
-      if (!isOwner) {
-        setError('You do not have permission to edit this project.')
-        setLoading(false)
-        return
-      }
-
-      setProject(foundProject)
-
-      const existingRoles = (foundProject.skillsNeeded || [])
-        .map(skill => ROLE_LABEL_TO_ID[skill] || null)
-        .filter(Boolean)
-
-      setFormData({
-        title: foundProject.title || '',
-        description: foundProject.description || '',
-        roles: existingRoles.length > 0 ? [...new Set(existingRoles)] : [],
-        commitment: getCommitmentFromProject(foundProject),
-        university: foundProject.school || foundProject.university || (foundProject.schools?.[0]) || '',
-        spotsLeft: foundProject.spotsLeft ?? 0,
-      })
-
-      setLoading(false)
     }
 
     loadProject()
-  }, [projectId])
+    return () => { cancelled = true }
+  }, [projectId, navigate])
 
   const updateField = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }))
@@ -162,47 +160,69 @@ function EditProjectScreen() {
   const handleSave = async () => {
     setIsSaving(true)
 
-    const updates = {
-      name: formData.title,
-      description: formData.description,
-      roles: formData.roles,
-      commitment: formData.commitment,
-      location: formData.university,
-      spotsLeft: Number(formData.spotsLeft) || 0,
-    }
+    try {
+      // Map role IDs back to display labels for skillsNeeded
+      const roleIdToLabel = {}
+      ROLES.forEach(r => { roleIdToLabel[r.id] = r.label })
 
-    const { error } = await updateProjectAsync(projectId, updates)
+      // Build updates object
+      const updates = {
+        name: formData.title,
+        description: formData.description,
+        roles: formData.roles,
+        skills: formData.roles.map(r => roleIdToLabel[r] || r),
+        commitment: formData.commitment,
+        spotsLeft: formData.spotsLeft,
+      }
 
-    if (error) {
-      console.error('Failed to save project:', error)
+      const { error: saveError } = await updateProjectAsync(projectId, updates)
+
+      if (saveError) {
+        console.error('Error saving project:', saveError)
+        alert('Failed to save changes. Please try again.')
+        setIsSaving(false)
+        return
+      }
+
       setIsSaving(false)
-      return
+      setShowSuccess(true)
+
+      // Navigate back after showing success
+      setTimeout(() => {
+        navigate(`/projects/${projectId}`)
+      }, 800)
+    } catch (err) {
+      console.error('Error saving project:', err)
+      alert('Failed to save changes. Please try again.')
+      setIsSaving(false)
     }
-
-    setIsSaving(false)
-    setShowSuccess(true)
-
-    setTimeout(() => {
-      navigate(`/projects/${projectId}`)
-    }, 800)
   }
 
   const handleDelete = async () => {
     setIsDeleting(true)
 
-    const { error } = await deleteProjectAsync(projectId)
+    try {
+      const { error: deleteError } = await deleteProjectAsync(projectId)
 
-    if (error) {
-      console.error('Failed to delete project:', error)
+      if (deleteError) {
+        console.error('Error deleting project:', deleteError)
+        alert('Failed to delete project. Please try again.')
+        setIsDeleting(false)
+        setShowDeleteModal(false)
+        return
+      }
+
+      // Navigate to discover after deletion
+      navigate('/discover', { replace: true })
+    } catch (err) {
+      console.error('Error deleting project:', err)
+      alert('Failed to delete project. Please try again.')
       setIsDeleting(false)
       setShowDeleteModal(false)
-      return
     }
-
-    navigate('/discover', { replace: true })
   }
 
-  // Loading
+  // Loading state
   if (loading) {
     return (
       <div style={{
@@ -220,12 +240,65 @@ function EditProjectScreen() {
           borderRadius: '50%',
           animation: 'spin 0.8s linear infinite'
         }} />
-        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       </div>
     )
   }
 
-  // Error / not found / unauthorized
+  // Unauthorized state
+  if (error === 'unauthorized') {
+    return (
+      <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        height: '100%',
+        backgroundColor: 'white',
+        padding: '40px',
+        textAlign: 'center'
+      }}>
+        <div style={{
+          width: '56px',
+          height: '56px',
+          borderRadius: '50%',
+          backgroundColor: '#FEF2F2',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          marginBottom: '16px'
+        }}>
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="2">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+          </svg>
+        </div>
+        <h2 style={{ margin: 0, fontSize: '20px', fontWeight: 700, color: '#111827' }}>
+          Unauthorized
+        </h2>
+        <p style={{ margin: '8px 0 0 0', fontSize: '14px', color: '#6B7280' }}>
+          Only the project owner can edit this project.
+        </p>
+        <button
+          onClick={() => navigate(-1)}
+          style={{
+            marginTop: '20px',
+            padding: '12px 24px',
+            backgroundColor: '#5B4AE6',
+            color: 'white',
+            fontSize: '14px',
+            fontWeight: 600,
+            borderRadius: '10px',
+            border: 'none',
+            cursor: 'pointer'
+          }}
+        >
+          Go Back
+        </button>
+      </div>
+    )
+  }
+
+  // Error / not found state
   if (error || !project) {
     return (
       <div style={{
@@ -239,14 +312,14 @@ function EditProjectScreen() {
         textAlign: 'center'
       }}>
         <div style={{
-          width: '64px',
-          height: '64px',
+          width: '56px',
+          height: '56px',
           borderRadius: '50%',
           backgroundColor: '#FEF2F2',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          marginBottom: '20px'
+          marginBottom: '16px'
         }}>
           <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="2">
             <circle cx="12" cy="12" r="10"/>
@@ -254,50 +327,39 @@ function EditProjectScreen() {
             <line x1="12" y1="16" x2="12.01" y2="16"/>
           </svg>
         </div>
-        <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: '#111827' }}>
+        <h2 style={{ margin: 0, fontSize: '20px', fontWeight: 700, color: '#111827' }}>
           {error || 'Project not found'}
         </h2>
-        <p style={{ margin: '8px 0 24px', fontSize: '14px', color: '#6B7280' }}>
-          {error?.includes('permission') ? 'Only the project owner can edit this project.' : 'This project may have been removed or the link is incorrect.'}
+        <p style={{ margin: '8px 0 0 0', fontSize: '14px', color: '#6B7280' }}>
+          We couldn't load this project. It may have been deleted or you may not have access.
         </p>
-        <div style={{ display: 'flex', gap: '12px' }}>
-          <button
-            onClick={() => navigate(-1)}
-            style={{
-              padding: '10px 20px',
-              backgroundColor: 'white',
-              color: '#374151',
-              fontSize: '14px',
-              fontWeight: 600,
-              borderRadius: '10px',
-              border: '1.5px solid #E5E7EB',
-              cursor: 'pointer'
-            }}
-          >
-            Go Back
-          </button>
-          <button
-            onClick={() => navigate('/discover')}
-            style={{
-              padding: '10px 20px',
-              backgroundColor: '#5B4AE6',
-              color: 'white',
-              fontSize: '14px',
-              fontWeight: 600,
-              borderRadius: '10px',
-              border: 'none',
-              cursor: 'pointer'
-            }}
-          >
-            Browse Projects
-          </button>
-        </div>
+        <button
+          onClick={() => navigate('/discover')}
+          style={{
+            marginTop: '20px',
+            padding: '12px 24px',
+            backgroundColor: '#5B4AE6',
+            color: 'white',
+            fontSize: '14px',
+            fontWeight: 600,
+            borderRadius: '10px',
+            border: 'none',
+            cursor: 'pointer'
+          }}
+        >
+          Go to Discover
+        </button>
       </div>
     )
   }
 
   return (
-    <div style={{ height: '100%', backgroundColor: 'white', display: 'flex', flexDirection: 'column' }}>
+    <div style={{
+      height: '100%',
+      backgroundColor: 'white',
+      display: 'flex',
+      flexDirection: 'column'
+    }}>
       {/* Header */}
       <div style={{
         padding: '16px 20px',
@@ -371,28 +433,76 @@ function EditProjectScreen() {
               </svg>
               Saved
             </>
-          ) : 'Save'}
+          ) : (
+            'Save'
+          )}
         </button>
       </div>
 
-      {/* Scrollable Content */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '24px 20px 60px' }}>
+      {/* Content */}
+      <div style={{
+        flex: 1,
+        overflowY: 'auto',
+        padding: '24px 20px',
+        paddingBottom: '40px'
+      }}>
         <div style={{ maxWidth: '600px', margin: '0 auto' }}>
+          {/* Project Header */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '14px',
+            marginBottom: '32px',
+            padding: '16px',
+            backgroundColor: '#FAFAFA',
+            borderRadius: '12px'
+          }}>
+            <div style={{
+              width: '48px',
+              height: '48px',
+              borderRadius: '12px',
+              backgroundColor: 'rgba(91, 74, 230, 0.1)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0
+            }}>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#5B4AE6" strokeWidth="2">
+                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+                <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
+                <line x1="12" y1="22.08" x2="12" y2="12"/>
+              </svg>
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p style={{ margin: 0, fontSize: '13px', color: '#6B7280' }}>
+                Editing
+              </p>
+              <h2 style={{ margin: '2px 0 0 0', fontSize: '16px', fontWeight: 700, color: '#111827' }}>
+                {project.title}
+              </h2>
+            </div>
+          </div>
 
-          {/* Title */}
-          <div style={{ marginBottom: '24px' }}>
-            <label style={{ display: 'block', fontSize: '14px', fontWeight: 600, color: '#111827', marginBottom: '8px' }}>
-              Project Title
+          {/* Title Section */}
+          <div style={{ marginBottom: '28px' }}>
+            <label style={{
+              display: 'block',
+              fontSize: '14px',
+              fontWeight: 600,
+              color: '#111827',
+              marginBottom: '8px'
+            }}>
+              Project Name
             </label>
             <input
               type="text"
               value={formData.title}
               onChange={(e) => updateField('title', e.target.value)}
               placeholder="Give your project a name"
-              maxLength={60}
+              maxLength={80}
               style={{
                 width: '100%',
-                padding: '12px 14px',
+                padding: '14px',
                 fontSize: '14px',
                 color: '#111827',
                 backgroundColor: '#FAFAFA',
@@ -405,9 +515,15 @@ function EditProjectScreen() {
             />
           </div>
 
-          {/* Description */}
-          <div style={{ marginBottom: '24px' }}>
-            <label style={{ display: 'block', fontSize: '14px', fontWeight: 600, color: '#111827', marginBottom: '8px' }}>
+          {/* About Section */}
+          <div style={{ marginBottom: '28px' }}>
+            <label style={{
+              display: 'block',
+              fontSize: '14px',
+              fontWeight: 600,
+              color: '#111827',
+              marginBottom: '8px'
+            }}>
               About this project
             </label>
             <textarea
@@ -417,7 +533,7 @@ function EditProjectScreen() {
               maxLength={500}
               style={{
                 width: '100%',
-                minHeight: '130px',
+                minHeight: '140px',
                 padding: '14px',
                 fontSize: '14px',
                 color: '#111827',
@@ -431,20 +547,39 @@ function EditProjectScreen() {
                 fontFamily: 'inherit'
               }}
             />
-            <p style={{ margin: '6px 0 0', fontSize: '12px', color: '#9CA3AF', textAlign: 'right' }}>
+            <p style={{
+              margin: '6px 0 0 0',
+              fontSize: '12px',
+              color: '#9CA3AF',
+              textAlign: 'right'
+            }}>
               {formData.description.length}/500
             </p>
           </div>
 
-          {/* Roles / Tags */}
-          <div style={{ marginBottom: '24px' }}>
-            <label style={{ display: 'block', fontSize: '14px', fontWeight: 600, color: '#111827', marginBottom: '6px' }}>
+          {/* Roles Section */}
+          <div style={{ marginBottom: '28px' }}>
+            <label style={{
+              display: 'block',
+              fontSize: '14px',
+              fontWeight: 600,
+              color: '#111827',
+              marginBottom: '6px'
+            }}>
               Looking for
             </label>
-            <p style={{ margin: '0 0 12px', fontSize: '13px', color: '#6B7280' }}>
+            <p style={{
+              margin: '0 0 12px 0',
+              fontSize: '13px',
+              color: '#6B7280'
+            }}>
               Select the roles you need for your project
             </p>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+            <div style={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              gap: '8px'
+            }}>
               {ROLES.map(role => {
                 const isSelected = formData.roles.includes(role.id)
                 return (
@@ -458,7 +593,7 @@ function EditProjectScreen() {
                       fontWeight: 500,
                       borderRadius: '20px',
                       border: `1.5px solid ${isSelected ? role.color : '#E5E7EB'}`,
-                      backgroundColor: isSelected ? `${role.color}18` : 'white',
+                      backgroundColor: isSelected ? `${role.color}15` : 'white',
                       color: isSelected ? role.color : '#4B5563',
                       cursor: 'pointer',
                       display: 'flex',
@@ -469,7 +604,7 @@ function EditProjectScreen() {
                   >
                     {role.label}
                     {isSelected && (
-                      <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
                         <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
                       </svg>
                     )}
@@ -479,15 +614,29 @@ function EditProjectScreen() {
             </div>
           </div>
 
-          {/* Commitment Level */}
-          <div style={{ marginBottom: '24px' }}>
-            <label style={{ display: 'block', fontSize: '14px', fontWeight: 600, color: '#111827', marginBottom: '6px' }}>
+          {/* Commitment Level Section */}
+          <div style={{ marginBottom: '28px' }}>
+            <label style={{
+              display: 'block',
+              fontSize: '14px',
+              fontWeight: 600,
+              color: '#111827',
+              marginBottom: '6px'
+            }}>
               Commitment Level
             </label>
-            <p style={{ margin: '0 0 12px', fontSize: '13px', color: '#6B7280' }}>
+            <p style={{
+              margin: '0 0 12px 0',
+              fontSize: '13px',
+              color: '#6B7280'
+            }}>
               How much time should collaborators expect to commit?
             </p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '10px'
+            }}>
               {COMMITMENTS.map(commit => {
                 const isSelected = formData.commitment === commit.id
                 return (
@@ -507,15 +656,33 @@ function EditProjectScreen() {
                       transition: 'all 0.15s ease'
                     }}
                   >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                      <span style={{ fontSize: '14px', fontWeight: 600, color: isSelected ? '#5B4AE6' : '#111827' }}>
+                    <div style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      marginBottom: '4px'
+                    }}>
+                      <span style={{
+                        fontSize: '14px',
+                        fontWeight: 600,
+                        color: isSelected ? '#5B4AE6' : '#111827'
+                      }}>
                         {commit.label}
                       </span>
-                      <span style={{ fontSize: '12px', fontWeight: 500, color: '#6B7280' }}>
+                      <span style={{
+                        fontSize: '12px',
+                        fontWeight: 500,
+                        color: '#6B7280'
+                      }}>
                         {commit.hours}
                       </span>
                     </div>
-                    <span style={{ fontSize: '13px', color: '#6B7280' }}>{commit.description}</span>
+                    <span style={{
+                      fontSize: '13px',
+                      color: '#6B7280'
+                    }}>
+                      {commit.description}
+                    </span>
                     {isSelected && (
                       <div style={{
                         position: 'absolute',
@@ -540,101 +707,126 @@ function EditProjectScreen() {
             </div>
           </div>
 
-          {/* Location / School */}
-          <div style={{ marginBottom: '24px' }}>
-            <label style={{ display: 'block', fontSize: '14px', fontWeight: 600, color: '#111827', marginBottom: '8px' }}>
-              School / Location
-            </label>
-            <input
-              type="text"
-              value={formData.university}
-              onChange={(e) => updateField('university', e.target.value)}
-              placeholder="e.g. NYU, Columbia, NYC"
-              maxLength={60}
-              style={{
-                width: '100%',
-                padding: '12px 14px',
-                fontSize: '14px',
-                color: '#111827',
-                backgroundColor: '#FAFAFA',
-                border: '1.5px solid #E5E7EB',
-                borderRadius: '12px',
-                outline: 'none',
-                boxSizing: 'border-box',
-                fontFamily: 'inherit'
-              }}
-            />
-          </div>
-
           {/* Spots Available */}
-          <div style={{ marginBottom: '32px' }}>
-            <label style={{ display: 'block', fontSize: '14px', fontWeight: 600, color: '#111827', marginBottom: '8px' }}>
+          <div style={{ marginBottom: '28px' }}>
+            <label style={{
+              display: 'block',
+              fontSize: '14px',
+              fontWeight: 600,
+              color: '#111827',
+              marginBottom: '6px'
+            }}>
               Spots Available
             </label>
-            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-              {[1, 2, 3, 4, 5, 6].map(n => {
-                const isSelected = formData.spotsLeft === n
-                return (
-                  <button
-                    key={n}
-                    type="button"
-                    onClick={() => updateField('spotsLeft', n)}
-                    style={{
-                      width: '48px',
-                      height: '48px',
-                      fontSize: '16px',
-                      fontWeight: 700,
-                      borderRadius: '12px',
-                      border: `1.5px solid ${isSelected ? '#5B4AE6' : '#E5E7EB'}`,
-                      backgroundColor: isSelected ? 'rgba(91, 74, 230, 0.08)' : '#FAFAFA',
-                      color: isSelected ? '#5B4AE6' : '#374151',
-                      cursor: 'pointer',
-                      transition: 'all 0.15s ease'
-                    }}
-                  >
-                    {n}
-                  </button>
-                )
-              })}
+            <p style={{
+              margin: '0 0 12px 0',
+              fontSize: '13px',
+              color: '#6B7280'
+            }}>
+              How many people can still join?
+            </p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+              <button
+                type="button"
+                onClick={() => updateField('spotsLeft', Math.max(0, formData.spotsLeft - 1))}
+                style={{
+                  width: '40px',
+                  height: '40px',
+                  borderRadius: '10px',
+                  border: '1.5px solid #E5E7EB',
+                  backgroundColor: 'white',
+                  fontSize: '18px',
+                  fontWeight: 600,
+                  color: '#6B7280',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+              >
+                -
+              </button>
+              <span style={{
+                fontSize: '20px',
+                fontWeight: 700,
+                color: '#111827',
+                minWidth: '32px',
+                textAlign: 'center'
+              }}>
+                {formData.spotsLeft}
+              </span>
+              <button
+                type="button"
+                onClick={() => updateField('spotsLeft', Math.min(20, formData.spotsLeft + 1))}
+                style={{
+                  width: '40px',
+                  height: '40px',
+                  borderRadius: '10px',
+                  border: '1.5px solid #E5E7EB',
+                  backgroundColor: 'white',
+                  fontSize: '18px',
+                  fontWeight: 600,
+                  color: '#6B7280',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+              >
+                +
+              </button>
             </div>
           </div>
 
-          {/* Danger Zone - Delete */}
+          {/* Danger Zone */}
           <div style={{
-            borderTop: '1px solid #FEE2E2',
-            paddingTop: '24px'
+            marginTop: '40px',
+            padding: '20px',
+            borderRadius: '12px',
+            border: '1.5px solid #FEE2E2',
+            backgroundColor: '#FEF2F2'
           }}>
-            <p style={{ margin: '0 0 12px', fontSize: '13px', fontWeight: 600, color: '#EF4444' }}>
+            <h3 style={{
+              margin: '0 0 8px 0',
+              fontSize: '14px',
+              fontWeight: 600,
+              color: '#991B1B'
+            }}>
               Danger Zone
+            </h3>
+            <p style={{
+              margin: '0 0 16px 0',
+              fontSize: '13px',
+              color: '#6B7280'
+            }}>
+              Permanently delete this project and all associated data.
             </p>
             <button
+              type="button"
               onClick={() => setShowDeleteModal(true)}
               style={{
-                width: '100%',
-                padding: '14px',
-                backgroundColor: 'white',
-                color: '#EF4444',
+                padding: '10px 20px',
+                backgroundColor: '#EF4444',
+                color: 'white',
                 fontSize: '14px',
                 fontWeight: 600,
-                borderRadius: '12px',
-                border: '1.5px solid #FCA5A5',
+                borderRadius: '10px',
+                border: 'none',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'center',
                 gap: '8px'
               }}
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <polyline points="3 6 5 6 21 6"/>
-                <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
-                <path d="M10 11v6M14 11v6"/>
-                <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                <line x1="10" y1="11" x2="10" y2="17"/>
+                <line x1="14" y1="11" x2="14" y2="17"/>
               </svg>
               Delete Project
             </button>
           </div>
-
         </div>
       </div>
 
@@ -643,7 +835,7 @@ function EditProjectScreen() {
         <div style={{
           position: 'fixed',
           inset: 0,
-          backgroundColor: 'rgba(0,0,0,0.5)',
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -652,51 +844,60 @@ function EditProjectScreen() {
         }}>
           <div style={{
             backgroundColor: 'white',
-            borderRadius: '20px',
-            padding: '28px 24px',
-            maxWidth: '360px',
+            borderRadius: '16px',
+            padding: '28px',
+            maxWidth: '400px',
             width: '100%',
-            textAlign: 'center',
-            boxShadow: '0 20px 60px rgba(0,0,0,0.2)'
+            textAlign: 'center'
           }}>
             <div style={{
               width: '56px',
               height: '56px',
               borderRadius: '50%',
-              backgroundColor: '#FEF2F2',
+              backgroundColor: '#FEE2E2',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               margin: '0 auto 16px'
             }}>
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="2">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="2">
                 <polyline points="3 6 5 6 21 6"/>
-                <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
-                <path d="M10 11v6M14 11v6"/>
-                <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
               </svg>
             </div>
-            <h3 style={{ margin: '0 0 8px', fontSize: '18px', fontWeight: 700, color: '#111827' }}>
-              Delete this project?
+            <h3 style={{
+              margin: '0 0 8px 0',
+              fontSize: '18px',
+              fontWeight: 700,
+              color: '#111827'
+            }}>
+              Delete Project?
             </h3>
-            <p style={{ margin: '0 0 24px', fontSize: '14px', color: '#6B7280', lineHeight: 1.5 }}>
-              This will permanently remove <strong>{project.title}</strong> from Discover and My Projects. This cannot be undone.
+            <p style={{
+              margin: '0 0 24px 0',
+              fontSize: '14px',
+              color: '#6B7280',
+              lineHeight: 1.5
+            }}>
+              Are you sure you want to delete <strong>{project.title}</strong>? This action cannot be undone. All project data and team members will be removed.
             </p>
-            <div style={{ display: 'flex', gap: '12px' }}>
+            <div style={{
+              display: 'flex',
+              gap: '12px'
+            }}>
               <button
                 onClick={() => setShowDeleteModal(false)}
                 disabled={isDeleting}
                 style={{
                   flex: 1,
                   padding: '12px',
-                  backgroundColor: 'white',
+                  backgroundColor: '#F3F4F6',
                   color: '#374151',
                   fontSize: '14px',
                   fontWeight: 600,
-                  borderRadius: '12px',
-                  border: '1.5px solid #E5E7EB',
-                  cursor: isDeleting ? 'default' : 'pointer',
-                  opacity: isDeleting ? 0.5 : 1
+                  borderRadius: '10px',
+                  border: 'none',
+                  cursor: isDeleting ? 'default' : 'pointer'
                 }}
               >
                 Cancel
@@ -707,13 +908,14 @@ function EditProjectScreen() {
                 style={{
                   flex: 1,
                   padding: '12px',
-                  backgroundColor: isDeleting ? '#FCA5A5' : '#EF4444',
+                  backgroundColor: '#EF4444',
                   color: 'white',
                   fontSize: '14px',
                   fontWeight: 600,
-                  borderRadius: '12px',
+                  borderRadius: '10px',
                   border: 'none',
                   cursor: isDeleting ? 'default' : 'pointer',
+                  opacity: isDeleting ? 0.7 : 1,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -725,21 +927,28 @@ function EditProjectScreen() {
                     <div style={{
                       width: '14px',
                       height: '14px',
-                      border: '2px solid rgba(255,255,255,0.4)',
+                      border: '2px solid rgba(255,255,255,0.3)',
                       borderTopColor: 'white',
                       borderRadius: '50%',
                       animation: 'spin 0.6s linear infinite'
                     }} />
-                    Deleting
+                    Deleting...
                   </>
-                ) : 'Yes, Delete'}
+                ) : (
+                  'Delete'
+                )}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      {/* CSS for spinner animation */}
+      <style>{`
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   )
 }
