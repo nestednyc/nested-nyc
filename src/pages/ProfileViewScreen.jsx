@@ -270,6 +270,7 @@ function ProfileViewScreen() {
                 bio: data.bio || '',
                 lookingFor: data.looking_for || [],
                 skills: data.skills || [],
+                techStack: data.tech_stack || [],
                 projects: data.projects || [],
                 avatar: data.avatar || '',
                 links: data.links || { github: '', portfolio: '', linkedin: '', discord: '' }
@@ -299,6 +300,7 @@ function ProfileViewScreen() {
                 bio: data.bio || '',
                 lookingFor: data.looking_for || [],
                 skills: data.skills || [],
+                techStack: data.tech_stack || [],
                 projects: data.projects || [],
                 avatar: data.avatar || '',
                 links: data.links || { github: '', portfolio: '', linkedin: '', discord: '' }
@@ -667,6 +669,27 @@ function ProfileViewScreen() {
                       padding: '4px 8px', fontSize: '11px', fontWeight: 500, borderRadius: '10px',
                       backgroundColor: '#F3F4F6', color: '#374151'
                     }}>{s}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Tech Stack */}
+            {profile.techStack && profile.techStack.length > 0 && (
+              <div style={{
+                backgroundColor: 'white',
+                borderRadius: '12px',
+                padding: '14px',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+                border: '1px solid #E5E7EB'
+              }}>
+                <h3 style={{ margin: '0 0 10px 0', fontSize: '12px', fontWeight: 600, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Tech Stack</h3>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
+                  {profile.techStack.map(t => (
+                    <span key={t} style={{
+                      padding: '4px 8px', fontSize: '11px', fontWeight: 500, borderRadius: '10px',
+                      backgroundColor: '#EEF2FF', color: '#4338CA'
+                    }}>{t}</span>
                   ))}
                 </div>
               </div>

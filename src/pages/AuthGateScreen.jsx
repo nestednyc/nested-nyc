@@ -228,9 +228,14 @@ const NYC_UNIVERSITIES = [
 ]
 
 const FIELDS = ['Engineering', 'Design', 'Product', 'Data Science', 'Business', 'Marketing', 'Research', 'Arts & Media']
+// Skills = roles/disciplines (what you do). Tech tools live in the profile editor.
 const SKILLS = [
-  'React', 'Python', 'JavaScript', 'TypeScript', 'Node.js', 'Backend', 'Frontend',
-  'Full Stack', 'UI/UX', 'Figma', 'Product', 'Data', 'ML/AI', 'Mobile', 'Marketing'
+  'Frontend', 'Backend', 'Full Stack', 'Mobile', 'DevOps',
+  'UI/UX', 'Product Design', 'Graphic Design',
+  'Product', 'Project Mgmt', 'Strategy',
+  'Data', 'Data Analysis', 'ML/AI', 'Research',
+  'Marketing', 'Growth', 'Content', 'Sales', 'BD',
+  'Writing', 'Video', 'Photography'
 ]
 const LOOKING_FOR = [
   { id: 'join', label: 'Join a project' },

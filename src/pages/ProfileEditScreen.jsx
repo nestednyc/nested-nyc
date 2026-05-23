@@ -24,15 +24,19 @@ const LOOKING_FOR = [
   { id: 'join', label: 'Join a project' },
   { id: 'cofounder', label: 'Co-founder' },
 ]
+// Skills = roles/disciplines (what you do). Tech Stack = tools/frameworks (what you use).
 const SKILLS = [
-  'React', 'Python', 'JavaScript', 'TypeScript', 'Node.js', 'Backend', 'Frontend',
-  'Full Stack', 'UI/UX', 'Figma', 'Product', 'Data', 'ML/AI', 'Mobile', 'Marketing'
+  'Frontend', 'Backend', 'Full Stack', 'Mobile', 'DevOps',
+  'UI/UX', 'Product Design', 'Graphic Design',
+  'Product', 'Project Mgmt', 'Strategy',
+  'Data', 'Data Analysis', 'ML/AI', 'Research',
+  'Marketing', 'Growth', 'Content', 'Sales', 'BD',
+  'Writing', 'Video', 'Photography'
 ]
 const TECH_STACK_OPTIONS = [
   'React', 'JavaScript', 'TypeScript', 'Python', 'Node.js', 'Next.js', 'Vue', 'Swift',
   'Kotlin', 'Go', 'Rust', 'Figma', 'Supabase', 'Vercel', 'GitHub', 'VS Code',
-  'Docker', 'AWS', 'Firebase', 'PostgreSQL', 'MongoDB', 'UI/UX', 'Data', 'AI/ML',
-  'Mobile', 'Web3'
+  'Docker', 'AWS', 'Firebase', 'PostgreSQL', 'MongoDB', 'Web3'
 ]
 const ROLES = ['Frontend', 'Backend', 'Full Stack', 'Designer', 'PM', 'Data', 'Marketing', 'Other']
 
