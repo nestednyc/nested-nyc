@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
-import { getProjectByIdAsync, DEMO_CURRENT_USER_ID } from '../utils/projectData'
+import { getProjectByIdAsync } from '../utils/projectData'
 import { projectService } from '../services/projectService'
 import { getInitialsAvatar } from '../utils/avatarUtils'
 
@@ -200,7 +200,7 @@ function ProfileDetailScreen() {
   }
 
   // Check if current user is the project owner
-  const isOwner = project?.isOwner || project?.ownerId === DEMO_CURRENT_USER_ID
+  const isOwner = !!project?.isOwner
 
   // Project not found state
   if (!project) {
@@ -1038,16 +1038,32 @@ function ProfileDetailScreen() {
       {/* Scrollable Content */}
       <div style={{ flex: 1, overflowY: 'auto', paddingBottom: '100px' }}>
         {/* Hero Image Section */}
-        <div style={{ position: 'relative', height: '280px', flexShrink: 0 }}>
-          <img 
-            src={project.image}
-            alt={project.title}
-            style={{
+        <div style={{ position: 'relative', height: '280px', flexShrink: 0, backgroundColor: '#5B4AE6' }}>
+          {project.image ? (
+            <img
+              src={project.image}
+              alt={project.title}
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover'
+              }}
+            />
+          ) : (
+            <div style={{
               width: '100%',
               height: '100%',
-              objectFit: 'cover'
-            }}
-          />
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'white',
+              fontSize: '64px',
+              fontWeight: 700,
+              opacity: 0.5
+            }}>
+              {(project.title || '?').charAt(0).toUpperCase()}
+            </div>
+          )}
           
           {/* Back Button */}
           <button 
@@ -1160,7 +1176,7 @@ function ProfileDetailScreen() {
           {/* Schools + Spots Row */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-              {project.schools.map((school, idx) => (
+              {(project.schools || []).map((school, idx) => (
                 <span 
                   key={idx}
                   style={{

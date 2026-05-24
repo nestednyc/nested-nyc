@@ -197,7 +197,7 @@ function ProfileDropdown({ navigate }) {
   }
 
   const menuItems = [
-    { label: 'Profile', onClick: () => { navigate('/profile/current-user'); setIsOpen(false) } },
+    { label: 'Profile', onClick: () => { navigate('/profile/me'); setIsOpen(false) } },
     { label: 'Edit Profile', onClick: () => { navigate('/profile/edit'); setIsOpen(false) } },
     { label: 'Log out', onClick: handleLogout, isDanger: true },
     { label: 'Delete Account', onClick: handleDeleteAccount, isDanger: true },

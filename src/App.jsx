@@ -148,7 +148,7 @@ function AppContent() {
       {/* Filters route - redirects to discover for MVP (feature hidden) */}
       <Route path="/filters" element={<Navigate to="/discover" replace />} />
       {/* /my-profile redirects to the public profile view */}
-      <Route path="/my-profile" element={<Navigate to="/profile/current-user" replace />} />
+      <Route path="/my-profile" element={<Navigate to="/profile/me" replace />} />
       
       <Route path="/create-project" element={
         isDesktop

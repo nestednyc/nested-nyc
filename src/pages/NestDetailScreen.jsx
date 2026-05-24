@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { getNestById, DEMO_CURRENT_USER_ID } from '../utils/nestData'
+import { getNestByIdAsync } from '../utils/nestData'
 
 /**
  * NestDetailScreen - Nest/Community Detail View
@@ -26,17 +26,29 @@ function NestDetailScreen() {
     return () => window.removeEventListener('resize', check)
   }, [])
   
-  // Load nest by ID
+  // Load nest by ID (Supabase-aware)
   useEffect(() => {
-    if (nestId) {
-      const foundNest = getNestById(nestId)
-      setNest(foundNest)
+    let cancelled = false
+    async function load() {
+      if (!nestId) {
+        setLoading(false)
+        return
+      }
+      try {
+        const foundNest = await getNestByIdAsync(nestId)
+        if (!cancelled) setNest(foundNest)
+      } catch (err) {
+        console.error('Error loading nest:', err)
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
     }
-    setLoading(false)
+    load()
+    return () => { cancelled = true }
   }, [nestId])
 
   // Check if current user is the nest owner
-  const isOwner = nest?.isOwner || nest?.ownerId === DEMO_CURRENT_USER_ID
+  const isOwner = !!nest?.isOwner
 
   // Loading state
   if (loading) {

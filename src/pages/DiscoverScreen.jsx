@@ -2,8 +2,9 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import BottomNav from '../components/BottomNav'
 import { getDiscoverProjects, getDiscoverProjectsAsync, getCurrentUserId } from '../utils/projectData'
-import { getDiscoverNests, getDiscoverNestsAsync, DEMO_CURRENT_USER_ID } from '../utils/nestData'
+import { getDiscoverNests, getDiscoverNestsAsync } from '../utils/nestData'
 import { SHOW_NESTS, SHOW_FILTERS } from '../config/features'
+import { getInitialsAvatar } from '../utils/avatarUtils'
 
 /**
  * DiscoverScreen - Projects Feed
@@ -32,23 +33,15 @@ function getProjectIcon(category) {
   return CATEGORY_ICONS[category] || CATEGORY_ICONS.default
 }
 
-// Placeholder team members for projects without team data
-const PLACEHOLDER_MEMBERS = [
-  { name: 'Alex', image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop' },
-  { name: 'Sarah', image: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop' },
-  { name: 'Jordan', image: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100&h=100&fit=crop' },
-  { name: 'Maya', image: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100&h=100&fit=crop' },
-]
-
 // Get up to 4 members for facepile with names
 function getProjectMembers(project) {
   if (project.team && project.team.length > 0) {
     return project.team.slice(0, 4).map(member => ({
-      name: member.name.split(' ')[0],
+      name: member.name?.split(' ')[0] || 'Member',
       image: member.image
     }))
   }
-  return PLACEHOLDER_MEMBERS.slice(0, 3)
+  return []
 }
 
 // Generate "Joined by..." text
@@ -330,42 +323,44 @@ function DiscoverScreen() {
                     {/* Left: Facepile + Spots */}
                     <div>
                       {/* Facepile + Joined text */}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center' }}>
-                          {members.map((member, idx) => (
-                            <div
-                              key={idx}
-                              style={{
-                                width: '26px',
-                                height: '26px',
-                                borderRadius: '50%',
-                                border: '2px solid white',
-                                backgroundColor: '#E5E7EB',
-                                marginLeft: idx > 0 ? '-8px' : 0,
-                                overflow: 'hidden',
-                                position: 'relative',
-                                zIndex: 4 - idx
-                              }}
-                            >
-                              <img
-                                src={member.image}
-                                alt={member.name}
+                      {members.length > 0 && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center' }}>
+                            {members.map((member, idx) => (
+                              <div
+                                key={idx}
                                 style={{
-                                  width: '100%',
-                                  height: '100%',
-                                  objectFit: 'cover'
+                                  width: '26px',
+                                  height: '26px',
+                                  borderRadius: '50%',
+                                  border: '2px solid white',
+                                  backgroundColor: '#E5E7EB',
+                                  marginLeft: idx > 0 ? '-8px' : 0,
+                                  overflow: 'hidden',
+                                  position: 'relative',
+                                  zIndex: 4 - idx
                                 }}
-                              />
-                            </div>
-                          ))}
+                              >
+                                <img
+                                  src={member.image || getInitialsAvatar(member.name)}
+                                  alt={member.name}
+                                  style={{
+                                    width: '100%',
+                                    height: '100%',
+                                    objectFit: 'cover'
+                                  }}
+                                />
+                              </div>
+                            ))}
+                          </div>
+                          <span style={{
+                            fontSize: '12px',
+                            color: '#6B7280'
+                          }}>
+                            {getJoinedByText(members)}
+                          </span>
                         </div>
-                        <span style={{
-                          fontSize: '12px',
-                          color: '#6B7280'
-                        }}>
-                          {getJoinedByText(members)}
-                        </span>
-                      </div>
+                      )}
 
                       {/* Spots open */}
                       {project.spotsLeft !== undefined && project.spotsLeft > 0 && (

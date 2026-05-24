@@ -38,7 +38,7 @@ function BottomNav() {
     { id: 'discover', path: '/discover', icon: CardsIcon, label: 'Discover projects' },
     { id: 'my-projects', path: '/matches', icon: HeartIcon, label: 'My Projects' },
     // { id: 'messages', path: '/messages', icon: ChatIcon, label: 'Messages' }, // Hidden for MVP
-    { id: 'profile', path: '/profile/current-user', icon: PersonIcon, label: 'Your Profile' },
+    { id: 'profile', path: '/profile/me', icon: PersonIcon, label: 'Your Profile' },
   ]
   
   const isActive = (path) => location.pathname === path

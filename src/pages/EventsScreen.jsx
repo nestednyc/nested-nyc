@@ -54,20 +54,6 @@ function getEventIconBg(tags) {
   return EVENT_ICON_BG.default
 }
 
-// Placeholder attendee avatars
-const ATTENDEE_AVATARS = [
-  'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop',
-  'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop',
-  'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100&h=100&fit=crop',
-  'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100&h=100&fit=crop',
-]
-
-// Get attendee avatars for facepile (use placeholder for demo)
-function getAttendeeAvatars(count) {
-  const numAvatars = Math.min(count, 4)
-  return ATTENDEE_AVATARS.slice(0, Math.max(numAvatars, 3))
-}
-
 function EventsScreen() {
   const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState('upcoming')
@@ -346,40 +332,10 @@ function EventsScreen() {
                       justifyContent: 'space-between',
                       gap: '12px',
                     }}>
-                      {/* Facepile + Attending Text */}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center' }}>
-                          {getAttendeeAvatars(event.attendees).map((avatar, idx) => (
-                            <div
-                              key={idx}
-                              style={{
-                                width: '28px',
-                                height: '28px',
-                                borderRadius: '50%',
-                                border: '2px solid white',
-                                backgroundColor: '#E5E7EB',
-                                marginLeft: idx > 0 ? '-8px' : 0,
-                                overflow: 'hidden',
-                                position: 'relative',
-                                zIndex: 4 - idx,
-                              }}
-                            >
-                              <img
-                                src={avatar}
-                                alt=""
-                                style={{
-                                  width: '100%',
-                                  height: '100%',
-                                  objectFit: 'cover',
-                                }}
-                              />
-                            </div>
-                          ))}
-                        </div>
-                        <span style={{ fontSize: '12px', color: '#6B7280' }}>
-                          {event.attendees} attending
-                        </span>
-                      </div>
+                      {/* Attending Text */}
+                      <span style={{ fontSize: '12px', color: '#6B7280' }}>
+                        {event.attendees} attending
+                      </span>
 
                       {/* RSVP Button */}
                       <button
@@ -420,42 +376,10 @@ function EventsScreen() {
                       justifyContent: 'space-between',
                       gap: '12px',
                     }}>
-                      {/* Facepile + Attended Text */}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center' }}>
-                          {getAttendeeAvatars(event.attendees).map((avatar, idx) => (
-                            <div
-                              key={idx}
-                              style={{
-                                width: '28px',
-                                height: '28px',
-                                borderRadius: '50%',
-                                border: '2px solid white',
-                                backgroundColor: '#E5E7EB',
-                                marginLeft: idx > 0 ? '-8px' : 0,
-                                overflow: 'hidden',
-                                position: 'relative',
-                                zIndex: 4 - idx,
-                                filter: 'grayscale(30%)',
-                                opacity: 0.8,
-                              }}
-                            >
-                              <img
-                                src={avatar}
-                                alt=""
-                                style={{
-                                  width: '100%',
-                                  height: '100%',
-                                  objectFit: 'cover',
-                                }}
-                              />
-                            </div>
-                          ))}
-                        </div>
-                        <span style={{ fontSize: '12px', color: '#9CA3AF' }}>
-                          {event.attendees} attended
-                        </span>
-                      </div>
+                      {/* Attended Text */}
+                      <span style={{ fontSize: '12px', color: '#9CA3AF' }}>
+                        {event.attendees} attended
+                      </span>
 
                       {/* Ended Badge */}
                       <div

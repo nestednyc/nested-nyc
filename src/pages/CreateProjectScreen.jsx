@@ -201,12 +201,12 @@ function CreateProjectScreen() {
       }
     }
 
-    // Create project object
+    // Create project object — authorImage left blank; transformUserProject() generates initials avatar
     const projectData = {
       ...formData,
       author: 'You',
-      authorImage: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop',
-      image: getProjectImage(formData.category),
+      authorImage: null,
+      image: null,
       iconImage: iconImageUrl,
       team: [],
       spotsLeft: formData.roles.length,
@@ -729,17 +729,6 @@ function CreateProjectScreen() {
       </div>
     </div>
   )
-}
-
-// Helper function to get a project image based on category
-function getProjectImage(category) {
-  const images = {
-    'startup': 'https://images.unsplash.com/photo-1552664730-d307ca884978?w=600&h=800&fit=crop',
-    'class-project': 'https://images.unsplash.com/photo-1517048676732-d65bc937f952?w=600&h=800&fit=crop',
-    'side-project': 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=600&h=800&fit=crop',
-    'research': 'https://images.unsplash.com/photo-1620712943543-bcc4688e7485?w=600&h=800&fit=crop',
-  }
-  return images[category] || images['side-project']
 }
 
 export default CreateProjectScreen

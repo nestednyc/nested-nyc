@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { getProjectByIdAsync, updateProjectAsync, deleteProjectAsync, getCurrentUserId, DEMO_CURRENT_USER_ID } from '../utils/projectData'
+import { getProjectByIdAsync, updateProjectAsync, deleteProjectAsync, getCurrentUserId } from '../utils/projectData'
 
 /**
  * EditProjectScreen - Edit project details
@@ -107,8 +107,7 @@ function EditProjectScreen() {
         // Check ownership
         const currentUserId = await getCurrentUserId()
         const isOwner = foundProject.isOwner ||
-          foundProject.ownerId === currentUserId ||
-          foundProject.ownerId === DEMO_CURRENT_USER_ID
+          foundProject.ownerId === currentUserId
 
         if (!isOwner) {
           setError('unauthorized')

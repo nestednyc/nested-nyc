@@ -41,7 +41,6 @@ const TECH_STACK_OPTIONS = [
 const ROLES = ['Frontend', 'Backend', 'Full Stack', 'Designer', 'PM', 'Data', 'Marketing', 'Other']
 
 const STORAGE_KEY = 'nested_user_profile'
-const USER_ID = 'current-user' // For demo, use a static ID
 
 function ProfileEditScreen() {
   const navigate = useNavigate()
@@ -323,8 +322,7 @@ function ProfileEditScreen() {
     }
 
     setSaveSuccess(true)
-    // Navigate after save - always use 'current-user' for own profile view
-    setTimeout(() => navigate('/profile/current-user'), 600)
+    setTimeout(() => navigate('/profile/me'), 600)
   }
 
   const filteredUnis = uniQuery

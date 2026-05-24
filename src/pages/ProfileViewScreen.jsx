@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { getMyProjects, getMyProjectsAsync, DEMO_CURRENT_USER_ID } from '../utils/projectData'
+import { getMyProjects, getMyProjectsAsync } from '../utils/projectData'
 import { supabase, isSupabaseConfigured } from '../lib/supabase'
 import { profileService } from '../services/profileService'
 import { getInitialsAvatar } from '../utils/avatarUtils'
@@ -13,7 +13,6 @@ import { getInitialsAvatar } from '../utils/avatarUtils'
  */
 
 const STORAGE_KEY = 'nested_user_profile'
-const CURRENT_USER_ID = 'current-user' // For demo
 
 const LOOKING_FOR_LABELS = {
   join: { label: 'Join a project', icon: '🤝' },
@@ -23,199 +22,14 @@ const LOOKING_FOR_LABELS = {
 // Max projects to display on public profile
 const MAX_VISIBLE_PROJECTS = 3
 
-// Mock profiles for other users (pending request users, team members, etc.)
-const MOCK_USER_PROFILES = {
-  // Pending request users
-  'req-1': {
-    firstName: 'Jordan',
-    lastName: 'Lee',
-    university: 'NYU Tandon',
-    bio: 'Full-stack developer passionate about building products that make a difference. Currently exploring AI/ML applications.',
-    fields: ['Engineering', 'Product'],
-    lookingFor: ['join'],
-    skills: ['React', 'Python', 'Node.js', 'TypeScript', 'ML/AI'],
-    projects: [],
-    links: { github: 'github.com/jordanlee', linkedin: 'linkedin.com/in/jordanlee' },
-    avatar: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=100&h=100&fit=crop'
-  },
-  'req-2': {
-    firstName: 'Samantha',
-    lastName: 'Wright',
-    university: 'Columbia Engineering',
-    bio: 'UI/UX designer with a background in human-computer interaction. I love creating intuitive and beautiful interfaces.',
-    fields: ['Design', 'Product'],
-    lookingFor: ['join', 'cofounder'],
-    skills: ['Figma', 'UI/UX', 'Frontend', 'React', 'Prototyping'],
-    projects: [],
-    links: { portfolio: 'samanthawright.design', linkedin: 'linkedin.com/in/samwright' },
-    avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop'
-  },
-  'req-3': {
-    firstName: 'Alex',
-    lastName: 'Chen',
-    university: 'Parsons',
-    bio: 'Product manager with startup experience. I bridge the gap between design, engineering, and business.',
-    fields: ['Product', 'Business'],
-    lookingFor: ['cofounder'],
-    skills: ['Product', 'Strategy', 'Research', 'Data', 'Marketing'],
-    projects: [],
-    links: { linkedin: 'linkedin.com/in/alexchen' },
-    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop'
-  },
-  // Mock team members from DEFAULT_PROJECTS
-  'mock-marcus': {
-    firstName: 'Marcus',
-    lastName: 'Chen',
-    university: 'NYU',
-    bio: 'Backend engineer focused on sustainability tech. Building tools to help students understand their environmental impact.',
-    fields: ['Engineering', 'Sustainability'],
-    lookingFor: ['join'],
-    skills: ['Python', 'Node.js', 'React', 'D3.js', 'Data Viz'],
-    projects: [],
-    links: { github: 'github.com/marcuschen', linkedin: 'linkedin.com/in/marcuschen' },
-    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop'
-  },
-  'mock-sofia': {
-    firstName: 'Sofia',
-    lastName: 'Rodriguez',
-    university: 'Columbia',
-    bio: 'Data scientist passionate about using analytics to drive positive change. Love working on climate and sustainability projects.',
-    fields: ['Data Science', 'Engineering'],
-    lookingFor: ['join'],
-    skills: ['Python', 'R', 'SQL', 'Machine Learning', 'Data Viz'],
-    projects: [],
-    links: { github: 'github.com/sofiarodriguez', linkedin: 'linkedin.com/in/sofiarodriguez' },
-    avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop'
-  },
-  'mock-priya': {
-    firstName: 'Priya',
-    lastName: 'Sharma',
-    university: 'Columbia',
-    bio: 'ML engineer building AI-powered education tools. Passionate about making learning more accessible and effective.',
-    fields: ['Engineering', 'ML/AI'],
-    lookingFor: ['cofounder'],
-    skills: ['Python', 'TensorFlow', 'PyTorch', 'NLP', 'React Native'],
-    projects: [],
-    links: { github: 'github.com/priyasharma', linkedin: 'linkedin.com/in/priyasharma' },
-    avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop'
-  },
-  'mock-david': {
-    firstName: 'David',
-    lastName: 'Kim',
-    university: 'Columbia',
-    bio: 'Backend developer with experience in scalable systems. Love building APIs and infrastructure.',
-    fields: ['Engineering'],
-    lookingFor: ['join'],
-    skills: ['Node.js', 'Python', 'PostgreSQL', 'AWS', 'Docker'],
-    projects: [],
-    links: { github: 'github.com/davidkim', linkedin: 'linkedin.com/in/davidkim' },
-    avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100&h=100&fit=crop'
-  },
-  'mock-emma': {
-    firstName: 'Emma',
-    lastName: 'Wilson',
-    university: 'Columbia',
-    bio: 'Product designer creating delightful user experiences. Background in cognitive science and HCI.',
-    fields: ['Design', 'Product'],
-    lookingFor: ['join'],
-    skills: ['Figma', 'UI/UX', 'User Research', 'Prototyping', 'Design Systems'],
-    projects: [],
-    links: { portfolio: 'emmawilson.design', linkedin: 'linkedin.com/in/emmawilson' },
-    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&h=100&fit=crop'
-  },
-  'mock-jake': {
-    firstName: 'Jake',
-    lastName: 'Morrison',
-    university: 'NYU',
-    bio: 'Mobile developer building apps that make city life easier. Passionate about civic tech and urban mobility.',
-    fields: ['Engineering', 'Product'],
-    lookingFor: ['cofounder'],
-    skills: ['React Native', 'Swift', 'Kotlin', 'Node.js', 'APIs'],
-    projects: [],
-    links: { github: 'github.com/jakemorrison', linkedin: 'linkedin.com/in/jakemorrison' },
-    avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100&h=100&fit=crop'
-  },
-  'mock-lily': {
-    firstName: 'Lily',
-    lastName: 'Chen',
-    university: 'Parsons',
-    bio: 'Visual designer with a focus on mobile experiences. Love creating clean, intuitive interfaces.',
-    fields: ['Design'],
-    lookingFor: ['join'],
-    skills: ['Figma', 'Sketch', 'Illustration', 'UI Design', 'Motion Design'],
-    projects: [],
-    links: { portfolio: 'lilychen.design', linkedin: 'linkedin.com/in/lilychen' },
-    avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100&h=100&fit=crop'
-  },
-  'mock-aisha': {
-    firstName: 'Aisha',
-    lastName: 'Patel',
-    university: 'Parsons',
-    bio: 'Design lead passionate about community building. Creating platforms that bring students together.',
-    fields: ['Design', 'Product'],
-    lookingFor: ['cofounder'],
-    skills: ['UI/UX', 'Figma', 'Branding', 'User Research', 'Frontend'],
-    projects: [],
-    links: { portfolio: 'aishapatel.design', linkedin: 'linkedin.com/in/aishapatel' },
-    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&h=100&fit=crop'
-  },
-  'mock-tom': {
-    firstName: 'Tom',
-    lastName: 'Richards',
-    university: 'The New School',
-    bio: 'Frontend developer who loves bringing designs to life. Focused on performance and accessibility.',
-    fields: ['Engineering'],
-    lookingFor: ['join'],
-    skills: ['React', 'TypeScript', 'CSS', 'Accessibility', 'Performance'],
-    projects: [],
-    links: { github: 'github.com/tomrichards', linkedin: 'linkedin.com/in/tomrichards' },
-    avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop'
-  },
-  'mock-nina': {
-    firstName: 'Nina',
-    lastName: 'Santos',
-    university: 'Parsons',
-    bio: 'Marketing specialist helping startups find their audience. Experience in social media and growth.',
-    fields: ['Marketing', 'Business'],
-    lookingFor: ['join'],
-    skills: ['Social Media', 'Content Strategy', 'Analytics', 'Copywriting', 'Growth'],
-    projects: [],
-    links: { linkedin: 'linkedin.com/in/ninasantos' },
-    avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=100&h=100&fit=crop'
-  },
-  'mock-alex-j': {
-    firstName: 'Alex',
-    lastName: 'Johnson',
-    university: 'Stern',
-    bio: 'Business student passionate about startups and fundraising. Helping founders tell their stories.',
-    fields: ['Business', 'Product'],
-    lookingFor: ['cofounder'],
-    skills: ['Strategy', 'Fundraising', 'Pitch Decks', 'Financial Modeling', 'Storytelling'],
-    projects: [],
-    links: { linkedin: 'linkedin.com/in/alexjohnson' },
-    avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop'
-  },
-  'mock-maya': {
-    firstName: 'Maya',
-    lastName: 'Thompson',
-    university: 'Tisch',
-    bio: 'Audio engineer and musician building tools for remote music collaboration. Love connecting artists.',
-    fields: ['Creative', 'Engineering'],
-    lookingFor: ['cofounder'],
-    skills: ['Audio Engineering', 'Music Production', 'React', 'WebRTC', 'UI/UX'],
-    projects: [],
-    links: { portfolio: 'mayathompson.music', linkedin: 'linkedin.com/in/mayathompson' },
-    avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=100&h=100&fit=crop'
-  }
-}
-
 function ProfileViewScreen() {
   const navigate = useNavigate()
   const { userId } = useParams()
   const [profile, setProfile] = useState(null)
   const [nestedProjects, setNestedProjects] = useState([])
   const [loading, setLoading] = useState(true)
-  const [isOwner, setIsOwner] = useState(userId === CURRENT_USER_ID || userId === 'me')
+  // null while auth resolves — UI gates "Connect" button on explicit `false`
+  const [isOwner, setIsOwner] = useState(userId === 'me' ? true : null)
   const [isWideScreen, setIsWideScreen] = useState(window.innerWidth >= 768)
 
   useEffect(() => {
@@ -241,8 +55,8 @@ function ProfileViewScreen() {
         }
       }
 
-      // Check if viewing current user (by alias OR by actual Supabase user ID)
-      const isViewingOwnProfile = userId === CURRENT_USER_ID || userId === 'me' || (authUserId && userId === authUserId)
+      // Check if viewing current user (by 'me' alias OR by actual Supabase user ID)
+      const isViewingOwnProfile = userId === 'me' || (authUserId && userId === authUserId)
       setIsOwner(isViewingOwnProfile)
 
       // Check if viewing current user or another user
@@ -315,13 +129,7 @@ function ProfileViewScreen() {
             console.error('Failed to fetch other user profile from Supabase:', err)
           }
         }
-
-        // Fall back to mock data only if Supabase fetch failed or not configured
-        const mockProfile = MOCK_USER_PROFILES[userId]
-        if (mockProfile) {
-          setProfile(mockProfile)
-          setNestedProjects([])
-        }
+        // No profile found — leave profile null so the "Profile not found" empty state renders
       }
 
       setLoading(false)
@@ -339,8 +147,8 @@ function ProfileViewScreen() {
 
       // Prioritize: Owner projects first, then by joined status (active), then most recent
       const prioritized = allProjects.sort((a, b) => {
-        const aIsOwner = a.isOwner || a.ownerId === DEMO_CURRENT_USER_ID ? 1 : 0
-        const bIsOwner = b.isOwner || b.ownerId === DEMO_CURRENT_USER_ID ? 1 : 0
+        const aIsOwner = a.isOwner ? 1 : 0
+        const bIsOwner = b.isOwner ? 1 : 0
         if (bIsOwner !== aIsOwner) return bIsOwner - aIsOwner
 
         const aJoined = a.joined ? 1 : 0
@@ -537,7 +345,7 @@ function ProfileViewScreen() {
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                   {visibleProjects.map((proj, idx) => {
-                    const projectIsOwner = proj.isOwner || proj.ownerId === DEMO_CURRENT_USER_ID
+                    const projectIsOwner = !!proj.isOwner
                     return (
                       <div 
                         key={proj.id || idx} 
@@ -749,8 +557,8 @@ function ProfileViewScreen() {
               </div>
             )}
 
-            {/* Connect CTA (for non-owners) */}
-            {!isOwner && (
+            {/* Connect CTA (for non-owners) — only render once auth resolved */}
+            {isOwner === false && (
               <button style={{
                 width: '100%', padding: '12px', fontSize: '14px', fontWeight: 600,
                 backgroundColor: '#5B4AE6', color: 'white', border: 'none', borderRadius: '10px', cursor: 'pointer'

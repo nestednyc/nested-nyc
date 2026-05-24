@@ -371,7 +371,7 @@ function MatchesScreen() {
           ))}
         </div>
 
-        {/* Saved Section */}
+        {/* Saved Section — only renders when there are saved projects */}
         {savedProjects.length > 0 && (
           <div style={{ marginTop: '32px' }}>
             <p style={{ margin: 0, marginBottom: '16px', fontSize: '14px', color: '#6B7280', fontWeight: 600 }}>
@@ -412,7 +412,6 @@ function MatchesScreen() {
                 >
                   {/* Top Row: Icon + Title */}
                   <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
-                    {/* Project Icon */}
                     <div
                       style={{
                         width: '48px',
@@ -432,7 +431,6 @@ function MatchesScreen() {
                       </svg>
                     </div>
 
-                    {/* Title + Description */}
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <p style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: '#111827', lineHeight: 1.3 }}>
                         {project.title}
@@ -455,9 +453,7 @@ function MatchesScreen() {
                     </div>
                   </div>
 
-                  {/* Tags Row */}
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '4px' }}>
-                    {/* School Tag */}
                     {project.school && (
                       <span
                         style={{
@@ -472,8 +468,6 @@ function MatchesScreen() {
                         {project.school}
                       </span>
                     )}
-
-                    {/* Status Tag - Saved */}
                     <span
                       style={{
                         fontSize: '11px',
@@ -488,10 +482,8 @@ function MatchesScreen() {
                     </span>
                   </div>
 
-                  {/* Spacer to push button to bottom */}
                   <div style={{ flex: 1 }} />
 
-                  {/* Open Button - Bottom Right */}
                   <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '8px' }}>
                     <button
                       onClick={(e) => {
