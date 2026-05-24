@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
-import { getProjectByIdAsync } from '../utils/projectData'
+import { getProjectByIdAsync, isProjectSavedAsync, saveProjectAsync, unsaveProjectAsync } from '../utils/projectData'
 import { projectService } from '../services/projectService'
 import { getInitialsAvatar } from '../utils/avatarUtils'
 
@@ -18,6 +18,7 @@ function ProfileDetailScreen() {
   const location = useLocation()
   const [isDesktop, setIsDesktop] = useState(false)
   const [isSaved, setIsSaved] = useState(false)
+  const [saveLoading, setSaveLoading] = useState(false)
   const [isRequested, setIsRequested] = useState(false)
   const [project, setProject] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -42,6 +43,22 @@ function ProfileDetailScreen() {
     // Refresh project to get updated team list
     const foundProject = await getProjectByIdAsync(projectId)
     setProject(foundProject)
+  }
+
+  // Toggle save/unsave with optimistic update
+  const handleToggleSave = async () => {
+    if (saveLoading || !project?.isSupabaseProject) return
+    const next = !isSaved
+    setIsSaved(next)
+    setSaveLoading(true)
+    const { error } = next
+      ? await saveProjectAsync(projectId)
+      : await unsaveProjectAsync(projectId)
+    if (error) {
+      console.error('Failed to toggle save:', error)
+      setIsSaved(!next) // revert on failure
+    }
+    setSaveLoading(false)
   }
 
   // Handle decline request - reject/delete the join request
@@ -73,6 +90,9 @@ function ProfileDetailScreen() {
 
         // Check if user has already joined (only for Supabase projects)
         if (foundProject?.isSupabaseProject) {
+          // Seed saved state in parallel with join check
+          isProjectSavedAsync(projectId).then(setIsSaved).catch(() => {})
+
           const { joined, status } = await projectService.hasJoinedProject(projectId)
           setMembershipStatus(status)
           if (joined && status === 'approved') {
@@ -865,12 +885,14 @@ function ProfileDetailScreen() {
                   )}
 
                   {/* Secondary Button */}
-                  <button 
+                  <button
                     className={`save-btn-desktop ${isSaved ? 'saved' : ''}`}
-                    onClick={() => setIsSaved(!isSaved)}
+                    onClick={handleToggleSave}
+                    disabled={saveLoading}
                     style={{
                       width: '100%',
-                      marginBottom: '24px'
+                      marginBottom: '24px',
+                      opacity: saveLoading ? 0.7 : 1
                     }}
                   >
                     <svg width="18" height="18" viewBox="0 0 24 24" fill={isSaved ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2">
@@ -1560,8 +1582,10 @@ function ProfileDetailScreen() {
           /* Non-Owner Actions - Mobile */
           <>
             {/* Save Button */}
-            <button 
-              onClick={() => setIsSaved(!isSaved)}
+            <button
+              onClick={handleToggleSave}
+              disabled={saveLoading}
+              aria-label={isSaved ? 'Unsave project' : 'Save project'}
               style={{
                 width: '52px',
                 height: '52px',
@@ -1571,7 +1595,8 @@ function ProfileDetailScreen() {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                cursor: 'pointer',
+                cursor: saveLoading ? 'default' : 'pointer',
+                opacity: saveLoading ? 0.7 : 1,
                 flexShrink: 0
               }}
             >

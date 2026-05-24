@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import BottomNav from '../components/BottomNav'
-import { getMyProjects, getMyProjectsAsync, getSavedProjects } from '../utils/projectData'
+import { getMyProjects, getMyProjectsAsync, getSavedProjectsAsync } from '../utils/projectData'
 
 /**
  * MatchesScreen - My Projects (Saved/Joined)
@@ -39,7 +39,13 @@ function MatchesScreen() {
         // Fallback to sync version
         setActiveProjects(getMyProjects())
       }
-      setSavedProjects(getSavedProjects())
+      try {
+        const saved = await getSavedProjectsAsync()
+        setSavedProjects(saved)
+      } catch (err) {
+        console.error('Error loading saved projects:', err)
+        setSavedProjects([])
+      }
       setLoading(false)
     }
     loadProjects()

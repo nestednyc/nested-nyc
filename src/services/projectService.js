@@ -511,6 +511,127 @@ export const projectService = {
     }
 
     return { data: data || [], error }
+  },
+
+  // ============================================
+  // SAVED PROJECTS (bookmarks)
+  // ============================================
+
+  /**
+   * Save (bookmark) a project for the current user
+   * @param {string} projectId - The project UUID
+   * @returns {Promise<{data: object|null, error: object|null}>}
+   */
+  async saveProject(projectId) {
+    if (!isSupabaseConfigured() || !supabase) {
+      return { data: null, error: { message: 'Supabase not configured' } }
+    }
+
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      return { data: null, error: { message: 'Not authenticated' } }
+    }
+
+    const { data, error } = await supabase
+      .from('saved_projects')
+      .insert({ user_id: user.id, project_id: projectId })
+      .select()
+      .single()
+
+    // Treat duplicate as success (already saved)
+    if (error && error.code === '23505') {
+      return { data: null, error: null }
+    }
+
+    return { data, error }
+  },
+
+  /**
+   * Unsave (remove bookmark) a project for the current user
+   * @param {string} projectId - The project UUID
+   * @returns {Promise<{error: object|null}>}
+   */
+  async unsaveProject(projectId) {
+    if (!isSupabaseConfigured() || !supabase) {
+      return { error: { message: 'Supabase not configured' } }
+    }
+
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      return { error: { message: 'Not authenticated' } }
+    }
+
+    const { error } = await supabase
+      .from('saved_projects')
+      .delete()
+      .eq('user_id', user.id)
+      .eq('project_id', projectId)
+
+    return { error }
+  },
+
+  /**
+   * Check whether the current user has saved a project
+   * @param {string} projectId - The project UUID
+   * @returns {Promise<{saved: boolean, error: object|null}>}
+   */
+  async isProjectSaved(projectId) {
+    if (!isSupabaseConfigured() || !supabase) {
+      return { saved: false, error: null }
+    }
+
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      return { saved: false, error: null }
+    }
+
+    const { data, error } = await supabase
+      .from('saved_projects')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('project_id', projectId)
+      .maybeSingle()
+
+    return { saved: !!data, error }
+  },
+
+  /**
+   * Get all projects the current user has saved
+   * @returns {Promise<{data: array|null, error: object|null}>}
+   */
+  async getSavedProjects() {
+    if (!isSupabaseConfigured() || !supabase) {
+      return { data: [], error: null }
+    }
+
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      return { data: [], error: null }
+    }
+
+    const { data, error } = await supabase
+      .from('saved_projects')
+      .select('created_at, project:projects(*, team_members(*))')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      return { data: [], error }
+    }
+
+    // Flatten to project rows; drop entries where the project was deleted
+    const projects = (data || [])
+      .map(row => row.project)
+      .filter(Boolean)
+
+    // Filter to only include approved team members
+    projects.forEach(p => {
+      if (p.team_members) {
+        p.team_members = p.team_members.filter(m => m.status === 'approved')
+      }
+    })
+
+    return { data: projects, error: null }
   }
 }
 

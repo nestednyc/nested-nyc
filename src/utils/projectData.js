@@ -102,8 +102,8 @@ export function getMyProjects() {
 }
 
 /**
- * Get saved/bookmarked projects.
- * Returns [] until the saved-projects backend is wired up.
+ * Get saved/bookmarked projects (sync fallback — always empty,
+ * since saves only exist in Supabase). Use getSavedProjectsAsync for real data.
  */
 export function getSavedProjects() {
   return []
@@ -395,4 +395,59 @@ export async function deleteProjectAsync(projectId) {
   const { deleteProject } = await import('./projectStorage')
   deleteProject(projectId)
   return { error: null }
+}
+
+// ============================================
+// SAVED PROJECTS (bookmarks)
+// ============================================
+
+/**
+ * Async: Save (bookmark) a project for the current user
+ */
+export async function saveProjectAsync(projectId) {
+  if (!isSupabaseConfigured()) {
+    return { error: { message: 'Sign in to save projects' } }
+  }
+  return projectService.saveProject(projectId)
+}
+
+/**
+ * Async: Unsave a project for the current user
+ */
+export async function unsaveProjectAsync(projectId) {
+  if (!isSupabaseConfigured()) {
+    return { error: null }
+  }
+  return projectService.unsaveProject(projectId)
+}
+
+/**
+ * Async: Check whether the current user has saved a project
+ */
+export async function isProjectSavedAsync(projectId) {
+  if (!isSupabaseConfigured()) {
+    return false
+  }
+  const { saved } = await projectService.isProjectSaved(projectId)
+  return saved
+}
+
+/**
+ * Async: Get all saved projects for the current user
+ */
+export async function getSavedProjectsAsync() {
+  if (!isSupabaseConfigured()) {
+    return []
+  }
+
+  const { data, error } = await projectService.getSavedProjects()
+  if (error) {
+    console.error('Error fetching saved projects:', error)
+    return []
+  }
+
+  const currentUserId = await getCurrentUserId()
+  return (data || []).map(p =>
+    transformSupabaseProject(p, p.owner_id === currentUserId)
+  )
 }
