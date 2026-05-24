@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { getProjectByIdAsync, updateProjectAsync, deleteProjectAsync, getCurrentUserId } from '../utils/projectData'
 
@@ -72,6 +72,7 @@ function EditProjectScreen() {
   const [isDeleting, setIsDeleting] = useState(false)
   const [showSuccess, setShowSuccess] = useState(false)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [showNoChangesToast, setShowNoChangesToast] = useState(false)
 
   // Form state
   const [formData, setFormData] = useState({
@@ -81,6 +82,14 @@ function EditProjectScreen() {
     commitment: 'side-project',
     spotsLeft: 0,
   })
+  const [initialFormData, setInitialFormData] = useState(null)
+  const toastTimerRef = useRef(null)
+
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
+    }
+  }, [])
 
   // Load project data (async - supports Supabase)
   useEffect(() => {
@@ -122,13 +131,15 @@ function EditProjectScreen() {
           .map(skill => ROLE_LABEL_TO_ID[skill] || null)
           .filter(Boolean)
 
-        setFormData({
+        const initial = {
           title: foundProject.title || '',
           description: foundProject.description || '',
           roles: existingRoles.length > 0 ? [...new Set(existingRoles)] : [],
           commitment: resolveCommitment(foundProject),
           spotsLeft: foundProject.spotsLeft || 0,
-        })
+        }
+        setFormData(initial)
+        setInitialFormData(initial)
       } catch (err) {
         if (!cancelled) {
           console.error('Error loading project for edit:', err)
@@ -156,7 +167,28 @@ function EditProjectScreen() {
     }))
   }
 
+  const hasChanges = useMemo(() => {
+    if (!initialFormData) return false
+    if (formData.title !== initialFormData.title) return true
+    if (formData.description !== initialFormData.description) return true
+    if (formData.commitment !== initialFormData.commitment) return true
+    if (formData.spotsLeft !== initialFormData.spotsLeft) return true
+    const a = [...formData.roles].sort().join('|')
+    const b = [...initialFormData.roles].sort().join('|')
+    return a !== b
+  }, [formData, initialFormData])
+
   const handleSave = async () => {
+    if (!hasChanges) {
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
+      setShowNoChangesToast(true)
+      toastTimerRef.current = setTimeout(() => {
+        setShowNoChangesToast(false)
+        toastTimerRef.current = null
+      }, 2500)
+      return
+    }
+
     setIsSaving(true)
 
     try {
@@ -188,7 +220,8 @@ function EditProjectScreen() {
 
       // Navigate back after showing success
       setTimeout(() => {
-        navigate(`/projects/${projectId}`)
+        const canReplace = window.history.length > 1
+        navigate(`/projects/${projectId}`, { replace: canReplace })
       }, 800)
     } catch (err) {
       console.error('Error saving project:', err)
@@ -357,7 +390,8 @@ function EditProjectScreen() {
       height: '100%',
       backgroundColor: 'white',
       display: 'flex',
-      flexDirection: 'column'
+      flexDirection: 'column',
+      position: 'relative'
     }}>
       {/* Header */}
       <div style={{
@@ -396,15 +430,24 @@ function EditProjectScreen() {
         <button
           onClick={handleSave}
           disabled={isSaving || showSuccess}
+          aria-disabled={!hasChanges || isSaving || showSuccess}
           style={{
             padding: '8px 16px',
-            backgroundColor: showSuccess ? '#059669' : '#5B4AE6',
-            color: 'white',
+            backgroundColor: showSuccess
+              ? '#059669'
+              : (!hasChanges && !isSaving)
+                ? '#E5E7EB'
+                : '#5B4AE6',
+            color: (!hasChanges && !isSaving && !showSuccess) ? '#9CA3AF' : 'white',
             fontSize: '14px',
             fontWeight: 600,
             borderRadius: '8px',
             border: 'none',
-            cursor: isSaving || showSuccess ? 'default' : 'pointer',
+            cursor: (isSaving || showSuccess)
+              ? 'default'
+              : !hasChanges
+                ? 'not-allowed'
+                : 'pointer',
             opacity: isSaving ? 0.7 : 1,
             display: 'flex',
             alignItems: 'center',
@@ -942,10 +985,43 @@ function EditProjectScreen() {
         </div>
       )}
 
+      {/* No Changes Toast */}
+      {showNoChangesToast && (
+        <div role="status" aria-live="polite" style={{
+          position: 'absolute',
+          top: '80px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          backgroundColor: '#1F2937',
+          color: 'white',
+          padding: '10px 18px',
+          borderRadius: '10px',
+          fontSize: '13px',
+          fontWeight: 500,
+          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+          zIndex: 1100,
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          animation: 'toastSlideDown 0.25s ease'
+        }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="12" y1="8" x2="12" y2="12"/>
+            <line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+          No changes to save
+        </div>
+      )}
+
       {/* CSS for spinner animation */}
       <style>{`
         @keyframes spin {
           to { transform: rotate(360deg); }
+        }
+        @keyframes toastSlideDown {
+          from { opacity: 0; transform: translateX(-50%) translateY(-10px); }
+          to { opacity: 1; transform: translateX(-50%) translateY(0); }
         }
       `}</style>
     </div>
