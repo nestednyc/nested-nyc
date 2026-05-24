@@ -453,6 +453,60 @@ export const authService = {
   },
 
   /**
+   * Verify a 6-digit OTP code for password reset
+   * On success, Supabase sets a recovery session and updatePassword() can be called
+   * @param {string} email - User's email
+   * @param {string} token - 6-digit OTP code
+   * @returns {Promise<{data: any, error: any}>}
+   */
+  async verifyPasswordResetOtp(email, token) {
+    const emailValidation = this.validateEduEmail(email)
+    if (!emailValidation.valid) {
+      return { data: null, error: emailValidation.error }
+    }
+
+    if (!token || !/^\d{6}$/.test(token)) {
+      return {
+        data: null,
+        error: {
+          message: 'Please enter the 6-digit code from your email.',
+          code: 'INVALID_OTP_FORMAT'
+        }
+      }
+    }
+
+    const { ready, error: configError } = this.checkSupabaseReady()
+    if (!ready) {
+      return { data: null, error: configError }
+    }
+
+    try {
+      const { data, error } = await supabase.auth.verifyOtp({
+        email,
+        token,
+        type: 'recovery'
+      })
+
+      if (error) {
+        return {
+          data: null,
+          error: {
+            message: error.message.includes('expired')
+              ? 'This code has expired. Please request a new one.'
+              : 'Invalid code. Double-check and try again.',
+            code: 'VERIFICATION_ERROR',
+            originalError: error
+          }
+        }
+      }
+
+      return { data, error: null }
+    } catch (err) {
+      return { data: null, error: this._handleNetworkError(err) }
+    }
+  },
+
+  /**
    * Verify magic link token hash (when user clicks link in email)
    * @param {string} tokenHash - Token hash from URL
    * @param {string} type - Token type (usually 'email' or 'magiclink')
@@ -492,6 +546,74 @@ export const authService = {
           code: 'VERIFICATION_ERROR'
         }
       }
+    }
+  },
+
+  // ===========================================
+  // PASSWORD RESET
+  // ===========================================
+
+  /**
+   * Send password reset email (only .edu emails)
+   * Supabase emails the user a link that redirects to /auth/reset
+   * @param {string} email - User's .edu email address
+   * @returns {Promise<{data: any, error: any}>}
+   */
+  async sendPasswordReset(email) {
+    const validation = this.validateEduEmail(email)
+    if (!validation.valid) {
+      return { data: null, error: validation.error }
+    }
+
+    const { ready, error: configError } = this.checkSupabaseReady()
+    if (!ready) {
+      return { data: null, error: configError }
+    }
+
+    try {
+      const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/auth/reset`
+      })
+
+      if (error) {
+        return { data: null, error: this._mapSupabaseError(error) }
+      }
+
+      return { data, error: null }
+    } catch (err) {
+      return { data: null, error: this._handleNetworkError(err) }
+    }
+  },
+
+  /**
+   * Update password for the currently signed-in user
+   * Requires an active recovery session (set by Supabase after user clicks reset link)
+   * @param {string} newPassword - New password (min 6 chars)
+   * @returns {Promise<{data: any, error: any}>}
+   */
+  async updatePassword(newPassword) {
+    const passwordValidation = this.validatePassword(newPassword)
+    if (!passwordValidation.valid) {
+      return { data: null, error: passwordValidation.error }
+    }
+
+    const { ready, error: configError } = this.checkSupabaseReady()
+    if (!ready) {
+      return { data: null, error: configError }
+    }
+
+    try {
+      const { data, error } = await supabase.auth.updateUser({
+        password: newPassword
+      })
+
+      if (error) {
+        return { data: null, error: this._mapSupabaseError(error) }
+      }
+
+      return { data, error: null }
+    } catch (err) {
+      return { data: null, error: this._handleNetworkError(err) }
     }
   },
 

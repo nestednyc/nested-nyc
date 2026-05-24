@@ -1098,6 +1098,15 @@ function LoginForm({ navigate }) {
       <button type="submit" onClick={(e) => { e.preventDefault(); handleSubmit(e); }} style={primaryButtonStyle} disabled={isLoading}>
         {isLoading ? 'Signing in...' : 'Log In'}
       </button>
+
+      {/* Forgot password link */}
+      <button
+        type="button"
+        onClick={() => navigate('/forgot-password')}
+        style={textButtonStyle}
+      >
+        Forgot password?
+      </button>
     </form>
   )
 }

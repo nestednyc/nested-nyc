@@ -9,6 +9,8 @@ import WebLayout from './components/WebLayout'
 // Auth Flow
 import AuthGateScreen from './pages/AuthGateScreen'
 import AuthConfirmScreen from './pages/AuthConfirmScreen'
+import ForgotPasswordScreen from './pages/ForgotPasswordScreen'
+import ResetPasswordScreen from './pages/ResetPasswordScreen'
 
 // Main App Pages
 import DiscoverScreen from './pages/DiscoverScreen'
@@ -49,7 +51,7 @@ function useIsDesktop() {
 /**
  * Route categories for layout decisions
  */
-const AUTH_ROUTES = ['/auth', '/auth/confirm', '/login']
+const AUTH_ROUTES = ['/auth', '/auth/confirm', '/auth/reset', '/forgot-password', '/login']
 const FORM_ROUTES = ['/profile/edit']
 const APP_ROUTES = ['/discover', '/events', '/matches', '/messages']
 
@@ -86,6 +88,20 @@ function AppContent() {
         useDesktopLayout
           ? <WebLayout layoutType="auth"><AuthConfirmScreen /></WebLayout>
           : <MobileFrame><AuthConfirmScreen /></MobileFrame>
+      } />
+
+      {/* Forgot Password - request reset email */}
+      <Route path="/forgot-password" element={
+        useDesktopLayout
+          ? <WebLayout layoutType="auth"><ForgotPasswordScreen /></WebLayout>
+          : <MobileFrame><ForgotPasswordScreen /></MobileFrame>
+      } />
+
+      {/* Reset Password - set new password after clicking email link */}
+      <Route path="/auth/reset" element={
+        useDesktopLayout
+          ? <WebLayout layoutType="auth"><ResetPasswordScreen /></WebLayout>
+          : <MobileFrame><ResetPasswordScreen /></MobileFrame>
       } />
 
       {/* Legacy login route */}

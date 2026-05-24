@@ -33,13 +33,21 @@ function AuthConfirmScreen() {
       // Parse hash fragment (Supabase uses #, not ?)
       const hashParams = new URLSearchParams(location.hash.substring(1))
       const queryParams = new URLSearchParams(location.search)
-      
+
       // Check both hash and query params
       const tokenHash = hashParams.get('token_hash') || queryParams.get('token_hash')
       const type = hashParams.get('type') || queryParams.get('type') || 'email'
       const errorParam = hashParams.get('error') || queryParams.get('error')
       const errorDescription = hashParams.get('error_description') || queryParams.get('error_description')
       const accessToken = hashParams.get('access_token') || queryParams.get('access_token')
+
+      // Password recovery flow lands on /auth/reset, not /discover/profile.
+      // Defensive: if a recovery link somehow hits this route, forward to the reset screen
+      // and preserve the hash so Supabase's detectSessionInUrl can pick up tokens there.
+      if (type === 'recovery') {
+        navigate(`/auth/reset${location.hash || ''}`, { replace: true })
+        return
+      }
 
       // Handle error from Supabase
       if (errorParam) {
