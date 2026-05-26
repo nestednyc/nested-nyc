@@ -59,8 +59,7 @@ SELECT
   username,
   avatar,
   photos,
-  university,
-  headline
+  university
 FROM public.profiles
 WHERE onboarding_completed = TRUE;
 

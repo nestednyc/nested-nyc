@@ -68,7 +68,6 @@ function ProfileEditScreen() {
     firstName: '',
     lastName: '',
     university: '',
-    headline: '',
     fields: [],
     bio: '',
     lookingFor: [],
@@ -165,7 +164,6 @@ function ProfileEditScreen() {
             firstName: data.first_name || '',
             lastName: data.last_name || '',
             university: data.university || '',
-            headline: data.headline || '',
             fields: data.fields || [],
             bio: data.bio || '',
             lookingFor: data.looking_for || [],
@@ -322,7 +320,6 @@ function ProfileEditScreen() {
           first_name: updatedProfile.firstName,
           last_name: updatedProfile.lastName,
           university: updatedProfile.university,
-          headline: updatedProfile.headline || null,
           fields: updatedProfile.fields,
           bio: updatedProfile.bio,
           looking_for: updatedProfile.lookingFor,
@@ -694,29 +691,18 @@ function ProfileEditScreen() {
                 )}
               </div>
 
-              <div style={{ marginBottom: '12px' }}>
+              <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                  <label style={labelStyle}>Headline (optional)</label>
+                  <label style={labelStyle}>Bio (optional)</label>
                   <span style={{ fontSize: '11px', color: '#9CA3AF' }}>
-                    {(profile.headline || '').length}/120
+                    {(profile.bio || '').length}/120
                   </span>
                 </div>
-                <input
-                  type="text"
-                  value={profile.headline || ''}
-                  onChange={e => update('headline', e.target.value.slice(0, 120))}
-                  placeholder="Building X · Looking for cofounder"
-                  style={inputStyle}
-                />
-              </div>
-
-              <div>
-                <label style={labelStyle}>Bio (optional)</label>
                 <textarea
                   value={profile.bio || ''}
                   onChange={e => update('bio', e.target.value.slice(0, 120))}
-                  placeholder="Brief intro..."
-                  rows={3}
+                  placeholder="Building X · Looking for cofounder"
+                  rows={2}
                   style={{ ...inputStyle, resize: 'none', fontFamily: 'inherit' }}
                 />
               </div>
