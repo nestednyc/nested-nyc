@@ -3,6 +3,8 @@ import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import { getProjectByIdAsync, isProjectSavedAsync, saveProjectAsync, unsaveProjectAsync } from '../utils/projectData'
 import { projectService } from '../services/projectService'
 import { getInitialsAvatar } from '../utils/avatarUtils'
+import PublicTopBar from '../components/PublicTopBar'
+import { useAuthGate } from '../utils/useAuthGate'
 
 /**
  * ProfileDetailScreen - Project Detail View
@@ -16,6 +18,7 @@ function ProfileDetailScreen() {
   const navigate = useNavigate()
   const { projectId } = useParams()
   const location = useLocation()
+  const { isAuthenticated, requireAuth } = useAuthGate()
   const [isDesktop, setIsDesktop] = useState(false)
   const [isSaved, setIsSaved] = useState(false)
   const [saveLoading, setSaveLoading] = useState(false)
@@ -45,8 +48,10 @@ function ProfileDetailScreen() {
     setProject(foundProject)
   }
 
-  // Toggle save/unsave with optimistic update
+  // Toggle save/unsave with optimistic update.
+  // Anon visitors get bounced to /auth?next=<current> so they come back here.
   const handleToggleSave = async () => {
+    if (!isAuthenticated) { requireAuth(); return }
     if (saveLoading || !project?.isSupabaseProject) return
     const next = !isSaved
     setIsSaved(next)
@@ -291,9 +296,10 @@ function ProfileDetailScreen() {
     return (
       <>
       <div className="project-detail-desktop">
+        <PublicTopBar />
         {/* Back Button - Desktop */}
         <div className="project-detail-back">
-          <button 
+          <button
             onClick={() => navigate(-1)}
             className="back-btn-desktop"
           >
@@ -813,7 +819,10 @@ function ProfileDetailScreen() {
                   {/* Primary CTA Button */}
                   <button
                     className={`join-btn-desktop ${isRequested ? 'requested' : ''}`}
-                    onClick={() => !isRequested && !hasJoined && setShowJoinModal(true)}
+                    onClick={() => {
+                      if (!isAuthenticated) { requireAuth(); return }
+                      if (!isRequested && !hasJoined) setShowJoinModal(true)
+                    }}
                     disabled={isRequested || hasJoined}
                     style={{
                       width: '100%',
@@ -1057,6 +1066,7 @@ function ProfileDetailScreen() {
   // Mobile Layout (unchanged)
   return (
     <div className="flex flex-col h-full bg-white relative">
+      <PublicTopBar />
       {/* Scrollable Content */}
       <div style={{ flex: 1, overflowY: 'auto', paddingBottom: '100px' }}>
         {/* Hero Image Section */}
@@ -1608,7 +1618,10 @@ function ProfileDetailScreen() {
             {/* Request to Join Button */}
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
               <button
-                onClick={() => !isRequested && !hasJoined && setShowJoinModal(true)}
+                onClick={() => {
+                      if (!isAuthenticated) { requireAuth(); return }
+                      if (!isRequested && !hasJoined) setShowJoinModal(true)
+                    }}
                 disabled={isRequested || hasJoined}
                 style={{
                   width: '100%',

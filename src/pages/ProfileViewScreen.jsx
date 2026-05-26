@@ -4,6 +4,8 @@ import { getMyProjects, getMyProjectsAsync } from '../utils/projectData'
 import { supabase, isSupabaseConfigured } from '../lib/supabase'
 import { profileService } from '../services/profileService'
 import { getInitialsAvatar } from '../utils/avatarUtils'
+import { useAuthGate } from '../utils/useAuthGate'
+import ContactSheet from '../components/ContactSheet'
 
 /**
  * ProfileViewScreen - Public read-only profile view
@@ -15,8 +17,29 @@ import { getInitialsAvatar } from '../utils/avatarUtils'
 const STORAGE_KEY = 'nested_user_profile'
 
 const LOOKING_FOR_LABELS = {
-  join: { label: 'Join a project', icon: '🤝' },
-  cofounder: { label: 'Co-founder', icon: '🚀' },
+  join: { label: 'Open to join a project', icon: '🤝' },
+  cofounder: { label: 'Looking for a co-founder', icon: '🚀' },
+}
+
+// Normalize a social handle into a clickable URL.
+// Accepts full URLs, @handles, bare usernames, or domain-style paths.
+const buildSocialUrl = (raw, base) => {
+  if (!raw) return null
+  const trimmed = String(raw).trim()
+  if (!trimmed) return null
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) return trimmed
+  if (trimmed.startsWith('@')) return `${base}/${trimmed.slice(1)}`
+  if (trimmed.includes('.')) return `https://${trimmed.replace(/^\/+/, '')}`
+  return `${base}/${trimmed.replace(/^\/+/, '')}`
+}
+
+const formatJoinedMonth = (iso) => {
+  if (!iso) return null
+  try {
+    return new Date(iso).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
+  } catch {
+    return null
+  }
 }
 
 // Max projects to display on public profile
@@ -31,12 +54,34 @@ function ProfileViewScreen() {
   // null while auth resolves — UI gates "Connect" button on explicit `false`
   const [isOwner, setIsOwner] = useState(userId === 'me' ? true : null)
   const [isWideScreen, setIsWideScreen] = useState(window.innerWidth >= 768)
+  // { projectCount, eventCount, joinedAt } — null while loading or if stats fetch failed
+  const [stats, setStats] = useState(null)
+  // UUID of the user whose profile is being shown — set once auth resolves so the
+  // stats fetch can run in its own effect (works for both 'me' and arbitrary :userId)
+  const [resolvedUserId, setResolvedUserId] = useState(null)
+  // Active photo index in the gallery carousel — updated via onScroll
+  const [activePhotoIdx, setActivePhotoIdx] = useState(0)
+  // Contact sheet visibility (smart picker for messaging/socials)
+  const [contactSheetOpen, setContactSheetOpen] = useState(false)
+  const { requireAuth } = useAuthGate()
 
   useEffect(() => {
     const handleResize = () => setIsWideScreen(window.innerWidth >= 768)
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
   }, [])
+
+  // Fetch lightweight social stats (project count, event count, joined month)
+  // once we know which user we're rendering. Stats failure is non-fatal — we
+  // simply skip the stats row in render.
+  useEffect(() => {
+    if (!resolvedUserId) return
+    let cancelled = false
+    profileService.getUserStats(resolvedUserId).then(({ data }) => {
+      if (!cancelled && data) setStats(data)
+    })
+    return () => { cancelled = true }
+  }, [resolvedUserId])
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -58,6 +103,7 @@ function ProfileViewScreen() {
       // Check if viewing current user (by 'me' alias OR by actual Supabase user ID)
       const isViewingOwnProfile = userId === 'me' || (authUserId && userId === authUserId)
       setIsOwner(isViewingOwnProfile)
+      setResolvedUserId(isViewingOwnProfile ? authUserId : userId)
 
       // Check if viewing current user or another user
       if (isViewingOwnProfile) {
@@ -80,6 +126,7 @@ function ProfileViewScreen() {
                 firstName: data.first_name || '',
                 lastName: data.last_name || '',
                 university: data.university || '',
+                headline: data.headline || '',
                 fields: data.fields || [],
                 bio: data.bio || '',
                 lookingFor: data.looking_for || [],
@@ -87,7 +134,8 @@ function ProfileViewScreen() {
                 techStack: data.tech_stack || [],
                 projects: data.projects || [],
                 avatar: data.avatar || '',
-                links: data.links || { github: '', portfolio: '', linkedin: '', discord: '' }
+                photos: Array.isArray(data.photos) ? data.photos : [],
+                links: data.links || { github: '', portfolio: '', linkedin: '', discord: '', instagram: '', twitter: '' }
               }
               setProfile(transformedProfile)
               localStorage.setItem(STORAGE_KEY, JSON.stringify(transformedProfile))
@@ -99,17 +147,22 @@ function ProfileViewScreen() {
 
         loadNestedProjects()
       } else {
-        // Viewing another user's profile - try to fetch from Supabase first
+        // Viewing another user's profile.
+        // Anon viewers (no auth session) can only read the column-restricted
+        // public_profiles view. Authenticated viewers can read the full profiles
+        // table — bio/skills/links/looking_for are auth-gated.
         if (isSupabaseConfigured()) {
           try {
-            const { data, error } = await profileService.getProfile(userId)
+            const { data, error } = authUserId
+              ? await profileService.getProfile(userId)
+              : await profileService.getPublicProfile(userId)
 
             if (!error && data) {
-              // Transform DB format to component format (same as current user)
               const transformedProfile = {
                 firstName: data.first_name || '',
                 lastName: data.last_name || '',
                 university: data.university || '',
+                headline: data.headline || '',
                 fields: data.fields || [],
                 bio: data.bio || '',
                 lookingFor: data.looking_for || [],
@@ -117,7 +170,8 @@ function ProfileViewScreen() {
                 techStack: data.tech_stack || [],
                 projects: data.projects || [],
                 avatar: data.avatar || '',
-                links: data.links || { github: '', portfolio: '', linkedin: '', discord: '' }
+                photos: Array.isArray(data.photos) ? data.photos : [],
+                links: data.links || { github: '', portfolio: '', linkedin: '', discord: '', instagram: '', twitter: '' }
               }
               setProfile(transformedProfile)
               // Other users don't show nested projects for now
@@ -206,6 +260,19 @@ function ProfileViewScreen() {
   const visibleProjects = nestedProjects.slice(0, MAX_VISIBLE_PROJECTS)
   const remainingProjectsCount = nestedProjects.length - MAX_VISIBLE_PROJECTS
   const hasLinks = profile.links && Object.values(profile.links).some(v => v)
+  // Display photos: prefer the new `photos` array; fall back to legacy `avatar`
+  // (which the migration backfills into photos[0] anyway). Empty array means
+  // we'll render the initials-avatar fallback instead of an empty gallery.
+  const displayPhotos = (profile.photos && profile.photos.length > 0)
+    ? profile.photos
+    : (profile.avatar ? [profile.avatar] : [])
+  const hasPhotos = displayPhotos.length > 0
+
+  const handleGalleryScroll = (e) => {
+    const el = e.currentTarget
+    const idx = Math.round(el.scrollLeft / el.clientWidth)
+    if (idx !== activePhotoIdx) setActivePhotoIdx(idx)
+  }
 
   return (
     <div style={{ height: '100%', backgroundColor: '#F9FAFB', display: 'flex', flexDirection: 'column' }}>
@@ -241,48 +308,157 @@ function ProfileViewScreen() {
           {/* MAIN COLUMN */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
             
-            {/* Profile Header Card */}
+            {/* Profile Header Card — photo gallery on top, identity below.
+                Falls back to the legacy avatar-on-left layout if no photos exist. */}
             <div style={{
               backgroundColor: 'white',
               borderRadius: '14px',
-              padding: '20px',
               boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
               border: '1px solid #E5E7EB',
-              display: 'flex',
-              gap: '16px'
+              overflow: 'hidden'
             }}>
-              {/* Avatar */}
-              <div style={{
-                width: '72px', height: '72px', borderRadius: '16px', backgroundColor: '#F3F4F6',
-                border: '2px solid #E5E7EB', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                overflow: 'hidden'
-              }}>
-                <img
-                  src={profile.avatar || getInitialsAvatar(fullName)}
-                  alt={fullName}
-                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                />
-              </div>
-
-              <div style={{ flex: 1 }}>
-                <h2 style={{ margin: '0 0 4px 0', fontSize: '20px', fontWeight: 700, color: '#111827' }}>{fullName}</h2>
-                {profile.university && (
-                  <p style={{ margin: '0 0 8px 0', fontSize: '13px', color: '#6B7280' }}>
-                    📍 {profile.university}
-                  </p>
-                )}
-                {profile.fields && profile.fields.length > 0 && (
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
-                    {profile.fields.map(f => (
-                      <span key={f} style={{
-                        padding: '3px 8px', fontSize: '11px', fontWeight: 500, borderRadius: '10px',
-                        backgroundColor: '#EEF2FF', color: '#5B4AE6'
-                      }}>{f}</span>
+              {hasPhotos ? (
+                <>
+                  <style>{`.profile-photo-gallery::-webkit-scrollbar{display:none;}`}</style>
+                  <div
+                    className="profile-photo-gallery"
+                    onScroll={handleGalleryScroll}
+                    style={{
+                      display: 'flex',
+                      overflowX: 'auto',
+                      scrollSnapType: 'x mandatory',
+                      WebkitOverflowScrolling: 'touch',
+                      scrollbarWidth: 'none',
+                      msOverflowStyle: 'none'
+                    }}
+                  >
+                    {displayPhotos.map((url, idx) => (
+                      <img
+                        key={`${idx}-${url}`}
+                        src={url}
+                        alt={`${fullName} photo ${idx + 1}`}
+                        style={{
+                          width: '100%',
+                          flexShrink: 0,
+                          aspectRatio: '1 / 1',
+                          objectFit: 'cover',
+                          scrollSnapAlign: 'start',
+                          display: 'block'
+                        }}
+                      />
                     ))}
                   </div>
+                  {displayPhotos.length > 1 && (
+                    <div style={{
+                      display: 'flex', justifyContent: 'center', gap: '6px',
+                      padding: '10px 0 6px', backgroundColor: 'white'
+                    }}>
+                      {displayPhotos.map((_, idx) => (
+                        <div key={idx} style={{
+                          width: idx === activePhotoIdx ? '20px' : '6px',
+                          height: '6px',
+                          borderRadius: '3px',
+                          backgroundColor: idx === activePhotoIdx ? '#6366F1' : '#D1D5DB',
+                          transition: 'width 0.2s ease, background-color 0.2s ease'
+                        }} />
+                      ))}
+                    </div>
+                  )}
+                </>
+              ) : null}
+
+              <div style={{
+                padding: '20px',
+                display: 'flex',
+                gap: '16px',
+                alignItems: hasPhotos ? 'flex-start' : 'center'
+              }}>
+                {!hasPhotos && (
+                  <div style={{
+                    width: '72px', height: '72px', borderRadius: '16px', backgroundColor: '#F3F4F6',
+                    border: '2px solid #E5E7EB', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                    overflow: 'hidden'
+                  }}>
+                    <img
+                      src={getInitialsAvatar(fullName)}
+                      alt={fullName}
+                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    />
+                  </div>
                 )}
+
+                <div style={{ flex: 1 }}>
+                  <h2 style={{ margin: '0 0 4px 0', fontSize: '20px', fontWeight: 700, color: '#111827' }}>{fullName}</h2>
+                  {profile.headline && (
+                    <p style={{
+                      margin: '0 0 6px 0',
+                      fontSize: '14px',
+                      color: '#374151',
+                      fontStyle: 'italic',
+                      lineHeight: 1.4
+                    }}>
+                      {profile.headline}
+                    </p>
+                  )}
+                  {profile.university && (
+                    <p style={{ margin: '0 0 8px 0', fontSize: '13px', color: '#6B7280' }}>
+                      📍 {profile.university}
+                    </p>
+                  )}
+                  {profile.fields && profile.fields.length > 0 && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
+                      {profile.fields.map(f => (
+                        <span key={f} style={{
+                          padding: '3px 8px', fontSize: '11px', fontWeight: 500, borderRadius: '10px',
+                          backgroundColor: '#EEF2FF', color: '#5B4AE6'
+                        }}>{f}</span>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
+
+            {/* Status pills — derived from looking_for. Replaces the old "Looking For"
+                card for a more social, scannable layout. */}
+            {profile.lookingFor && profile.lookingFor.length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                {profile.lookingFor.map(id => {
+                  const item = LOOKING_FOR_LABELS[id]
+                  if (!item) return null
+                  return (
+                    <span key={id} style={{
+                      display: 'inline-flex', alignItems: 'center', gap: '6px',
+                      padding: '8px 14px', backgroundColor: '#EEF2FF', color: '#4338CA',
+                      borderRadius: '999px', fontSize: '13px', fontWeight: 600,
+                      border: '1px solid #E0E7FF'
+                    }}>
+                      <span style={{ fontSize: '14px' }}>{item.icon}</span>
+                      {item.label}
+                    </span>
+                  )
+                })}
+              </div>
+            )}
+
+            {/* Stats row — small, gray, single-line. Skipped while stats are loading
+                or if the fetch failed (stats stays null). */}
+            {stats && (stats.projectCount > 0 || stats.eventCount > 0 || stats.joinedAt) && (
+              <div style={{
+                display: 'flex', flexWrap: 'wrap', gap: '6px',
+                fontSize: '12px', color: '#6B7280', paddingLeft: '4px'
+              }}>
+                {stats.projectCount > 0 && (
+                  <span>{stats.projectCount} {stats.projectCount === 1 ? 'project' : 'projects'}</span>
+                )}
+                {stats.projectCount > 0 && stats.eventCount > 0 && <span>·</span>}
+                {stats.eventCount > 0 && (
+                  <span>{stats.eventCount} {stats.eventCount === 1 ? 'event' : 'events'}</span>
+                )}
+                {(stats.projectCount > 0 || stats.eventCount > 0) && stats.joinedAt && <span>·</span>}
+                {stats.joinedAt && <span>Joined {formatJoinedMonth(stats.joinedAt)}</span>}
+              </div>
+            )}
 
             {/* Bio */}
             {profile.bio && (
@@ -295,34 +471,6 @@ function ProfileViewScreen() {
               }}>
                 <h3 style={{ margin: '0 0 8px 0', fontSize: '12px', fontWeight: 600, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.5px' }}>About</h3>
                 <p style={{ margin: 0, fontSize: '14px', color: '#374151', lineHeight: 1.5 }}>{profile.bio}</p>
-              </div>
-            )}
-
-            {/* Looking For */}
-            {profile.lookingFor && profile.lookingFor.length > 0 && (
-              <div style={{
-                backgroundColor: 'white',
-                borderRadius: '12px',
-                padding: '16px',
-                boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
-                border: '1px solid #E5E7EB'
-              }}>
-                <h3 style={{ margin: '0 0 10px 0', fontSize: '12px', fontWeight: 600, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Looking For</h3>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  {profile.lookingFor.map(id => {
-                    const item = LOOKING_FOR_LABELS[id]
-                    if (!item) return null
-                    return (
-                      <span key={id} style={{
-                        display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 12px',
-                        backgroundColor: '#F3F4F6', borderRadius: '8px', fontSize: '13px', fontWeight: 500, color: '#374151'
-                      }}>
-                        <span>{item.icon}</span>
-                        {item.label}
-                      </span>
-                    )
-                  })}
-                </div>
               </div>
             )}
 
@@ -553,22 +701,62 @@ function ProfileViewScreen() {
                       {profile.links.discord}
                     </span>
                   )}
+                  {profile.links.instagram && (
+                    <a href={buildSocialUrl(profile.links.instagram, 'https://instagram.com')}
+                      target="_blank" rel="noopener noreferrer"
+                      style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#374151', textDecoration: 'none' }}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#374151" strokeWidth="2">
+                        <rect x="2" y="2" width="20" height="20" rx="5" ry="5"/>
+                        <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/>
+                        <line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/>
+                      </svg>
+                      Instagram
+                    </a>
+                  )}
+                  {profile.links.twitter && (
+                    <a href={buildSocialUrl(profile.links.twitter, 'https://x.com')}
+                      target="_blank" rel="noopener noreferrer"
+                      style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#374151', textDecoration: 'none' }}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="#374151">
+                        <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+                      </svg>
+                      X / Twitter
+                    </a>
+                  )}
                 </div>
               </div>
             )}
 
-            {/* Connect CTA (for non-owners) — only render once auth resolved */}
+            {/* Connect CTA (for non-owners) — only render once auth resolved.
+                requireAuth() either opens the ContactSheet (signed in) or
+                bounces the viewer to /auth?next=<current path> (signed out). */}
             {isOwner === false && (
-              <button style={{
-                width: '100%', padding: '12px', fontSize: '14px', fontWeight: 600,
-                backgroundColor: '#5B4AE6', color: 'white', border: 'none', borderRadius: '10px', cursor: 'pointer'
-              }}>
+              <button
+                onClick={() => requireAuth(() => setContactSheetOpen(true))}
+                style={{
+                  width: '100%', padding: '12px', fontSize: '14px', fontWeight: 600,
+                  backgroundColor: '#5B4AE6', color: 'white', border: 'none', borderRadius: '10px',
+                  cursor: 'pointer', display: 'inline-flex', alignItems: 'center',
+                  justifyContent: 'center', gap: '8px'
+                }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                </svg>
                 Connect
               </button>
             )}
           </div>
         </div>
       </div>
+
+      <ContactSheet
+        open={contactSheetOpen}
+        onClose={() => setContactSheetOpen(false)}
+        targetUserId={resolvedUserId}
+        firstName={profile.firstName}
+        links={profile.links}
+      />
     </div>
   )
 }

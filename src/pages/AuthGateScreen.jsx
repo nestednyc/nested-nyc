@@ -1,9 +1,11 @@
 import { useState, useMemo, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { authService, getErrorMessage } from '../lib/supabase'
 import { profileService } from '../services/profileService'
 import { storageService } from '../services/storageService'
 import { lookupService } from '../services/lookupService'
+import { resolvePostAuthRoute } from '../utils/authHelpers'
+import { getNextParam } from '../utils/useAuthGate'
 
 /**
  * AuthGateScreen - Modern 2-step signup + login
@@ -12,6 +14,8 @@ import { lookupService } from '../services/lookupService'
 
 function AuthGateScreen() {
   const navigate = useNavigate()
+  const location = useLocation()
+  const nextParam = getNextParam(location.search)
   const [activeTab, setActiveTab] = useState('signup') // 'signup' | 'login'
   const [signupStep, setSignupStep] = useState(1) // 1 | 2 | 3 | 4
 
@@ -205,13 +209,43 @@ function AuthGateScreen() {
             step={signupStep}
             setStep={setSignupStep}
             navigate={navigate}
+            nextParam={nextParam}
             onSwitchToLogin={() => {
               setActiveTab('login')
               setSignupStep(1)
             }}
           />
         ) : (
-          <LoginForm navigate={navigate} />
+          <LoginForm navigate={navigate} nextParam={nextParam} />
+        )}
+
+        {/* Org signup entry — only on the initial signup/login screens, not during profile setup */}
+        {showTabs && (
+          <div style={{
+            marginTop: '20px',
+            paddingTop: '16px',
+            borderTop: '1px solid #F3F4F6',
+            textAlign: 'center'
+          }}>
+            <p style={{ margin: 0, fontSize: '13px', color: '#6B7280' }}>
+              University or student org?{' '}
+              <button
+                type="button"
+                onClick={() => navigate('/signup/org')}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  padding: 0,
+                  color: '#5B4AE6',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  fontSize: '13px'
+                }}
+              >
+                Create an org account
+              </button>
+            </p>
+          </div>
         )}
       </div>
     </div>
@@ -251,7 +285,7 @@ const LOOKING_FOR = [
  * Step 3: University, Interests
  * Step 4: Skills, Looking For
  */
-function SignUpForm({ step, setStep, navigate, onSwitchToLogin }) {
+function SignUpForm({ step, setStep, navigate, onSwitchToLogin, nextParam }) {
   const [form, setForm] = useState({
     email: '',
     firstName: '',
@@ -532,12 +566,12 @@ function SignUpForm({ step, setStep, navigate, onSwitchToLogin }) {
         if (saveErr) console.error('Profile save error:', saveErr)
       }
 
-      // Navigate to app
-      navigate('/discover')
+      // Honor ?next= (if a public-page action funneled the user here),
+      // otherwise drop into the student app.
+      navigate(nextParam || '/discover')
     } catch (err) {
       console.error('Profile save error:', err)
-      // Still navigate even if DB save fails - localStorage is backup
-      navigate('/discover')
+      navigate(nextParam || '/discover')
     }
     setIsLoading(false)
   }
@@ -1006,7 +1040,7 @@ function SignUpForm({ step, setStep, navigate, onSwitchToLogin }) {
 /**
  * LoginForm - Simple login with Supabase
  */
-function LoginForm({ navigate }) {
+function LoginForm({ navigate, nextParam }) {
   const [form, setForm] = useState({ email: '', password: '' })
   const [touched, setTouched] = useState({})
   const [isLoading, setIsLoading] = useState(false)
@@ -1049,8 +1083,13 @@ function LoginForm({ navigate }) {
         return
       }
 
-      // Success - navigate to app
-      navigate('/discover')
+      // Priority: ?next= override → account-type resolver → /discover fallback.
+      if (nextParam) {
+        navigate(nextParam)
+      } else {
+        const target = await resolvePostAuthRoute()
+        navigate(target === '/auth' ? '/discover' : target)
+      }
     } catch (err) {
       setError('Failed to sign in. Please try again.')
     }

@@ -50,11 +50,15 @@ function ProfileEditScreen() {
   const [saveError, setSaveError] = useState(null)
   const [saveSuccess, setSaveSuccess] = useState(false)
   const [currentUserId, setCurrentUserId] = useState(null)
-  const [avatarFile, setAvatarFile] = useState(null)
-  const [avatarPreview, setAvatarPreview] = useState(null)
+  // Each slot is either null (empty) or { url: string, file: File|null }.
+  // url is either an existing public URL (no upload needed) or a data: URL
+  // preview for newly-picked files (uploaded on save).
+  const [photoSlots, setPhotoSlots] = useState([null, null, null])
+  // Which slot is the file-picker targeting right now — set just before opening.
+  const [activeSlotIdx, setActiveSlotIdx] = useState(null)
   const dropdownRef = useRef(null)
   const inputRef = useRef(null)
-  const avatarInputRef = useRef(null)
+  const photoInputRef = useRef(null)
 
   // Check if this is first-time setup (profile not yet complete)
   const [isFirstTimeSetup, setIsFirstTimeSetup] = useState(false)
@@ -64,6 +68,7 @@ function ProfileEditScreen() {
     firstName: '',
     lastName: '',
     university: '',
+    headline: '',
     fields: [],
     bio: '',
     lookingFor: [],
@@ -71,7 +76,8 @@ function ProfileEditScreen() {
     techStack: [],
     projects: [],
     avatar: '',
-    links: { github: '', portfolio: '', linkedin: '', discord: '' }
+    photos: [],
+    links: { github: '', portfolio: '', linkedin: '', discord: '', instagram: '', twitter: '' }
   })
 
   const loadProfileFromStorage = () => {
@@ -90,9 +96,14 @@ function ProfileEditScreen() {
   const applyProfileData = (profileData, isFromDb = false) => {
     setProfile(prev => ({ ...getDefaultProfile(), ...profileData }))
     setUniQuery(profileData.university || '')
-    if (profileData.avatar) {
-      setAvatarPreview(profileData.avatar)
-    }
+    // Hydrate photo slots from `photos` (post-migration) with fallback to
+    // single `avatar` for legacy rows. Pad to 3 slots so each render has a
+    // stable index.
+    const existing = Array.isArray(profileData.photos) && profileData.photos.length > 0
+      ? profileData.photos
+      : (profileData.avatar ? [profileData.avatar] : [])
+    const padded = [0, 1, 2].map(i => existing[i] ? { url: existing[i], file: null } : null)
+    setPhotoSlots(padded)
   }
 
   // Fetch profile from Supabase on mount
@@ -154,6 +165,7 @@ function ProfileEditScreen() {
             firstName: data.first_name || '',
             lastName: data.last_name || '',
             university: data.university || '',
+            headline: data.headline || '',
             fields: data.fields || [],
             bio: data.bio || '',
             lookingFor: data.looking_for || [],
@@ -161,7 +173,11 @@ function ProfileEditScreen() {
             techStack: data.tech_stack || [],
             projects: data.projects || [],
             avatar: data.avatar || '',
-            links: data.links || { github: '', portfolio: '', linkedin: '', discord: '' }
+            photos: Array.isArray(data.photos) ? data.photos : [],
+            links: {
+              github: '', portfolio: '', linkedin: '', discord: '', instagram: '', twitter: '',
+              ...(data.links || {})
+            }
           }
           applyProfileData(transformedProfile)
         }
@@ -201,28 +217,41 @@ function ProfileEditScreen() {
 
   const updateLink = (key, val) => update('links', { ...profile.links, [key]: val })
 
-  // Handle avatar file selection
-  const handleAvatarChange = async (e) => {
-    const file = e.target.files?.[0]
-    if (!file) return
+  // Open the hidden file picker and remember which slot we're targeting.
+  const openPhotoPicker = (idx) => {
+    setActiveSlotIdx(idx)
+    // Reset value so picking the same file twice re-fires onChange.
+    if (photoInputRef.current) photoInputRef.current.value = ''
+    photoInputRef.current?.click()
+  }
 
-    // Validate file type
+  // Remove a photo from a slot (no upload happens; state-only until save).
+  const removePhotoSlot = (idx) => {
+    setPhotoSlots(prev => prev.map((s, i) => i === idx ? null : s))
+  }
+
+  // Handle a freshly-picked file from the file input.
+  const handlePhotoSelected = async (e) => {
+    const file = e.target.files?.[0]
+    const idx = activeSlotIdx
+    setActiveSlotIdx(null)
+    if (!file || idx === null) return
+
     const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
     if (!validTypes.includes(file.type)) {
       alert('Please use JPG, PNG, GIF, or WebP images.')
       return
     }
-
-    // Validate file size (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
       alert('Image too large. Maximum size is 5MB.')
       return
     }
 
-    setAvatarFile(file)
-    // Create preview
+    // Show preview immediately via data URL; actual upload happens on save.
     const reader = new FileReader()
-    reader.onload = (e) => setAvatarPreview(e.target.result)
+    reader.onload = (ev) => {
+      setPhotoSlots(prev => prev.map((s, i) => i === idx ? { url: ev.target.result, file } : s))
+    }
     reader.readAsDataURL(file)
   }
 
@@ -254,20 +283,33 @@ function ProfileEditScreen() {
     setSaveError(null)
     setSaveSuccess(false)
 
-    let avatarUrl = profile.avatar || avatarPreview
-
-    // Upload new avatar if selected
-    if (avatarFile && currentUserId) {
-      const { url, error: uploadError } = await storageService.uploadAvatar(currentUserId, avatarFile)
-      if (uploadError) {
-        console.error('Avatar upload error:', uploadError)
-      } else if (url) {
-        avatarUrl = url
+    // Upload any pending photo files sequentially. Sequential (not parallel)
+    // is deliberate — on flaky mobile networks a single failure shouldn't
+    // wipe the other slots. If one fails we drop just that slot from the
+    // saved array and keep going.
+    const workingSlots = [...photoSlots]
+    const finalPhotos = []
+    for (let i = 0; i < workingSlots.length; i++) {
+      const slot = workingSlots[i]
+      if (!slot) continue
+      if (slot.file && currentUserId) {
+        const { url, error: uploadError } = await storageService.uploadProfilePhoto(currentUserId, slot.file, i)
+        if (uploadError || !url) {
+          console.error(`Photo upload failed for slot ${i}:`, uploadError)
+          continue
+        }
+        finalPhotos.push(url)
+        workingSlots[i] = { url, file: null }
+      } else if (slot.url && !slot.url.startsWith('data:')) {
+        finalPhotos.push(slot.url)
       }
     }
+    setPhotoSlots(workingSlots)
 
-    // Update profile with new avatar URL
-    const updatedProfile = { ...profile, avatar: avatarUrl }
+    const avatarUrl = finalPhotos[0] || null
+
+    // Update profile with new photo data
+    const updatedProfile = { ...profile, avatar: avatarUrl, photos: finalPhotos }
 
     // Always save to localStorage as fallback
     localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedProfile))
@@ -280,6 +322,7 @@ function ProfileEditScreen() {
           first_name: updatedProfile.firstName,
           last_name: updatedProfile.lastName,
           university: updatedProfile.university,
+          headline: updatedProfile.headline || null,
           fields: updatedProfile.fields,
           bio: updatedProfile.bio,
           looking_for: updatedProfile.lookingFor,
@@ -287,6 +330,7 @@ function ProfileEditScreen() {
           tech_stack: updatedProfile.techStack,
           projects: updatedProfile.projects,
           avatar: avatarUrl,
+          photos: finalPhotos,
           links: updatedProfile.links,
           onboarding_completed: true
         }
@@ -533,79 +577,77 @@ function ProfileEditScreen() {
             <div style={cardStyle}>
               <h3 style={{ ...sectionHeadingStyle, marginBottom: '16px' }}>Basic Info</h3>
 
-              {/* Avatar Upload */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '18px' }}>
-                <div
-                  onClick={() => avatarInputRef.current?.click()}
-                  style={{
-                    width: '72px',
-                    height: '72px',
-                    borderRadius: '50%',
-                    backgroundColor: avatarPreview ? 'transparent' : '#F3F4F6',
-                    border: avatarPreview ? '3px solid #6366F1' : '2px dashed #D1D5DB',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: 'pointer',
-                    overflow: 'hidden',
-                    flexShrink: 0,
-                    backgroundImage: avatarPreview ? `url(${avatarPreview})` : 'none',
-                    backgroundSize: 'cover',
-                    backgroundPosition: 'center'
-                  }}
-                >
-                  {!avatarPreview && (
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="2">
-                      <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
-                      <circle cx="12" cy="13" r="4"/>
-                    </svg>
-                  )}
+              {/* Photo Gallery — up to 3 slots. Slot 0 is the primary photo
+                  and becomes the avatar shown everywhere else in the app. */}
+              <div style={{ marginBottom: '18px' }}>
+                <div style={{ display: 'flex', gap: '12px', marginBottom: '8px' }}>
+                  {[0, 1, 2].map(idx => {
+                    const slot = photoSlots[idx]
+                    return (
+                      <div key={idx} style={{ position: 'relative' }}>
+                        <div
+                          onClick={() => openPhotoPicker(idx)}
+                          style={{
+                            width: '88px',
+                            height: '88px',
+                            borderRadius: '14px',
+                            backgroundColor: slot ? 'transparent' : '#F9FAFB',
+                            border: slot ? '2px solid #6366F1' : '2px dashed #D1D5DB',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer',
+                            overflow: 'hidden',
+                            backgroundImage: slot ? `url(${slot.url})` : 'none',
+                            backgroundSize: 'cover',
+                            backgroundPosition: 'center'
+                          }}
+                        >
+                          {!slot && (
+                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="2">
+                              <line x1="12" y1="5" x2="12" y2="19"/>
+                              <line x1="5" y1="12" x2="19" y2="12"/>
+                            </svg>
+                          )}
+                        </div>
+                        {idx === 0 && slot && (
+                          <div style={{
+                            position: 'absolute', top: '4px', left: '4px',
+                            padding: '2px 6px', borderRadius: '4px',
+                            backgroundColor: 'rgba(99, 102, 241, 0.92)', color: 'white',
+                            fontSize: '9px', fontWeight: 700, letterSpacing: '0.5px',
+                            textTransform: 'uppercase', pointerEvents: 'none'
+                          }}>Primary</div>
+                        )}
+                        {slot && (
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); removePhotoSlot(idx) }}
+                            aria-label="Remove photo"
+                            style={{
+                              position: 'absolute', top: '-6px', right: '-6px',
+                              width: '22px', height: '22px', borderRadius: '50%',
+                              backgroundColor: 'white', border: '1px solid #E5E7EB',
+                              cursor: 'pointer', display: 'flex', alignItems: 'center',
+                              justifyContent: 'center', boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
+                              padding: 0, fontSize: '14px', lineHeight: 1, color: '#6B7280'
+                            }}
+                          >×</button>
+                        )}
+                      </div>
+                    )
+                  })}
                 </div>
                 <input
-                  ref={avatarInputRef}
+                  ref={photoInputRef}
                   type="file"
                   accept="image/jpeg,image/png,image/gif,image/webp"
-                  onChange={handleAvatarChange}
+                  onChange={handlePhotoSelected}
                   style={{ display: 'none' }}
                 />
-                <div style={{ flex: 1 }}>
-                  <button
-                    type="button"
-                    onClick={() => avatarInputRef.current?.click()}
-                    style={{
-                      padding: '6px 14px',
-                      fontSize: '13px',
-                      fontWeight: 500,
-                      backgroundColor: '#F3F4F6',
-                      color: '#374151',
-                      border: 'none',
-                      borderRadius: '6px',
-                      cursor: 'pointer',
-                      marginBottom: '4px'
-                    }}
-                  >
-                    {avatarPreview ? 'Change Photo' : 'Upload Photo'}
-                  </button>
-                  {avatarPreview && (
-                    <button
-                      type="button"
-                      onClick={() => { setAvatarFile(null); setAvatarPreview(null); update('avatar', ''); }}
-                      style={{
-                        marginLeft: '8px',
-                        padding: '6px 12px',
-                        fontSize: '13px',
-                        fontWeight: 500,
-                        backgroundColor: 'transparent',
-                        color: '#EF4444',
-                        border: 'none',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      Remove
-                    </button>
-                  )}
-                  <p style={{ margin: 0, fontSize: '11px', color: '#9CA3AF' }}>JPG, PNG, GIF or WebP. Max 5MB.</p>
-                </div>
+                <p style={{ margin: 0, fontSize: '11px', color: '#9CA3AF' }}>
+                  Up to 3 photos. First slot is your primary photo (shown as avatar everywhere). JPG, PNG, GIF or WebP. Max 5MB each.
+                </p>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
@@ -650,6 +692,22 @@ function ProfileEditScreen() {
                     ))}
                   </div>
                 )}
+              </div>
+
+              <div style={{ marginBottom: '12px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                  <label style={labelStyle}>Headline (optional)</label>
+                  <span style={{ fontSize: '11px', color: '#9CA3AF' }}>
+                    {(profile.headline || '').length}/120
+                  </span>
+                </div>
+                <input
+                  type="text"
+                  value={profile.headline || ''}
+                  onChange={e => update('headline', e.target.value.slice(0, 120))}
+                  placeholder="Building X · Looking for cofounder"
+                  style={inputStyle}
+                />
               </div>
 
               <div>
@@ -765,6 +823,18 @@ function ProfileEditScreen() {
                 { key: 'discord', placeholder: 'username#1234', icon: (
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="#374151">
                     <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/>
+                  </svg>
+                )},
+                { key: 'instagram', placeholder: '@username or instagram.com/username', icon: (
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#374151" strokeWidth="2">
+                    <rect x="2" y="2" width="20" height="20" rx="5" ry="5"/>
+                    <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/>
+                    <line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/>
+                  </svg>
+                )},
+                { key: 'twitter', placeholder: '@username or x.com/username', icon: (
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="#374151">
+                    <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
                   </svg>
                 )}
               ].map(({ key, placeholder, icon }) => (

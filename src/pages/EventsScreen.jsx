@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import BottomNav from '../components/BottomNav'
+import PublicTopBar from '../components/PublicTopBar'
 import { getUpcomingEventsAsync, getPastEventsAsync } from '../utils/eventData'
 
 /**
@@ -85,6 +86,7 @@ function EventsScreen() {
 
   return (
     <div className="flex flex-col h-full bg-white relative">
+      <PublicTopBar />
       {/* Header - subtitle only, no large title */}
       <div
         style={{
@@ -233,6 +235,54 @@ function EventsScreen() {
                     >
                       {event.title}
                     </h3>
+
+                    {/* Org pill — links to /orgs/:slug */}
+                    {event.organization && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          navigate(`/orgs/${event.organization.slug}`)
+                        }}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          marginTop: '6px',
+                          padding: '3px 8px 3px 3px',
+                          backgroundColor: '#F3F4F6',
+                          border: 'none',
+                          borderRadius: '9999px',
+                          cursor: 'pointer',
+                          fontSize: '11px',
+                          fontWeight: 600,
+                          color: '#374151'
+                        }}
+                      >
+                        <span style={{
+                          width: '18px',
+                          height: '18px',
+                          borderRadius: '50%',
+                          backgroundColor: '#FFFFFF',
+                          backgroundImage: event.organization.logo ? `url(${event.organization.logo})` : 'none',
+                          backgroundSize: 'cover',
+                          backgroundPosition: 'center',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: '10px',
+                          fontWeight: 700,
+                          color: '#6B7280'
+                        }}>
+                          {!event.organization.logo && (event.organization.name?.charAt(0) || '?').toUpperCase()}
+                        </span>
+                        {event.organization.name}
+                        {event.organization.verified && (
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="#4F46E5" aria-label="Verified">
+                            <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+                          </svg>
+                        )}
+                      </button>
+                    )}
 
                     {/* Tag pills */}
                     <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '6px' }}>

@@ -1,23 +1,26 @@
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useState, useEffect } from 'react'
+import { useAuthGate } from '../utils/useAuthGate'
 
 /**
  * BottomNav - Bottom Navigation Bar (Mobile Only)
  * Nested NYC – Student-only project network
- * 
+ *
  * Specs:
  * - Height: 83px total (includes home indicator area)
  * - Icons: 24x24px
  * - Active icon: #5B4AE6 (filled)
  * - Inactive icon: #ADAFBB (outline)
- * - 4 tabs: Discover (projects), My Projects, Messages (nests), Profile
+ * - 4 tabs: Discover, Events, My Projects (auth), Profile (auth)
  * - Home indicator: 134x5px black, 8px from bottom
  * - ONLY renders on mobile (< 1024px)
+ * - Auth-only tabs route anon visitors to /auth?next=...
  */
 
 function BottomNav() {
   const navigate = useNavigate()
   const location = useLocation()
+  const { isAuthenticated } = useAuthGate()
   const [isMobile, setIsMobile] = useState(true)
 
   // Check if we're on mobile
@@ -32,16 +35,25 @@ function BottomNav() {
   if (!isMobile) {
     return null
   }
-  
-  // Tabs (Messages hidden for MVP - feature preserved in code)
+
+  // Tabs — auth-required tabs marked with authOnly
   const tabs = [
     { id: 'discover', path: '/discover', icon: CardsIcon, label: 'Discover projects' },
-    { id: 'my-projects', path: '/matches', icon: HeartIcon, label: 'My Projects' },
-    // { id: 'messages', path: '/messages', icon: ChatIcon, label: 'Messages' }, // Hidden for MVP
-    { id: 'profile', path: '/profile/me', icon: PersonIcon, label: 'Your Profile' },
+    { id: 'events', path: '/events', icon: CalendarIcon, label: 'Events' },
+    { id: 'my-projects', path: '/matches', icon: HeartIcon, label: 'My Projects', authOnly: true },
+    { id: 'profile', path: '/profile/me', icon: PersonIcon, label: 'Your Profile', authOnly: true },
   ]
-  
+
   const isActive = (path) => location.pathname === path
+
+  const handleTabClick = (tab) => {
+    if (tab.authOnly && !isAuthenticated) {
+      const next = encodeURIComponent(location.pathname + location.search)
+      navigate(`/auth?next=${next}`)
+      return
+    }
+    navigate(tab.path)
+  }
 
   return (
     <div 
@@ -72,7 +84,7 @@ function BottomNav() {
           return (
             <button
               key={tab.id}
-              onClick={() => navigate(tab.path)}
+              onClick={() => handleTabClick(tab)}
               aria-label={tab.label}
               style={{
                 backgroundColor: 'transparent',
@@ -130,6 +142,23 @@ function CardsIcon({ active }) {
           <rect x="6" y="2" width="16" height="18" rx="3" stroke={color} strokeWidth="1.5" fill="none"/>
         </>
       )}
+    </svg>
+  )
+}
+
+// Events Icon
+function CalendarIcon({ active }) {
+  const color = active ? '#5B4AE6' : '#ADAFBB'
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+      <rect x="3" y="5" width="18" height="16" rx="2"
+        fill={active ? color : 'none'}
+        stroke={color}
+        strokeWidth="1.5"
+      />
+      <line x1="3" y1="10" x2="21" y2="10" stroke={active ? 'white' : color} strokeWidth="1.5" />
+      <line x1="8" y1="3" x2="8" y2="7" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+      <line x1="16" y1="3" x2="16" y2="7" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
     </svg>
   )
 }

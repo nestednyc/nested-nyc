@@ -8,6 +8,9 @@ import { eventService } from '../services/eventService'
 // Transform DB event to UI format
 function transformEvent(dbEvent) {
   if (!dbEvent) return null
+  // Prefer the joined organization brand; fall back to denormalized fields
+  // when the event predates organizations.
+  const org = dbEvent.organization
   return {
     id: dbEvent.id,
     title: dbEvent.title,
@@ -22,9 +25,12 @@ function transformEvent(dbEvent) {
     tags: dbEvent.tags || [],
     highlights: dbEvent.highlights || [],
     organizer: {
-      name: dbEvent.organizer_name || 'Organizer',
-      image: dbEvent.organizer_image
+      name: org?.name || dbEvent.organizer_name || 'Organizer',
+      image: org?.logo || dbEvent.organizer_image
     },
+    organization: org
+      ? { id: org.id, slug: org.slug, name: org.name, logo: org.logo, verified: org.verified }
+      : null,
     isPast: dbEvent.is_past || false
   }
 }

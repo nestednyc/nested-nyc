@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { authService, getErrorMessage } from '../lib/supabase'
+import { resolvePostAuthRoute } from '../utils/authHelpers'
 
 /**
  * ResetPasswordScreen - Set a new password after clicking reset link
@@ -98,7 +99,8 @@ function ResetPasswordScreen() {
       return
     }
 
-    navigate('/discover', { replace: true })
+    const target = await resolvePostAuthRoute()
+    navigate(target === '/auth' ? '/discover' : target, { replace: true })
   }
 
   if (!sessionReady && !sessionError) {

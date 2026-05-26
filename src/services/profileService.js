@@ -147,6 +147,63 @@ export const profileService = {
   },
 
   /**
+   * Get lightweight stats for a user's social profile header.
+   * Returns { projectCount, eventCount, joinedAt } — small parallel reads, no joins.
+   * projectCount = owned projects + approved team memberships (small chance of
+   * double-counting if a user owns a project and also appears in its team_members;
+   * acceptable for V1 stats display).
+   * @param {string} userId
+   * @returns {Promise<{data: {projectCount: number, eventCount: number, joinedAt: string|null}|null, error: object|null}>}
+   */
+  async getUserStats(userId) {
+    if (!isSupabaseConfigured() || !supabase) {
+      return { data: null, error: { message: 'Supabase not configured' } }
+    }
+
+    try {
+      const [ownedRes, joinedRes, eventRes, profileRes] = await Promise.all([
+        supabase.from('projects').select('*', { count: 'exact', head: true }).eq('owner_id', userId),
+        supabase.from('team_members').select('*', { count: 'exact', head: true }).eq('user_id', userId).eq('status', 'approved'),
+        supabase.from('event_registrations').select('*', { count: 'exact', head: true }).eq('user_id', userId),
+        supabase.from('profiles').select('created_at').eq('id', userId).single()
+      ])
+
+      return {
+        data: {
+          projectCount: (ownedRes.count || 0) + (joinedRes.count || 0),
+          eventCount: eventRes.count || 0,
+          joinedAt: profileRes.data?.created_at || null
+        },
+        error: null
+      }
+    } catch (err) {
+      console.error('getUserStats error:', err)
+      return { data: null, error: err }
+    }
+  },
+
+  /**
+   * Fetch a profile via the column-restricted public_profiles view.
+   * Used for anon viewers — exposes only the safe columns
+   * (id, first_name, last_name, username, avatar, photos, university, headline).
+   * @param {string} userId
+   * @returns {Promise<{data: object|null, error: object|null}>}
+   */
+  async getPublicProfile(userId) {
+    if (!isSupabaseConfigured() || !supabase) {
+      return { data: null, error: { message: 'Supabase not configured' } }
+    }
+
+    const { data, error } = await supabase
+      .from('public_profiles')
+      .select('*')
+      .eq('id', userId)
+      .single()
+
+    return { data, error }
+  },
+
+  /**
    * Get all profiles (for discovery/matching)
    * @param {object} options - Query options (limit, offset, filters)
    * @returns {Promise<{data: array|null, error: object|null}>}

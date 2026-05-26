@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { authService } from '../lib/supabase'
 import { useOnboarding } from '../context/OnboardingContext'
+import { resolvePostAuthRoute } from '../utils/authHelpers'
 
 /**
  * AuthConfirmScreen - Handles magic link / email confirmation callback
@@ -22,9 +23,19 @@ function AuthConfirmScreen() {
   const [error, setError] = useState('')
 
   /**
-   * Determine where to redirect after successful auth
+   * Determine where to redirect after successful auth.
+   * Honors ?next= override (set by signUpAsOrg → /onboarding/org),
+   * then falls back to a profile-aware resolver (org_admin → dashboard,
+   * student → discover) and finally the local onboarding flag.
    */
-  const getPostAuthRedirect = () => {
+  const getPostAuthRedirect = async () => {
+    const queryParams = new URLSearchParams(location.search)
+    const next = queryParams.get('next')
+    if (next && next.startsWith('/')) return next
+
+    const resolved = await resolvePostAuthRoute()
+    if (resolved && resolved !== '/auth') return resolved
+
     return hasOnboarded ? '/discover' : '/profile'
   }
 
@@ -60,11 +71,12 @@ function AuthConfirmScreen() {
       if (accessToken) {
         // Wait for Supabase to process
         await new Promise(r => setTimeout(r, 500))
-        
+
         const { data } = await authService.getSession()
         if (data?.session) {
           setStatus('success')
-          setTimeout(() => navigate(getPostAuthRedirect(), { replace: true }), 1000)
+          const target = await getPostAuthRedirect()
+          setTimeout(() => navigate(target, { replace: true }), 1000)
           return
         }
       }
@@ -73,14 +85,15 @@ function AuthConfirmScreen() {
       if (!tokenHash) {
         // Wait a moment for Supabase to process the URL
         await new Promise(r => setTimeout(r, 500))
-        
+
         const { data } = await authService.getSession()
         if (data?.session) {
           setStatus('success')
-          setTimeout(() => navigate(getPostAuthRedirect(), { replace: true }), 1000)
+          const target = await getPostAuthRedirect()
+          setTimeout(() => navigate(target, { replace: true }), 1000)
           return
         }
-        
+
         setStatus('error')
         setError('Invalid verification link. Please request a new one.')
         return
@@ -97,7 +110,8 @@ function AuthConfirmScreen() {
 
       // Success
       setStatus('success')
-      setTimeout(() => navigate(getPostAuthRedirect(), { replace: true }), 1500)
+      const target = await getPostAuthRedirect()
+      setTimeout(() => navigate(target, { replace: true }), 1500)
     }
 
     verifyToken()

@@ -1,29 +1,58 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { profileService } from '../services/profileService'
+import { getInitialsAvatar } from '../utils/avatarUtils'
 
 /**
  * ChatScreen - Project/Nest Chat Conversation
  * Nested NYC – Student-only project network
- * 
- * Specs:
- * - Header: Back button, avatar, name, online status, menu icon
- * - Messages: Bubbles with different colors for sent/received
- * - Timestamps for message groups
- * - Input field with attachment and send buttons
+ *
+ * Messaging backend is not yet implemented — messages are mock data. When
+ * the route param is a UUID (the user came in from ContactSheet's
+ * "Message on Nested" entry), we fetch that profile so the header at least
+ * shows the right person and a "preview" banner explains the state.
  */
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 function ChatScreen() {
   const navigate = useNavigate()
   const { id } = useParams()
   const [message, setMessage] = useState('')
+
+  const isInitiatedFromProfile = id && UUID_RE.test(id)
+
+  const [contact, setContact] = useState(
+    isInitiatedFromProfile
+      ? { name: 'Loading…', image: getInitialsAvatar('?'), online: false }
+      : {
+          name: 'Marcus Chen',
+          image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop',
+          online: true
+        }
+  )
+
+  // When the URL has a UUID, fetch that profile so the header reflects the
+  // person the viewer actually clicked "Message on Nested" for.
+  useEffect(() => {
+    if (!isInitiatedFromProfile) return
+    let cancelled = false
+    profileService.getProfile(id).then(({ data }) => {
+      if (cancelled || !data) return
+      const fullName = `${data.first_name || ''} ${data.last_name || ''}`.trim() || 'Unnamed User'
+      setContact({
+        name: fullName,
+        image: data.avatar || getInitialsAvatar(fullName),
+        online: false
+      })
+    })
+    return () => { cancelled = true }
+  }, [id, isInitiatedFromProfile])
   
-  const contact = {
-    name: 'Marcus Chen',
-    image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop',
-    online: true
-  }
-  
-  const messages = [
+  // Mock conversation — only shown for legacy /chat/:integerId entries.
+  // For UUID entries (initiated from a profile's Connect button), the thread
+  // starts empty because there's no backend to load real history from.
+  const messages = isInitiatedFromProfile ? [] : [
     { id: 1, text: "Hey! I saw your ClimateTech project on Nested – the data viz looks amazing 🔥", time: '2:55 PM', sent: false },
     { id: 2, text: "Thanks! We're still looking for a frontend dev if you're interested? We meet at Bobst on Thursdays", time: '3:02 PM', sent: true },
     { id: 3, text: "I'm totally down! I've been working on React + D3 stuff at Columbia", time: '3:10 PM', sent: false },
@@ -145,17 +174,43 @@ function ChatScreen() {
         </button>
       </div>
       
+      {/* Coming-soon banner — only shown when we got here from a profile
+          Connect button (no real backend wired yet). */}
+      {isInitiatedFromProfile && (
+        <div style={{
+          padding: '10px 16px',
+          backgroundColor: '#FEF3C7',
+          borderBottom: '1px solid #FDE68A',
+          fontSize: '12px',
+          color: '#92400E',
+          textAlign: 'center',
+          lineHeight: 1.4
+        }}>
+          Messaging is coming soon. For now, try one of the external links on their profile.
+        </div>
+      )}
+
       {/* Messages */}
-      <div 
-        style={{ 
-          flex: 1, 
-          overflowY: 'auto', 
+      <div
+        style={{
+          flex: 1,
+          overflowY: 'auto',
           padding: '20px 16px',
           display: 'flex',
           flexDirection: 'column',
           gap: '16px'
         }}
       >
+        {isInitiatedFromProfile && messages.length === 0 && (
+          <p style={{
+            textAlign: 'center',
+            fontSize: '13px',
+            color: '#9CA3AF',
+            margin: '24px 0'
+          }}>
+            Start of conversation with {contact.name}
+          </p>
+        )}
         {messages.map((msg, index) => (
           <div key={msg.id}>
             {/* Show timestamp before first message or when time changes */}

@@ -17,7 +17,7 @@ export const eventService = {
 
     const { data, error } = await supabase
       .from('events')
-      .select('*')
+      .select('*, organization:organizations(id, slug, name, logo, verified)')
       .order('date', { ascending: true })
 
     return { data, error }
@@ -34,7 +34,7 @@ export const eventService = {
 
     const { data, error } = await supabase
       .from('events')
-      .select('*')
+      .select('*, organization:organizations(id, slug, name, logo, verified)')
       .eq('is_past', false)
       .order('date', { ascending: true })
 
@@ -52,7 +52,7 @@ export const eventService = {
 
     const { data, error } = await supabase
       .from('events')
-      .select('*')
+      .select('*, organization:organizations(id, slug, name, logo, verified)')
       .eq('is_past', true)
       .order('date', { ascending: false })
 
@@ -71,7 +71,7 @@ export const eventService = {
 
     const { data, error } = await supabase
       .from('events')
-      .select('*')
+      .select('*, organization:organizations(id, slug, name, logo, verified)')
       .eq('id', eventId)
       .single()
 
@@ -90,7 +90,7 @@ export const eventService = {
 
     const { data: event, error: eventError } = await supabase
       .from('events')
-      .select('*')
+      .select('*, organization:organizations(id, slug, name, logo, verified)')
       .eq('id', eventId)
       .single()
 
@@ -298,7 +298,7 @@ export const eventService = {
 
     const { data, error } = await supabase
       .from('event_registrations')
-      .select('event_id, events(*)')
+      .select('event_id, events(*, organization:organizations(id, slug, name, logo, verified))')
       .eq('user_id', user.id)
 
     if (error) {
@@ -326,11 +326,40 @@ export const eventService = {
 
     const { data, error } = await supabase
       .from('events')
-      .select('*')
+      .select('*, organization:organizations(id, slug, name, logo, verified)')
       .eq('organizer_id', user.id)
       .order('date', { ascending: true })
 
     return { data: data || [], error }
+  },
+
+  /**
+   * Fetch public attendee profiles for an event (name + avatar + university only).
+   * Works for unauthenticated viewers via the public_profiles view.
+   * @param {string} eventId
+   * @param {number} limit
+   */
+  async getAttendees(eventId, limit = 24) {
+    if (!isSupabaseConfigured() || !supabase) return { data: [], error: null }
+
+    const { data: regs, error: regError } = await supabase
+      .from('event_registrations')
+      .select('user_id, registered_at')
+      .eq('event_id', eventId)
+      .order('registered_at', { ascending: true })
+      .limit(limit)
+
+    if (regError) return { data: [], error: regError }
+    const userIds = (regs || []).map(r => r.user_id).filter(Boolean)
+    if (userIds.length === 0) return { data: [], error: null }
+
+    const { data: profiles, error: profileError } = await supabase
+      .from('public_profiles')
+      .select('id, first_name, last_name, avatar, university')
+      .in('id', userIds)
+
+    if (profileError) return { data: [], error: profileError }
+    return { data: profiles || [], error: null }
   },
 
   /**
@@ -345,7 +374,7 @@ export const eventService = {
 
     const { data, error } = await supabase
       .from('events')
-      .select('*')
+      .select('*, organization:organizations(id, slug, name, logo, verified)')
       .or(`title.ilike.%${query}%,description.ilike.%${query}%,location.ilike.%${query}%`)
       .order('date', { ascending: true })
 

@@ -8,6 +8,7 @@ export { projectService } from './projectService'
 export { nestService } from './nestService'
 export { eventService } from './eventService'
 export { lookupService } from './lookupService'
+export { orgService } from './orgService'
 
 // Also export as default object for convenient importing
 import { profileService } from './profileService'
@@ -15,11 +16,13 @@ import { projectService } from './projectService'
 import { nestService } from './nestService'
 import { eventService } from './eventService'
 import { lookupService } from './lookupService'
+import { orgService } from './orgService'
 
 export default {
   profile: profileService,
   project: projectService,
   nest: nestService,
   event: eventService,
-  lookup: lookupService
+  lookup: lookupService,
+  org: orgService
 }

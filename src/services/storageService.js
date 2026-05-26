@@ -67,6 +67,53 @@ export const storageService = {
   },
 
   /**
+   * Upload a profile photo for the multi-photo gallery (up to 3 slots).
+   * Reuses the `avatars` bucket — filename is prefixed so we can identify
+   * gallery uploads vs. legacy single-avatar uploads.
+   * @param {string} userId - The user's UUID
+   * @param {File} file - The image file to upload
+   * @param {number} slot - 0..2 — which gallery slot this photo occupies
+   * @returns {Promise<{url: string|null, error: object|null}>}
+   */
+  async uploadProfilePhoto(userId, file, slot = 0) {
+    if (!isSupabaseConfigured() || !supabase) {
+      return { url: null, error: { message: 'Supabase not configured' } }
+    }
+    if (!file) return { url: null, error: { message: 'No file provided' } }
+
+    const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+    if (!validTypes.includes(file.type)) {
+      return { url: null, error: { message: 'Invalid file type. Please use JPG, PNG, GIF, or WebP.' } }
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      return { url: null, error: { message: 'File too large. Maximum size is 5MB.' } }
+    }
+
+    try {
+      const fileExt = file.name.split('.').pop()
+      const fileName = `photo-${userId}-${slot}-${Date.now()}.${fileExt}`
+
+      const { error: uploadError } = await supabase.storage
+        .from(AVATAR_BUCKET)
+        .upload(fileName, file, { cacheControl: '3600', upsert: true })
+
+      if (uploadError) {
+        console.error('Profile photo upload error:', uploadError)
+        return { url: null, error: uploadError }
+      }
+
+      const { data: { publicUrl } } = supabase.storage
+        .from(AVATAR_BUCKET)
+        .getPublicUrl(fileName)
+
+      return { url: publicUrl, error: null }
+    } catch (err) {
+      console.error('Profile photo upload error:', err)
+      return { url: null, error: err }
+    }
+  },
+
+  /**
    * Delete an avatar image
    * @param {string} filePath - The file path in storage
    * @returns {Promise<{error: object|null}>}
@@ -133,6 +180,45 @@ export const storageService = {
       return { url: publicUrl, error: null }
     } catch (err) {
       console.error('Project icon upload error:', err)
+      return { url: null, error: err }
+    }
+  },
+
+  /**
+   * Upload a logo for an organization. Reuses the public `avatars` bucket.
+   * @param {string} orgIdOrTempKey - The org's UUID, or a temp key if pre-create
+   * @param {File} file - The image file to upload
+   * @returns {Promise<{url: string|null, error: object|null}>}
+   */
+  async uploadOrgLogo(orgIdOrTempKey, file) {
+    if (!isSupabaseConfigured() || !supabase) {
+      return { url: null, error: { message: 'Supabase not configured' } }
+    }
+    if (!file) return { url: null, error: { message: 'No file provided' } }
+
+    const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+    if (!validTypes.includes(file.type)) {
+      return { url: null, error: { message: 'Invalid file type. Please use JPG, PNG, GIF, or WebP.' } }
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      return { url: null, error: { message: 'File too large. Maximum size is 5MB.' } }
+    }
+
+    try {
+      const fileExt = file.name.split('.').pop()
+      const fileName = `org-${orgIdOrTempKey}-${Date.now()}.${fileExt}`
+
+      const { error: uploadError } = await supabase.storage
+        .from(AVATAR_BUCKET)
+        .upload(fileName, file, { cacheControl: '3600', upsert: true })
+
+      if (uploadError) return { url: null, error: uploadError }
+
+      const { data: { publicUrl } } = supabase.storage
+        .from(AVATAR_BUCKET)
+        .getPublicUrl(fileName)
+      return { url: publicUrl, error: null }
+    } catch (err) {
       return { url: null, error: err }
     }
   },

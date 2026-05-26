@@ -305,6 +305,62 @@ export const authService = {
   },
 
   /**
+   * Sign up a new ORGANIZATION admin with email and password.
+   * Skips .edu validation (orgs use institutional email of any domain) and
+   * tags the user's metadata with account_type='org_admin' so the auto-create
+   * profile trigger sets the right discriminator.
+   *
+   * Note: account_type is a UI/routing hint, NOT a permission. Event-posting
+   * permission lives in org_members and is enforced by RLS.
+   *
+   * @param {string} email - Org admin's email address
+   * @param {string} password - Chosen password
+   * @returns {Promise<{data: any, error: any}>}
+   */
+  async signUpAsOrg(email, password) {
+    // Basic format check only — no .edu requirement for org accounts.
+    if (!email || typeof email !== 'string' || email.trim() === '') {
+      return { data: null, error: { message: 'Please enter your email address', code: 'INVALID_EMAIL' } }
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(email)) {
+      return { data: null, error: { message: 'Please enter a valid email address', code: 'INVALID_EMAIL_FORMAT' } }
+    }
+
+    const passwordValidation = this.validatePassword(password)
+    if (!passwordValidation.valid) {
+      return { data: null, error: passwordValidation.error }
+    }
+
+    const { ready, error: configError } = this.checkSupabaseReady()
+    if (!ready) return { data: null, error: configError }
+
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/confirm?next=/onboarding/org`,
+          data: {
+            account_type: 'org_admin',
+            email_domain: email.split('@')[1].toLowerCase()
+          }
+        }
+      })
+
+      if (error) return { data: null, error: this._mapSupabaseError(error) }
+
+      if (data?.user && !data?.session) {
+        return { data: { ...data, needsEmailConfirmation: true }, error: null }
+      }
+
+      return { data, error: null }
+    } catch (err) {
+      return { data: null, error: this._handleNetworkError(err) }
+    }
+  },
+
+  /**
    * Sign in an existing user with email and password
    * @param {string} email - User's email address
    * @param {string} password - User's password

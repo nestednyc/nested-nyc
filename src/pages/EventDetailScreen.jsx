@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { getEventByIdAsync } from '../utils/eventData'
 import { eventService } from '../services/eventService'
+import PublicTopBar from '../components/PublicTopBar'
+import { useAuthGate } from '../utils/useAuthGate'
 
 /**
  * EventDetailScreen - Event Detail View
@@ -37,10 +39,12 @@ function getEventIcon(tags) {
 function EventDetailScreen() {
   const navigate = useNavigate()
   const { eventId } = useParams()
+  const { isAuthenticated, requireAuth } = useAuthGate()
   const [isDesktop, setIsDesktop] = useState(false)
   const [isRsvped, setIsRsvped] = useState(false)
   const [rsvpLoading, setRsvpLoading] = useState(false)
   const [event, setEvent] = useState(null)
+  const [attendees, setAttendees] = useState([])
   const [loading, setLoading] = useState(true)
 
   // Responsive check
@@ -50,31 +54,39 @@ function EventDetailScreen() {
     window.addEventListener('resize', check)
     return () => window.removeEventListener('resize', check)
   }, [])
-  
-  // Load event by ID from Supabase (with mock fallback)
+
+  // Load event + attendees by ID. The attendee fetch goes through the public_profiles
+  // view so it works for unauthenticated visitors too.
   useEffect(() => {
     async function loadEvent() {
-      if (eventId) {
-        setLoading(true)
-        try {
-          const foundEvent = await getEventByIdAsync(eventId)
-          setEvent(foundEvent)
+      if (!eventId) return
+      setLoading(true)
+      try {
+        const foundEvent = await getEventByIdAsync(eventId)
+        setEvent(foundEvent)
 
-          // Check if user is already registered
+        const { data: attendeeProfiles } = await eventService.getAttendees(eventId)
+        setAttendees(attendeeProfiles || [])
+
+        if (isAuthenticated) {
           const registered = await eventService.isRegistered(eventId)
           setIsRsvped(registered)
-        } catch (err) {
-          console.error('Failed to load event:', err)
-        } finally {
-          setLoading(false)
         }
+      } catch (err) {
+        console.error('Failed to load event:', err)
+      } finally {
+        setLoading(false)
       }
     }
     loadEvent()
-  }, [eventId])
+  }, [eventId, isAuthenticated])
 
-  // Handle RSVP toggle
+  // Handle RSVP toggle. Anon users get funneled to /auth?next=<this page>.
   const handleRsvp = async () => {
+    if (!isAuthenticated) {
+      requireAuth()
+      return
+    }
     if (rsvpLoading) return
 
     setRsvpLoading(true)
@@ -195,6 +207,7 @@ function EventDetailScreen() {
   if (isDesktop) {
     return (
       <div className="event-detail-desktop">
+        <PublicTopBar />
         {/* Back Button */}
         <div className="event-detail-back">
           <button 
@@ -293,7 +306,30 @@ function EventDetailScreen() {
                       </svg>
                     </div>
                     <span style={{ fontSize: '13px', color: '#6B7280' }}>
-                      Hosted by <strong style={{ color: '#111827' }}>{event.organizer?.name || event.organizer || 'Nested NYC'}</strong>
+                      Hosted by{' '}
+                      {event.organization ? (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); navigate(`/orgs/${event.organization.slug}`) }}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            padding: 0,
+                            fontSize: '13px',
+                            fontWeight: 700,
+                            color: '#5B4AE6',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          {event.organization.name}
+                          {event.organization.verified && (
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="#4F46E5" style={{ marginLeft: '4px', verticalAlign: 'middle' }}>
+                              <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+                            </svg>
+                          )}
+                        </button>
+                      ) : (
+                        <strong style={{ color: '#111827' }}>{event.organizer?.name || event.organizer || 'Nested NYC'}</strong>
+                      )}
                     </span>
                   </div>
                 </div>
@@ -376,6 +412,8 @@ function EventDetailScreen() {
                 </div>
               </div>
 
+              <Facepile attendees={attendees} total={event.attendees || 0} />
+
               {/* Capacity Bar */}
               <div className="capacity-bar-container">
                 <div className="capacity-bar">
@@ -452,6 +490,7 @@ function EventDetailScreen() {
   // Mobile Layout
   return (
     <div className="flex flex-col h-full bg-white relative">
+      <PublicTopBar />
       {/* Fixed Header */}
       <div 
             style={{
@@ -665,8 +704,14 @@ function EventDetailScreen() {
                 <p style={{ margin: 0, fontSize: '12px', color: '#6B7280' }}>{spotsLeft > 0 ? `${spotsLeft} spots left` : 'Event is full'}</p>
               </div>
             </div>
+
+            {attendees.length > 0 && (
+              <div style={{ padding: '12px 14px' }}>
+                <Facepile attendees={attendees} total={event.attendees || 0} />
+              </div>
+            )}
           </div>
-          
+
           {/* Description */}
           <div style={{ marginBottom: '20px' }}>
             <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: '#111827' }}>
@@ -814,6 +859,73 @@ function EventDetailScreen() {
           </div>
         )}
       </div>
+    </div>
+  )
+}
+
+function Facepile({ attendees, total }) {
+  if (!attendees || attendees.length === 0) {
+    return (
+      <div style={{ fontSize: '12px', color: '#6B7280' }}>
+        Be the first to RSVP.
+      </div>
+    )
+  }
+  const shown = attendees.slice(0, 6)
+  const overflow = Math.max(0, (total || attendees.length) - shown.length)
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+      <div style={{ display: 'flex' }}>
+        {shown.map((a, idx) => {
+          const initial = (a.first_name?.charAt(0) || '?').toUpperCase()
+          return (
+            <div
+              key={a.id || idx}
+              title={[a.first_name, a.last_name].filter(Boolean).join(' ')}
+              style={{
+                width: '32px',
+                height: '32px',
+                borderRadius: '50%',
+                backgroundColor: '#F3F4F6',
+                backgroundImage: a.avatar ? `url(${a.avatar})` : 'none',
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+                border: '2px solid #FFFFFF',
+                marginLeft: idx === 0 ? 0 : '-8px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '12px',
+                fontWeight: 600,
+                color: '#6B7280'
+              }}
+            >
+              {!a.avatar && initial}
+            </div>
+          )
+        })}
+        {overflow > 0 && (
+          <div style={{
+            width: '32px',
+            height: '32px',
+            borderRadius: '50%',
+            backgroundColor: '#EEF2FF',
+            border: '2px solid #FFFFFF',
+            marginLeft: '-8px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '11px',
+            fontWeight: 600,
+            color: '#4F46E5'
+          }}>
+            +{overflow}
+          </div>
+        )}
+      </div>
+      <span style={{ fontSize: '12px', color: '#6B7280' }}>
+        {shown[0]?.first_name || 'Someone'}{shown.length > 1 ? ` and ${(total || attendees.length) - 1} other${(total || attendees.length) - 1 === 1 ? '' : 's'}` : ''} attending
+      </span>
     </div>
   )
 }

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import BottomNav from '../components/BottomNav'
+import PublicTopBar from '../components/PublicTopBar'
 import { getDiscoverProjects, getDiscoverProjectsAsync, getCurrentUserId } from '../utils/projectData'
 import { getDiscoverNests, getDiscoverNestsAsync } from '../utils/nestData'
 import { SHOW_NESTS, SHOW_FILTERS } from '../config/features'
@@ -112,6 +113,7 @@ function DiscoverScreen() {
 
   return (
     <div className="flex flex-col h-full bg-white relative">
+      <PublicTopBar />
       {/* Scrollable Content */}
       <div
         style={{

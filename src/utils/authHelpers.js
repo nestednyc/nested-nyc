@@ -81,3 +81,48 @@ export async function isCurrentUserOwner(ownerId) {
 
   return currentUserId === ownerId
 }
+
+/**
+ * Resolve where the user should land after authenticating.
+ *
+ * - Org admin with an org → their org dashboard
+ * - Org admin without an org yet → org onboarding
+ * - Student who finished onboarding → /discover
+ * - Student mid-onboarding → /discover (signup flow handles the rest)
+ * - Fallback / no session → /auth
+ *
+ * Reads profile + memberships from Supabase rather than localStorage so it
+ * works whether the user signed in here or came back from email confirmation.
+ *
+ * @returns {Promise<string>} The path to navigate to
+ */
+export async function resolvePostAuthRoute() {
+  if (!isSupabaseConfigured() || !supabase) return '/auth'
+
+  const user = await getCurrentUser()
+  if (!user) return '/auth'
+
+  try {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('account_type, onboarding_completed')
+      .eq('id', user.id)
+      .maybeSingle()
+
+    if (profile?.account_type === 'org_admin') {
+      const { data: memberships } = await supabase
+        .from('org_members')
+        .select('organization:organizations(slug)')
+        .eq('user_id', user.id)
+        .limit(1)
+
+      const slug = memberships?.[0]?.organization?.slug
+      return slug ? `/orgs/${slug}/dashboard` : '/onboarding/org'
+    }
+
+    return '/discover'
+  } catch (err) {
+    console.error('resolvePostAuthRoute error:', err)
+    return '/discover'
+  }
+}

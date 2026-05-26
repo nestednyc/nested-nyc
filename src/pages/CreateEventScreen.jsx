@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { eventService } from '../services/eventService'
 import { profileService } from '../services/profileService'
+import { orgService } from '../services/orgService'
 
 /**
  * CreateEventScreen - Step-based event creation
@@ -52,17 +53,33 @@ function CreateEventScreen() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState(null)
   const [profile, setProfile] = useState(null)
+  const [activeOrg, setActiveOrg] = useState(null)
+  const [orgChecked, setOrgChecked] = useState(false)
 
-  // Fetch current user's profile for organizer info
+  // Resolve the org the admin is posting on behalf of. RLS will reject any
+  // event without a valid org_members row, so we surface that as a redirect
+  // rather than letting the create silently fail at the bottom of the wizard.
   useEffect(() => {
-    async function loadProfile() {
-      const { data } = await profileService.getCurrentProfile()
-      if (data) {
-        setProfile(data)
+    let cancelled = false
+    async function load() {
+      const [{ data: profileData }, { data: myOrgs }] = await Promise.all([
+        profileService.getCurrentProfile(),
+        orgService.getMyOrgs()
+      ])
+      if (cancelled) return
+      if (profileData) setProfile(profileData)
+
+      if (!myOrgs || myOrgs.length === 0) {
+        // No org → they need to either sign up as an org or create one.
+        navigate('/onboarding/org', { replace: true })
+        return
       }
+      setActiveOrg(myOrgs[0])
+      setOrgChecked(true)
     }
-    loadProfile()
-  }, [])
+    load()
+    return () => { cancelled = true }
+  }, [navigate])
 
   // Form state
   const [formData, setFormData] = useState({
@@ -146,18 +163,22 @@ function CreateEventScreen() {
   }
 
   const handleSubmit = async () => {
+    if (!activeOrg) {
+      setError('No active organization. Please complete org setup first.')
+      return
+    }
     setIsSubmitting(true)
     setError(null)
 
     // Filter out empty highlights
     const filteredHighlights = formData.highlights.filter(h => h.trim())
 
-    // Get organizer name from profile
-    const organizerName = profile
-      ? `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || 'Event Organizer'
-      : 'Event Organizer'
+    // Display name on the event card prefers the org brand, falling back to the
+    // human admin's name if for some reason the org has no name set.
+    const organizerName = activeOrg.name
+      || (profile ? `${profile.first_name || ''} ${profile.last_name || ''}`.trim() : '')
+      || 'Event Organizer'
 
-    // Format date and time from dropdowns
     const formattedDate = `${formData.month} ${formData.day}, ${formData.year}`
     const formattedTime = `${formData.startTime} (${formData.duration})`
 
@@ -171,8 +192,9 @@ function CreateEventScreen() {
       tags: formData.tags,
       highlights: filteredHighlights,
       max_attendees: formData.max_attendees,
+      organization_id: activeOrg.id,
       organizer_name: organizerName,
-      organizer_image: profile?.avatar || null,
+      organizer_image: activeOrg.logo || profile?.avatar || null,
       is_past: false,
     }
 
@@ -186,8 +208,9 @@ function CreateEventScreen() {
         return
       }
 
-      // Navigate to events page
-      navigate('/events', { state: { eventCreated: true, eventName: formData.title } })
+      navigate(`/orgs/${activeOrg.slug}/dashboard`, {
+        state: { eventCreated: true, eventName: formData.title }
+      })
     } catch (err) {
       console.error('Error creating event:', err)
       setError('Failed to create event. Please try again.')
@@ -221,6 +244,14 @@ function CreateEventScreen() {
     }
   }
 
+  if (!orgChecked) {
+    return (
+      <div style={{ padding: '40px 20px', textAlign: 'center', color: '#6B7280' }}>
+        Loading…
+      </div>
+    )
+  }
+
   return (
     <div className="step-wizard">
       {/* Progress Bar */}
@@ -247,6 +278,42 @@ function CreateEventScreen() {
           Step {currentStep} of {TOTAL_STEPS}
         </div>
       </div>
+
+      {/* Posting-as chip */}
+      {activeOrg && (
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          padding: '8px 16px',
+          margin: '8px 16px 0',
+          backgroundColor: '#EEF2FF',
+          border: '1px solid #C7D2FE',
+          borderRadius: '10px',
+          fontSize: '12px',
+          color: '#4338CA'
+        }}>
+          <div style={{
+            width: '20px',
+            height: '20px',
+            borderRadius: '6px',
+            backgroundColor: '#FFFFFF',
+            backgroundImage: activeOrg.logo ? `url(${activeOrg.logo})` : 'none',
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            flexShrink: 0,
+            fontSize: '11px',
+            fontWeight: 700,
+            color: '#6366F1',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}>
+            {!activeOrg.logo && (activeOrg.name?.charAt(0) || '?').toUpperCase()}
+          </div>
+          <span style={{ fontWeight: 500 }}>Posting as <strong>{activeOrg.name}</strong></span>
+        </div>
+      )}
 
       {/* Content Area */}
       <div className="step-wizard-content">

@@ -11,6 +11,10 @@ import AuthGateScreen from './pages/AuthGateScreen'
 import AuthConfirmScreen from './pages/AuthConfirmScreen'
 import ForgotPasswordScreen from './pages/ForgotPasswordScreen'
 import ResetPasswordScreen from './pages/ResetPasswordScreen'
+import OrgSignupScreen from './pages/OrgSignupScreen'
+import OrgOnboardingScreen from './pages/OrgOnboardingScreen'
+import OrgProfileScreen from './pages/OrgProfileScreen'
+import OrgDashboardScreen from './pages/OrgDashboardScreen'
 
 // Main App Pages
 import DiscoverScreen from './pages/DiscoverScreen'
@@ -51,7 +55,7 @@ function useIsDesktop() {
 /**
  * Route categories for layout decisions
  */
-const AUTH_ROUTES = ['/auth', '/auth/confirm', '/auth/reset', '/forgot-password', '/login']
+const AUTH_ROUTES = ['/auth', '/auth/confirm', '/auth/reset', '/forgot-password', '/login', '/signup/org']
 const FORM_ROUTES = ['/profile/edit']
 const APP_ROUTES = ['/discover', '/events', '/matches', '/messages']
 
@@ -201,6 +205,34 @@ function AppContent() {
       <Route path="/nests/:nestId" element={<Navigate to="/discover" replace />} />
       <Route path="/create-nest" element={<Navigate to="/discover" replace />} />
       
+      {/* Org signup — dedicated path for universities and student orgs */}
+      <Route path="/signup/org" element={
+        useDesktopLayout
+          ? <WebLayout layoutType="auth"><OrgSignupScreen /></WebLayout>
+          : <MobileFrame><OrgSignupScreen /></MobileFrame>
+      } />
+
+      {/* Org onboarding — first-run setup after org signup */}
+      <Route path="/onboarding/org" element={
+        isDesktop
+          ? <WebLayout layoutType="form"><OrgOnboardingScreen /></WebLayout>
+          : <MobileFrame><OrgOnboardingScreen /></MobileFrame>
+      } />
+
+      {/* Org public profile */}
+      <Route path="/orgs/:slug" element={
+        isDesktop
+          ? <WebLayout layoutType="app"><OrgProfileScreen /></WebLayout>
+          : <MobileFrame><OrgProfileScreen /></MobileFrame>
+      } />
+
+      {/* Org dashboard — member-gated inside the component */}
+      <Route path="/orgs/:slug/dashboard" element={
+        isDesktop
+          ? <WebLayout layoutType="app"><OrgDashboardScreen /></WebLayout>
+          : <MobileFrame><OrgDashboardScreen /></MobileFrame>
+      } />
+
       {/* Legacy routes - redirect to auth */}
       <Route path="/signup" element={<Navigate to="/auth" replace />} />
       <Route path="/onboarding/*" element={<Navigate to="/auth" replace />} />
