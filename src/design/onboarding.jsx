@@ -26,7 +26,6 @@ import { Stamp, Av } from './shared'
     const [uni, setUni] = useState(null);
     const [major, setMajor] = useState("");
     const [interests, setInterests] = useState([]);
-    const [stamped, setStamped] = useState(false);
     const codeRefs = [useRef(), useRef(), useRef(), useRef()];
 
     const isEdu = /@[^@]+\.edu$/.test(email.trim());
@@ -47,9 +46,6 @@ import { Stamp, Av } from './shared'
     const usernameOk = username.trim().length >= 3 && /^[a-z0-9_.]+$/.test(username.trim());
 
     function finish() {
-      setStamped(true);
-    }
-    function enter() {
       onComplete({
         username: username.trim() || "student",
         uni: uni || (detected && detected.id) || "nyu",
@@ -191,44 +187,6 @@ import { Stamp, Av } from './shared'
 
     // ---------- gating ----------
     const canNext = [isEdu, codeFull, usernameOk, !!uni && !!major, interests.length >= 3][step];
-
-    // ---------- VERIFIED stamp finish ----------
-    if (stamped) {
-      const u = UNI[uni || (detected && detected.id) || "nyu"];
-      const confColors = ["var(--c-startup)", "var(--c-class)", "var(--c-hack)", "var(--c-side)", "var(--c-research)", "var(--accent)"];
-      const confetti = Array.from({ length: 14 }).map((_, i) => {
-        const left = 8 + (i * 6.3) % 84 + (i % 3) * 3;
-        const delay = 0.42 + (i % 7) * 0.06;
-        const c = confColors[i % confColors.length];
-        const shape = i % 2 === 0;
-        return React.createElement("span", {
-          key: i, className: "confetti go",
-          style: {
-            left: left + "%", top: "-4%", background: c,
-            borderRadius: shape ? "50%" : "2px",
-            width: shape ? 14 : 22, height: shape ? 14 : 9,
-            animationDelay: delay + "s", "--cr": ((i % 2 ? 1 : -1) * (180 + i * 22)) + "deg",
-          },
-        });
-      });
-      return (
-        React.createElement("div", { className: "verified corkbg grain" },
-          confetti,
-          React.createElement(Stamp, { size: 600, className: "giant" }),
-          React.createElement("div", { className: "verified-inner shake" },
-            React.createElement("span", { className: "pulse" }),
-            React.createElement(Stamp, { size: 200, className: "seal" }),
-            React.createElement("div", { className: "reveal" },
-              React.createElement("h1", null, "You're in."),
-              React.createElement("div", { className: "who" }, React.createElement("b", null, "@" + (username.trim() || "student")), " · ", u.full, " · verified student"),
-              React.createElement("p", { className: "blurb" }, "Your .edu checks out. You're now part of a closed, peer-only network of students building across NYC. No recruiters, no randoms \u2014 just your people."),
-              React.createElement("button", { className: "btn btn-primary go-btn", onClick: enter },
-                "Start exploring", React.createElement(Icon, { name: "arrowRight", size: 19, stroke: "var(--paper)" }))
-            )
-          )
-        )
-      );
-    }
 
     return (
       React.createElement("div", { className: "onb" },

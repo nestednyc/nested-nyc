@@ -48,7 +48,7 @@ import { Facepile, CatTag, Pin } from './shared'
     );
   }
 
-  function ProjectCard({ p, saved, joined, onOpen, onSave, fasteners, fell, onPeel, hint, sticking }) {
+  function ProjectCard({ p, saved, joined, onOpen, onSave, hint, fasteners, onPeel, sticking }) {
     const cat = CAT[p.cat];
     const openRoles = p.roles.filter((r) => r.open);
     const teamNames = [p.lead.name, ...p.team.map((t) => t.name)];
@@ -57,8 +57,15 @@ import { Facepile, CatTag, Pin } from './shared'
     const joinedTxt = "Joined by " + teamNames.slice(0, 2).map((n) => n.split(" ")[0]).join(", ") + (extra > 0 ? " +" + extra : "");
 
     const isTape = p.pinType === "tape";
-    const interactive = typeof onPeel === "function";
-    const fast = fasteners || (isTape ? ["left", "right"] : ["pin"]);
+    // Controlled if parent passes onPeel; otherwise the card owns its own fasteners.
+    const controlled = typeof onPeel === "function";
+    const [localFast, setLocalFast] = useState(isTape ? ["left", "right"] : ["pin"]);
+    const fast = controlled ? (fasteners ?? (isTape ? ["left", "right"] : ["pin"])) : localFast;
+    const fell = fast.length === 0;
+    const interactive = !fell;
+    const peel = controlled
+      ? (which) => onPeel(p.id, which)
+      : (which) => setLocalFast((arr) => arr.filter((s) => s !== which));
 
     // random fall params, stable per card instance
     const fall = useRef(null);
@@ -92,11 +99,11 @@ import { Facepile, CatTag, Pin } from './shared'
         // fasteners
         isTape
           ? fast.map((s) => (interactive
-              ? React.createElement(TapeStrip, { key: s, side: s, hint: hint && s === "right", onPeeled: (which) => onPeel(p.id, which) })
+              ? React.createElement(TapeStrip, { key: s, side: s, hint: hint && s === "right", onPeeled: peel })
               : React.createElement("span", { key: s, className: "tape " + s })))
           : (fast.length
               ? (interactive
-                  ? React.createElement(PinFastener, { key: "pin", hint, onPulled: (which) => onPeel(p.id, which) })
+                  ? React.createElement(PinFastener, { key: "pin", hint, onPulled: peel })
                   : React.createElement(Pin, { key: "pin" }))
               : null),
 
@@ -132,7 +139,7 @@ import { Facepile, CatTag, Pin } from './shared'
   }
 
   // ---- one category shelf with flip-and-print pagination ----
-  function FeedRow({ feed, saved, joined, onOpen, onSave }) {
+  function FeedRow({ feed, feedIndex = 0, saved, joined, onOpen, onSave }) {
     const cols = feed.cols || 4;
     const rows = feed.rows || 1;
     const pageSize = feed.pageSize || cols * rows;
@@ -140,6 +147,34 @@ import { Facepile, CatTag, Pin } from './shared'
     const [shown, setShown] = useState(0);
     const [phase, setPhase] = useState("in");
     const timer = useRef(null);
+
+    // Per-shelf fastener state — present key = dirty, [] = fell, [...] = partially peeled / pristine override.
+    const [fasteners, setFasteners] = useState({});
+    // Cards currently mid re-pin animation (cleared after the stickUp keyframe runs).
+    const [sticking, setSticking] = useState(() => new Set());
+    const stickTimer = useRef(null);
+    const dirtyCount = Object.keys(fasteners).length;
+
+    function peel(id, which) {
+      setFasteners((prev) => {
+        const item = feed.items.find((x) => x.id === id);
+        if (!item) return prev;
+        const base = prev[id] ?? (item.pinType === "tape" ? ["left", "right"] : ["pin"]);
+        return { ...prev, [id]: base.filter((s) => s !== which) };
+      });
+    }
+
+    function repinAll() {
+      const fallenIds = Object.entries(fasteners)
+        .filter(([, arr]) => arr.length === 0)
+        .map(([id]) => id);
+      setFasteners({});
+      if (fallenIds.length) {
+        setSticking(new Set(fallenIds));
+        clearTimeout(stickTimer.current);
+        stickTimer.current = setTimeout(() => setSticking(new Set()), 620);
+      }
+    }
 
     function go(np) {
       if (pages <= 1 || phase === "out" || np === shown || np < 0 || np >= pages) return;
@@ -158,17 +193,24 @@ import { Facepile, CatTag, Pin } from './shared'
             React.createElement("h2", null, feed.label),
             feed.sub && React.createElement("span", { className: "fsub" }, "// " + feed.sub)
           ),
-          pages > 1 && React.createElement("div", { className: "feed-pager" },
-            React.createElement("button", { className: "prev-pin", title: "Previous", disabled: shown === 0, onClick: () => go(shown - 1) },
-              React.createElement(Icon, { name: "arrowLeft", size: 18 })),
-            React.createElement("div", { className: "pin-dots" },
-              Array.from({ length: pages }).map((_, i) => (
-                React.createElement("button", { key: i, className: "pin-dot" + (i === shown ? " on" : ""), title: "Page " + (i + 1), onClick: () => go(i) })
-              ))
-            ),
-            React.createElement("button", { className: "next-pin", title: "Next page", disabled: shown >= pages - 1, onClick: () => go(shown + 1) },
-              "Next",
-              React.createElement("span", { className: "arrow" }, React.createElement(Icon, { name: "arrowRight", size: 16, stroke: "var(--paper)" }))
+          React.createElement("div", { className: "feed-controls" },
+            dirtyCount > 0 && React.createElement("button", {
+              className: "repin-btn", title: "Put fallen cards back on the board", onClick: repinAll,
+            },
+              React.createElement(Icon, { name: "pin", size: 16, stroke: "var(--accent)" }),
+              "Re-pin board"),
+            pages > 1 && React.createElement("div", { className: "feed-pager" },
+              React.createElement("button", { className: "prev-pin", title: "Previous", disabled: shown === 0, onClick: () => go(shown - 1) },
+                React.createElement(Icon, { name: "arrowLeft", size: 18 })),
+              React.createElement("div", { className: "pin-dots" },
+                Array.from({ length: pages }).map((_, i) => (
+                  React.createElement("button", { key: i, className: "pin-dot" + (i === shown ? " on" : ""), title: "Page " + (i + 1), onClick: () => go(i) })
+                ))
+              ),
+              React.createElement("button", { className: "next-pin", title: "Next page", disabled: shown >= pages - 1, onClick: () => go(shown + 1) },
+                "Next",
+                React.createElement("span", { className: "arrow" }, React.createElement(Icon, { name: "arrowRight", size: 16, stroke: "var(--paper)" }))
+              )
             )
           )
         ),
@@ -189,6 +231,10 @@ import { Facepile, CatTag, Pin } from './shared'
                 },
                   React.createElement(ProjectCard, {
                     p, saved: saved.has(p.id), joined: joined.has(p.id), onOpen, onSave,
+                    hint: feedIndex === 0 && shown === 0 && i === 0,
+                    fasteners: fasteners[p.id],
+                    onPeel: peel,
+                    sticking: sticking.has(p.id),
                   })
                 );
               })
@@ -273,7 +319,7 @@ import { Facepile, CatTag, Pin } from './shared'
                   React.createElement("div", { className: "mono" }, "// try another category or clear your search"))
               : React.createElement("div", { className: "feeds" }, React.createElement(FeedRow, { key: single.id + ":" + q + ":" + cat, feed: single, saved, joined, onOpen, onSave })))
           : React.createElement("div", { className: "feeds" },
-              feeds.map((f) => React.createElement(FeedRow, { key: f.id, feed: f, saved, joined, onOpen, onSave })))
+              feeds.map((f, i) => React.createElement(FeedRow, { key: f.id, feedIndex: i, feed: f, saved, joined, onOpen, onSave })))
       )
     );
   }

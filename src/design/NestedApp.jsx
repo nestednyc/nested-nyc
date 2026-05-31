@@ -4,7 +4,7 @@
 import React from 'react'
 import Icon from './icons'
 import { PROJECTS, NestedData, PEOPLE, CAT } from './data'
-import { Av, Toasts } from './shared'
+import { Av, Toasts, Stamp } from './shared'
 import { useTweaks, TweaksPanel, TweakSection, TweakColor, TweakRadio, TweakToggle } from './tweaks-panel'
 import Onboarding from './onboarding'
 import Discover, { ProjectCard } from './discover'
@@ -57,6 +57,7 @@ import { SHOW_TWEAKS } from '../config/features'
     const [soonLabel, setSoonLabel] = useState("Events");
     const [modal, setModal] = useState(null); // {type:'join'|'msg', project, lead}
     const [toasts, setToasts] = useState([]);
+    const [justVerified, setJustVerified] = useState(false);
 
     // persist
     useEffect(() => {
@@ -117,7 +118,12 @@ import { SHOW_TWEAKS } from '../config/features'
       return (
         React.createElement("div", { className: rootClass, style: rootStyle },
           React.createElement(Onboarding, {
-            onComplete: (p) => { setProfile(p); setRoute("discover"); window.scrollTo({ top: 0 }); toast("Welcome to Nested, @" + p.username, "sparkle"); },
+            onComplete: (p) => {
+              setProfile(p); setRoute("discover"); window.scrollTo({ top: 0 });
+              toast("Welcome to Nested, @" + p.username, "sparkle");
+              setJustVerified(true);
+              setTimeout(() => setJustVerified(false), 1500);
+            },
           }),
           React.createElement(Toasts, { items: toasts }),
           React.createElement(StyleTweaks, { t, setTweak })
@@ -154,6 +160,10 @@ import { SHOW_TWEAKS } from '../config/features'
             React.createElement(Icon, { name: "bookmark", size: 20 })),
           React.createElement("button", { className: "iconbtn", onClick: () => { setSoonLabel("Notifications"); setRoute("soon"); }, title: "Notifications" },
             React.createElement(Icon, { name: "bell", size: 20 }), React.createElement("span", { className: "dot" })),
+          profile && justVerified && React.createElement("span", {
+            className: "corner-stamp enter",
+            title: "@" + profile.username + " · verified .edu student",
+          }, React.createElement(Stamp, { size: 44 })),
           profile && React.createElement("button", { className: "me-chip", onClick: () => { setSoonLabel("Profile"); setRoute("soon"); } },
             React.createElement(Av, { name: profile.username }),
             React.createElement("span", { className: "who" },
