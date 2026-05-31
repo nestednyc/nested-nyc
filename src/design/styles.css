@@ -815,3 +815,146 @@ input, textarea, select { font-family: inherit; }
 .pm-photos .polaroid { width: 31%; }
 .pm-photos .polaroid:nth-child(1){transform:rotate(-3deg)} .pm-photos .polaroid:nth-child(2){transform:rotate(2deg);z-index:2} .pm-photos .polaroid:nth-child(3){transform:rotate(4deg)}
 .pm-section { margin-top: 22px; }
+
+/* ============================================================
+   CREATE — Pin a project (5-step form, reuses .onb shell)
+   ============================================================ */
+.onb-card.create { max-width: 560px; }
+
+.ta {
+  width: 100%; box-sizing: border-box;
+  border: 1.5px solid var(--paper-edge);
+  background: var(--paper);
+  border-radius: 11px;
+  padding: 14px 15px;
+  font-family: var(--body);
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--ink);
+  outline: none;
+  resize: vertical;
+  min-height: 110px;
+  transition: border-color .15s, box-shadow .15s;
+}
+.ta:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-wash); }
+.ta::placeholder { color: var(--ink-faint); }
+
+/* role builder — repeating rows of [title][note][open][x] */
+.role-builder { display: flex; flex-direction: column; gap: 9px; }
+.role-builder .row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1.4fr) auto auto;
+  gap: 7px;
+  align-items: stretch;
+}
+.role-builder .row input {
+  border: 1.5px solid var(--paper-edge);
+  background: var(--paper);
+  border-radius: 9px;
+  padding: 0 12px;
+  height: 42px;
+  font-family: var(--body);
+  font-size: 14px;
+  color: var(--ink);
+  outline: none;
+  min-width: 0;
+  transition: border-color .15s, box-shadow .15s;
+}
+.role-builder .row input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-wash); }
+.role-builder .row input::placeholder { color: var(--ink-faint); font-size: 13px; }
+.role-builder .row .rb-open {
+  border: 1.5px solid var(--paper-edge);
+  background: var(--paper);
+  border-radius: 9px;
+  padding: 0 11px;
+  height: 42px;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition: all .15s;
+}
+.role-builder .row .rb-open.on {
+  border-color: var(--c-side);
+  background: oklch(0.56 0.12 152 / .12);
+  color: oklch(0.4 0.1 152);
+}
+.role-builder .row .rb-x {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 42px;
+  border: 1.5px solid var(--paper-edge);
+  background: var(--paper);
+  border-radius: 9px;
+  color: var(--ink-faint);
+  cursor: pointer;
+  transition: all .15s;
+}
+.role-builder .row .rb-x:hover { border-color: var(--c-startup); color: var(--c-startup); }
+.role-builder .add {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+  padding: 8px 14px;
+  border: 1.5px dashed var(--paper-edge);
+  background: transparent;
+  border-radius: 9px;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition: all .15s;
+}
+.role-builder .add:hover { border-color: var(--accent); color: var(--accent); }
+
+/* live flyer preview at step 5 */
+.create-preview-wrap { display: flex; justify-content: center; padding: 6px 0 22px; }
+.create-preview-flyer { width: 100%; max-width: 360px; margin: 0 auto; }
+.create-preview-flyer:hover { transform: rotate(var(--rot)) translateY(0); box-shadow: var(--shadow-card); }
+
+/* pin style picker — two visual choice cards */
+.pin-style-picker { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.ps-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 22px 14px 14px;
+  border: 1.5px solid var(--paper-edge);
+  background: var(--paper);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all .15s;
+}
+.ps-card:hover { border-color: var(--ink-faint); }
+.ps-card.on { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-wash); }
+.ps-card b { font-family: var(--disp); font-weight: 700; font-size: 14px; margin-top: 8px; color: var(--ink); }
+.ps-card small { font-family: var(--mono); font-size: 11px; color: var(--ink-faint); margin-top: 2px; }
+.ps-preview {
+  position: relative;
+  width: 120px;
+  height: 56px;
+  background: var(--paper-2);
+  border-radius: 6px;
+  border: 1px dashed var(--paper-edge);
+  margin-bottom: 6px;
+}
+.ps-preview .ps-tape {
+  position: absolute;
+  top: -7px;
+  width: 38px;
+  height: 13px;
+  background: oklch(0.86 0.07 95 / 0.7);
+  box-shadow: 0 2px 4px -2px oklch(0.2 0 0 / 0.35);
+}
+.ps-preview .ps-tape.left { left: 10px; transform: rotate(-9deg); }
+.ps-preview .ps-tape.right { right: 10px; transform: rotate(9deg); }
+.ps-preview .ps-pin { position: absolute; top: -10px; left: 50%; transform: translateX(-50%); width: 22px; height: 22px; }

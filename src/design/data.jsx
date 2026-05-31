@@ -64,6 +64,20 @@
   ];
   const ROLE = Object.fromEntries(ROLES.map((r) => [r.id, r]));
 
+  const STAGES = [
+    { id: "idea",          label: "Just an idea",    note: "Looking for co-founders or first hands" },
+    { id: "mvp",           label: "Building MVP",    note: "First version in motion" },
+    { id: "recruiting",    label: "Recruiting team", note: "Have the plan, need builders" },
+    { id: "active-sprint", label: "Active sprint",   note: "Shipping now — extra help welcome" },
+  ];
+
+  const COMMITMENTS = [
+    { id: "hackathon",     label: "Hackathon",      note: "1–3 days, sprint hard" },
+    { id: "side-project",  label: "Side project",   note: "A few hours a week" },
+    { id: "serious-build", label: "Serious build",  note: "15–25 hrs / week" },
+    { id: "startup-mode",  label: "Startup mode",   note: "All-in" },
+  ];
+
   // contact link kind -> icon name
   const LINK_ICON = {
     site: "globe", portfolio: "globe", github: "code", linkedin: "external",
@@ -76,10 +90,12 @@
 
   export {
     CATEGORIES, CAT, UNIVERSITIES, UNI, MAJORS, INTERESTS,
-    PROJECTS, EVENT_TYPES, ETYPE, EVENTS, PEOPLE, ROLES, ROLE, LINK_ICON, avColor, initials,
+    PROJECTS, EVENT_TYPES, ETYPE, EVENTS, PEOPLE, ROLES, ROLE, STAGES, COMMITMENTS,
+    LINK_ICON, avColor, initials,
   };
 
   export const NestedData = {
     CATEGORIES, CAT, UNIVERSITIES, UNI, MAJORS, INTERESTS,
-    PROJECTS, EVENT_TYPES, ETYPE, EVENTS, PEOPLE, ROLES, ROLE, LINK_ICON, avColor, initials,
+    PROJECTS, EVENT_TYPES, ETYPE, EVENTS, PEOPLE, ROLES, ROLE, STAGES, COMMITMENTS,
+    LINK_ICON, avColor, initials,
   };

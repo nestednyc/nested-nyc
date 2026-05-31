@@ -12,6 +12,7 @@ import Events from './events'
 import Matches from './matches'
 import People, { ContactLinks } from './people'
 import ProjectDetail from './detail'
+import Create from './create'
 import { SHOW_TWEAKS } from '../config/features'
 
   const { useState, useEffect, useRef } = React;
@@ -53,6 +54,7 @@ import { SHOW_TWEAKS } from '../config/features'
     const [joined, setJoined] = useState(new Set(persisted.current.joined || []));
     const [rsvped, setRsvped] = useState(new Set(persisted.current.rsvped || []));
     const [connected, setConnected] = useState(persisted.current.connected || []);
+    const [created, setCreated] = useState(persisted.current.created || []);
     const [query, setQuery] = useState("");
     const [soonLabel, setSoonLabel] = useState("Events");
     const [modal, setModal] = useState(null); // {type:'join'|'msg', project, lead}
@@ -63,9 +65,9 @@ import { SHOW_TWEAKS } from '../config/features'
     useEffect(() => {
       localStorage.setItem(LS, JSON.stringify({
         profile, route, detailId,
-        saved: [...saved], joined: [...joined], rsvped: [...rsvped], connected,
+        saved: [...saved], joined: [...joined], rsvped: [...rsvped], connected, created,
       }));
-    }, [profile, route, detailId, saved, joined, rsvped, connected]);
+    }, [profile, route, detailId, saved, joined, rsvped, connected, created]);
 
     function toast(text, icon) {
       const id = Math.random().toString(36).slice(2);
@@ -97,7 +99,8 @@ import { SHOW_TWEAKS } from '../config/features'
       setModal(null);
     }
 
-    const detailProject = PROJECTS.find((p) => p.id === detailId);
+    const projectsList = [...created, ...PROJECTS];
+    const detailProject = projectsList.find((p) => p.id === detailId);
     const accent = ACCENTS.find((a) => a.v === t.accent) || ACCENTS[0];
 
     const rootStyle = {
@@ -123,6 +126,26 @@ import { SHOW_TWEAKS } from '../config/features'
               toast("Welcome to Nested, @" + p.username, "sparkle");
               setJustVerified(true);
               setTimeout(() => setJustVerified(false), 1500);
+            },
+          }),
+          React.createElement(Toasts, { items: toasts }),
+          React.createElement(StyleTweaks, { t, setTweak })
+        )
+      );
+    }
+
+    // ---------- CREATE (full-screen, no topbar — same shell as onboarding) ----------
+    if (route === "create") {
+      return (
+        React.createElement("div", { className: rootClass, style: rootStyle },
+          React.createElement(Create, {
+            profile,
+            existingIds: new Set(projectsList.map((p) => p.id)),
+            onCancel: () => setRoute("discover"),
+            onCreate: (project) => {
+              setCreated((arr) => [project, ...arr]);
+              setRoute("discover");
+              toast("Pinned to the board", "pin");
             },
           }),
           React.createElement(Toasts, { items: toasts }),
@@ -174,9 +197,9 @@ import { SHOW_TWEAKS } from '../config/features'
         ),
 
         route === "discover" && React.createElement(Discover, {
-          projects: PROJECTS, profile, saved, joined, query,
+          projects: projectsList, profile, saved, joined, query,
           onOpen: openProject, onSave: toggleSave,
-          onStart: () => { setSoonLabel("Create a project"); setRoute("soon"); },
+          onStart: () => setRoute("create"),
         }),
 
         route === "events" && React.createElement(Events, {
@@ -190,8 +213,9 @@ import { SHOW_TWEAKS } from '../config/features'
         }),
 
         route === "saved" && React.createElement(Matches, {
+          projects: projectsList, profile,
           saved, joined, onOpen: openProject, onSave: toggleSave,
-          onStart: () => { setSoonLabel("Create a project"); setRoute("soon"); },
+          onStart: () => setRoute("create"),
           onBrowse: () => goNav("discover"),
         }),
 
@@ -203,7 +227,7 @@ import { SHOW_TWEAKS } from '../config/features'
           onMessage: (lead) => setModal({ type: "contact", lead }),
         }),
 
-        route === "soon" && React.createElement(SoonPane, { label: soonLabel, saved, joined, projects: PROJECTS, onOpen: openProject, onSave: toggleSave, onBack: () => goNav("discover") }),
+        route === "soon" && React.createElement(SoonPane, { label: soonLabel, saved, joined, projects: projectsList, onOpen: openProject, onSave: toggleSave, onBack: () => goNav("discover") }),
 
         modal && React.createElement(Modal, { modal, onClose: () => setModal(null), onSubmit: submitModal, profile }),
         React.createElement(Toasts, { items: toasts }),

@@ -3,7 +3,7 @@
    ============================================================ */
 import React from 'react'
 import Icon from './icons'
-import { PROJECTS, CAT } from './data'
+import { CAT } from './data'
 import { Pin } from './shared'
 import { ProjectCard } from './discover'
 
@@ -21,15 +21,17 @@ import { ProjectCard } from './discover'
     );
   }
 
-  function Matches({ saved, joined, onOpen, onSave, onStart, onBrowse }) {
+  function Matches({ projects = [], profile, saved, joined, onOpen, onSave, onStart, onBrowse }) {
     const [tab, setTab] = useState("saved");
-    const savedList = PROJECTS.filter((p) => saved.has(p.id));
-    const reqList = PROJECTS.filter((p) => joined.has(p.id));
+    const savedList = projects.filter((p) => saved.has(p.id));
+    const reqList = projects.filter((p) => joined.has(p.id));
+    const myName = profile && profile.username;
+    const mineList = myName ? projects.filter((p) => p.lead && p.lead.name === myName) : [];
 
     const TABS = [
       { id: "saved", label: "Saved", icon: "bookmark", n: savedList.length },
       { id: "requests", label: "Requests", icon: "send", n: reqList.length },
-      { id: "mine", label: "My projects", icon: "pin", n: 0 },
+      { id: "mine", label: "My projects", icon: "pin", n: mineList.length },
     ];
 
     let body;
@@ -55,7 +57,10 @@ import { ProjectCard } from './discover'
             }))
         : React.createElement(EmptyState, { icon: "send", title: "No requests out yet", body: "When you request to join a project, you'll track its status here.", cta: "Find a project to join", onCta: onBrowse });
     } else {
-      body = React.createElement(EmptyState, { icon: "plus", pin: true, title: "Pin your first project", body: "Recruiting for a startup, class team, or hackathon crew? Post it and we'll match you with students across NYC.", cta: "Start a project", onCta: onStart });
+      body = mineList.length
+        ? React.createElement("div", { className: "board" },
+            mineList.map((p) => React.createElement(ProjectCard, { key: p.id, p, saved: saved.has(p.id), joined: joined.has(p.id), onOpen, onSave })))
+        : React.createElement(EmptyState, { icon: "plus", pin: true, title: "Pin your first project", body: "Recruiting for a startup, class team, or hackathon crew? Post it and we'll match you with students across NYC.", cta: "Start a project", onCta: onStart });
     }
 
     return (
