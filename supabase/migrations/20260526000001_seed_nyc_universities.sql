@@ -20,5 +20,10 @@ INSERT INTO public.organizations (slug, name, type, verified, location) VALUES
   ('fit',              'Fashion Institute of Technology',    'university', TRUE, 'New York, NY'),
   ('juilliard',        'The Juilliard School',               'university', TRUE, 'New York, NY'),
   ('yeshiva',          'Yeshiva University',                 'university', TRUE, 'New York, NY'),
-  ('manhattan-college','Manhattan College',                  'university', TRUE, 'Bronx, NY')
+  ('manhattan-college','Manhattan College',                  'university', TRUE, 'Bronx, NY'),
+  ('cuny',             'City University of New York',         'university', TRUE, 'New York, NY'),
+  ('nyit',             'New York Institute of Technology',   'university', TRUE, 'New York, NY'),
+  ('barnard',          'Barnard College',                    'university', TRUE, 'New York, NY'),
+  ('liu',              'Long Island University',              'university', TRUE, 'Brooklyn, NY'),
+  ('marymount',        'Marymount Manhattan College',        'university', TRUE, 'New York, NY')
 ON CONFLICT (slug) DO NOTHING;

@@ -2,6 +2,17 @@
 
 A student-only project network and collaboration platform for NYC universities. Students can discover projects, create and manage their own projects, find teammates, browse events, and connect with other students through profiles.
 
+> ## ⚠️ UI MIGRATION IN PROGRESS — branch `feat/cork-board-design-phase1`
+>
+> **This branch replaces the ENTIRE UI with a new "cork-board" design.** The live app is now:
+> `src/main.jsx` → `src/App.jsx` → **`src/design/NestedApp.jsx`**.
+>
+> - The **new UI lives entirely in `src/design/`** — a single `NestedApp` component with internal, string-based view switching (**no React Router**), persisting to the `localStorage` key **`nested.nyc.v1`**. It currently runs on mock/seed data; Supabase auth is **not yet wired into it** (Phase 2).
+> - **Everything below this notice describes the LEGACY architecture** (`src/pages/` routed screens, `MobileFrame`/`WebLayout`, React Router, the route table, the `SHOW_NESTS`/`SHOW_FILTERS`/`SHOW_PEOPLE_SECTION` flags). It is **unreachable from `App.jsx` and is being removed** — do not build on it.
+> - The Supabase **backend** (`supabase/migrations/`, RLS) carries over; it's the legacy **frontend** that's going away.
+>
+> _This notice is a stopgap; the sections below will be rewritten once the legacy `src/pages/` tree is deleted._
+
 ## Tech Stack
 
 - **Frontend**: React 18 + Vite + React Router 6

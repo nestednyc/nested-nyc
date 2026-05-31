@@ -1,15 +1,22 @@
 /* ============================================================
    NESTED NYC — Onboarding flow
-   email (.edu) → verify (stamp) → username → major+uni → interests
+   signup: email → password → username → uni+major → interests
+   signin: email → password
    ============================================================ */
 import React from 'react'
 import Icon from './icons'
 import { UNIVERSITIES, UNI, MAJORS, INTERESTS } from './data'
 import { Stamp, Av } from './shared'
+import { authService, isSupabaseConfigured, getErrorMessage } from '../lib/supabase'
+import { lookupService } from '../services/lookupService'
+import { profileService } from '../services/profileService'
+import { toDbProfile, fromDbProfile } from './profileAdapter'
 
   const { useState, useRef, useEffect } = React;
 
-  const STEP_COUNT = 5;
+  const SIGNUP_STEPS = 5;
+  const SIGNIN_STEPS = 2;
+  const UNIS_PER_TAB = 6;
 
   function detectUni(email) {
     const at = email.split("@")[1] || "";
@@ -17,48 +24,268 @@ import { Stamp, Av } from './shared'
     return u || null;
   }
 
-  function Onboarding({ onComplete }) {
+  function UniSeal({ u }) {
+    const [errored, setErrored] = useState(false);
+    if (u.logo && !errored) {
+      return React.createElement("span", {
+        className: "seal",
+        style: { background: "#fff", border: "1px solid var(--paper-edge)", overflow: "hidden", padding: 0 },
+      },
+        React.createElement("img", {
+          src: u.logo, alt: u.name,
+          style: { width: "84%", height: "84%", objectFit: "contain", display: "block" },
+          onError: () => setErrored(true),
+        })
+      );
+    }
+    return React.createElement("span", {
+      className: "seal", style: { background: u.color },
+    }, u.name[0]);
+  }
+
+  function Onboarding({ onComplete, onOrgPath, onForgot }) {
+    const [mode, setMode] = useState("signup"); // 'signup' | 'signin'
     const [step, setStep] = useState(0);
     const [email, setEmail] = useState("");
-    const [touched, setTouched] = useState(false);
-    const [code, setCode] = useState(["", "", "", ""]);
+    const [emailTouched, setEmailTouched] = useState(false);
+    const [emailError, setEmailError] = useState("");
+    const [checkingEmail, setCheckingEmail] = useState(false);
+
+    const [password, setPassword] = useState("");
+    const [passwordConfirm, setPasswordConfirm] = useState("");
+
     const [username, setUsername] = useState("");
+    const [usernameAvailable, setUsernameAvailable] = useState(null); // null | true | false
+    const [usernameChecking, setUsernameChecking] = useState(false);
+
     const [uni, setUni] = useState(null);
+    const [uniTab, setUniTab] = useState(0);
     const [major, setMajor] = useState("");
     const [interests, setInterests] = useState([]);
-    const codeRefs = [useRef(), useRef(), useRef(), useRef()];
+
+    const [submitting, setSubmitting] = useState(false);
+    const [submitError, setSubmitError] = useState("");
+
+    const totalSteps = mode === "signup" ? SIGNUP_STEPS : SIGNIN_STEPS;
 
     const isEdu = /@[^@]+\.edu$/.test(email.trim());
     const detected = detectUni(email.trim());
 
-    function next() { setStep((s) => Math.min(s + 1, STEP_COUNT - 1)); setTouched(false); }
-    function back() { setStep((s) => Math.max(s - 1, 0)); }
+    const passwordValid = password.length >= 6 && /[A-Z]/.test(password);
+    const confirmValid = !!passwordConfirm && password === passwordConfirm;
 
-    // when arriving at uni step, preselect detected
-    useEffect(() => { if (step === 3 && detected && !uni) setUni(detected.id); }, [step]);
+    const usernameFmt = lookupService.validateUsernameFormat(username);
+    const usernameOk = usernameFmt.valid && usernameAvailable !== false;
 
-    function setCodeDigit(i, v) {
-      v = v.replace(/\D/g, "").slice(-1);
-      const nc = [...code]; nc[i] = v; setCode(nc);
-      if (v && i < 3) codeRefs[i + 1].current && codeRefs[i + 1].current.focus();
+    function flipMode(newMode) {
+      setMode(newMode);
+      setStep(0);
+      setSubmitError("");
+      setEmailError("");
     }
-    const codeFull = code.every((c) => c !== "");
-    const usernameOk = username.trim().length >= 3 && /^[a-z0-9_.]+$/.test(username.trim());
 
-    function finish() {
-      onComplete({
-        username: username.trim() || "student",
+    function next() {
+      setStep((s) => Math.min(s + 1, totalSteps - 1));
+      setEmailTouched(false);
+      setSubmitError("");
+    }
+    function back() { setStep((s) => Math.max(s - 1, 0)); setSubmitError(""); }
+
+    // when arriving at uni step (signup step 3), preselect detected
+    useEffect(() => {
+      if (mode === "signup" && step === 3 && detected && !uni) setUni(detected.id);
+    }, [step, mode]);
+
+    // jump to the tab containing the currently selected uni
+    useEffect(() => {
+      if (mode === "signup" && step === 3 && uni) {
+        const idx = UNIVERSITIES.findIndex((u) => u.id === uni);
+        if (idx >= 0) setUniTab(Math.floor(idx / UNIS_PER_TAB));
+      }
+    }, [step, uni, mode]);
+
+    // Debounced username availability check (signup step 2)
+    useEffect(() => {
+      if (mode !== "signup" || step !== 2) return;
+      if (!usernameFmt.valid) {
+        setUsernameAvailable(null);
+        return;
+      }
+      if (!isSupabaseConfigured()) {
+        // local-only mode — accept any well-formed username
+        setUsernameAvailable(true);
+        return;
+      }
+      let cancelled = false;
+      setUsernameChecking(true);
+      const t = setTimeout(async () => {
+        const { available } = await lookupService.checkUsernameAvailable(username.trim());
+        if (cancelled) return;
+        setUsernameAvailable(available);
+        setUsernameChecking(false);
+      }, 400);
+      return () => { cancelled = true; clearTimeout(t); };
+    }, [username, step, mode]);
+
+    async function attemptNext() {
+      // On signup step 0, gate against an already-registered email
+      if (mode === "signup" && step === 0 && isEdu && isSupabaseConfigured()) {
+        setCheckingEmail(true);
+        const { exists, error } = await lookupService.checkEmailExists(email.trim());
+        setCheckingEmail(false);
+        if (error) {
+          // Soft fail — don't block on a lookup error, just continue
+        } else if (exists) {
+          setEmailError("This email is already on Nested — sign in instead.");
+          return;
+        }
+      }
+      setEmailError("");
+      next();
+    }
+
+    async function finishSignup() {
+      if (submitting) return;
+      setSubmitting(true);
+      setSubmitError("");
+
+      const localProfile = {
+        username: username.trim(),
         uni: uni || (detected && detected.id) || "nyu",
         major: major || "Undeclared",
-        interests,
+        fields: interests,
         email: email.trim(),
-      });
+      };
+
+      // Offline / no env — keep current local-only behavior
+      if (!isSupabaseConfigured()) {
+        setSubmitting(false);
+        onComplete(localProfile);
+        return;
+      }
+
+      // Try signup; if the account already exists, fall back to sign-in
+      let signupRes = await authService.signUpWithEmailPassword(email.trim(), password);
+      if (signupRes.error && /already|exists|registered/i.test(signupRes.error.message || "")) {
+        signupRes = await authService.signInWithEmailPassword(email.trim(), password);
+      }
+      if (signupRes.error) {
+        setSubmitError(getErrorMessage(signupRes.error));
+        setSubmitting(false);
+        return;
+      }
+
+      const userId = signupRes.data && signupRes.data.user && signupRes.data.user.id;
+      if (!userId) {
+        setSubmitError("Couldn't determine your account ID. Try signing in.");
+        setSubmitting(false);
+        return;
+      }
+
+      const payload = toDbProfile(localProfile, userId);
+      const { data: row, error: upErr } = await profileService.upsertProfile(userId, payload);
+      if (upErr) {
+        setSubmitError(getErrorMessage(upErr));
+        setSubmitting(false);
+        return;
+      }
+
+      setSubmitting(false);
+      onComplete(fromDbProfile(row, email.trim()));
+    }
+
+    async function finishSignin() {
+      if (submitting) return;
+      setSubmitting(true);
+      setSubmitError("");
+
+      if (!isSupabaseConfigured()) {
+        setSubmitError("Sign-in needs an internet connection.");
+        setSubmitting(false);
+        return;
+      }
+
+      const { error: siErr } = await authService.signInWithEmailPassword(email.trim(), password);
+      if (siErr) {
+        setSubmitError(getErrorMessage(siErr));
+        setSubmitting(false);
+        return;
+      }
+
+      const { data: row, error: pfErr } = await profileService.getCurrentProfile();
+      if (pfErr || !row) {
+        setSubmitError("Signed in but couldn't load your profile. Try again.");
+        setSubmitting(false);
+        return;
+      }
+
+      setSubmitting(false);
+      onComplete(fromDbProfile(row, email.trim()));
     }
 
     // ---------- step bodies ----------
     let body;
-    if (step === 0) {
-      const cls = !touched || email === "" ? "" : isEdu ? "good" : "bad";
+
+    if (mode === "signin") {
+      if (step === 0) {
+        const cls = !emailTouched || email === "" ? "" : isEdu ? "good" : "bad";
+        body = (
+          React.createElement("div", { className: "fade-up", key: "in0" },
+            React.createElement("span", { className: "onb-kicker" }, "Sign in"),
+            React.createElement("h1", null, "Welcome back."),
+            React.createElement("p", { className: "desc" }, "Pick up where you left off. Drop your .edu email to sign back in."),
+            React.createElement("div", { className: "field" },
+              React.createElement("label", null, "University email"),
+              React.createElement("div", { className: "input-wrap " + cls },
+                React.createElement(Icon, { name: "user", size: 19 }),
+                React.createElement("input", {
+                  type: "email", placeholder: "you@nyu.edu", value: email, autoFocus: true,
+                  onChange: (e) => { setEmail(e.target.value); setEmailTouched(true); setEmailError(""); },
+                  onKeyDown: (e) => { if (e.key === "Enter" && isEdu) next(); },
+                }),
+                detected && React.createElement("span", { className: "suffix", style: { color: "var(--c-side)" } }, detected.name)
+              ),
+              emailTouched && email && !isEdu
+                ? React.createElement("div", { className: "hint err" }, "// must be a .edu address")
+                : React.createElement("div", { className: "hint" }, "// the same one you signed up with")
+            ),
+            React.createElement("div", { style: { marginTop: 14, fontFamily: "var(--mono)", fontSize: 12 } },
+              React.createElement("button", { className: "ghost-link", onClick: () => flipMode("signup") }, "new here? Sign up →")
+            )
+          )
+        );
+      } else {
+        body = (
+          React.createElement("div", { className: "fade-up", key: "in1" },
+            React.createElement("span", { className: "onb-kicker" }, "Sign in"),
+            React.createElement("h1", null, "Enter your password."),
+            React.createElement("p", { className: "desc" }, "Signing in as ", React.createElement("b", null, email), "."),
+            React.createElement("div", { className: "field" },
+              React.createElement("label", null, "Password"),
+              React.createElement("div", { className: "input-wrap" + (password ? " good" : "") },
+                React.createElement(Icon, { name: "link", size: 19 }),
+                React.createElement("input", {
+                  type: "password", placeholder: "your password", value: password, autoFocus: true,
+                  onChange: (e) => setPassword(e.target.value),
+                  onKeyDown: (e) => { if (e.key === "Enter" && password) finishSignin(); },
+                })
+              ),
+              submitError
+                ? React.createElement("div", { className: "hint err" }, "// " + submitError)
+                : React.createElement("div", { className: "hint" }, "// 6+ chars · one uppercase")
+            ),
+            onForgot && React.createElement("div", { style: { marginTop: 14, fontFamily: "var(--mono)", fontSize: 12 } },
+              React.createElement("button", {
+                className: "ghost-link",
+                onClick: () => onForgot(email.trim()),
+                type: "button",
+              }, "Forgot password? Reset it →")
+            )
+          )
+        );
+      }
+    } else if (step === 0) {
+      const cls = !emailTouched || email === "" ? "" : isEdu ? "good" : "bad";
       body = (
         React.createElement("div", { className: "fade-up", key: "s0" },
           React.createElement("span", { className: "onb-kicker" }, "Step 1 · The .edu gate"),
@@ -70,34 +297,58 @@ import { Stamp, Av } from './shared'
               React.createElement(Icon, { name: "user", size: 19 }),
               React.createElement("input", {
                 type: "email", placeholder: "you@nyu.edu", value: email, autoFocus: true,
-                onChange: (e) => { setEmail(e.target.value); setTouched(true); },
-                onKeyDown: (e) => { if (e.key === "Enter" && isEdu) next(); },
+                onChange: (e) => { setEmail(e.target.value); setEmailTouched(true); setEmailError(""); },
+                onKeyDown: (e) => { if (e.key === "Enter" && isEdu && !checkingEmail) attemptNext(); },
               }),
               detected && React.createElement("span", { className: "suffix", style: { color: "var(--c-side)" } }, detected.name)
             ),
-            touched && email && !isEdu
-              ? React.createElement("div", { className: "hint err" }, "// must be a .edu address")
-              : detected
-                ? React.createElement("div", { className: "hint ok" }, "// recognized — " + detected.full)
-                : React.createElement("div", { className: "hint" }, "// NYU · Columbia · Cooper · Parsons · CUNY · Fordham …")
+            emailError
+              ? React.createElement("div", { className: "hint err" }, "// " + emailError)
+              : emailTouched && email && !isEdu
+                ? React.createElement("div", { className: "hint err" }, "// must be a .edu address")
+                : detected
+                  ? React.createElement("div", { className: "hint ok" }, "// recognized — " + detected.full)
+                  : React.createElement("div", { className: "hint" }, "// NYU · Columbia · Cooper · Parsons · CUNY · Fordham …")
+          ),
+          React.createElement("div", { style: { marginTop: 14, fontFamily: "var(--mono)", fontSize: 12 } },
+            React.createElement("button", { className: "ghost-link", onClick: () => flipMode("signin") }, "already on Nested? Sign in →")
           )
         )
       );
     } else if (step === 1) {
       body = (
         React.createElement("div", { className: "fade-up", key: "s1" },
-          React.createElement("span", { className: "onb-kicker" }, "Step 2 · Verify"),
-          React.createElement("h1", null, "Check your inbox."),
-          React.createElement("p", { className: "desc" }, "We sent a 4-digit code to ", React.createElement("b", null, email || "your email"), ". Enter it to get your verified stamp. ", React.createElement("span", { style: { fontFamily: "var(--mono)", fontSize: 12.5, color: "var(--ink-faint)" } }, "(demo: type anything)")),
+          React.createElement("span", { className: "onb-kicker" }, "Step 2 · Lock it down"),
+          React.createElement("h1", null, "Set a password."),
+          React.createElement("p", { className: "desc" }, "Pick something memorable but secure. Six characters or more, with at least one uppercase letter."),
           React.createElement("div", { className: "field" },
-            React.createElement("div", { className: "code-row" },
-              code.map((c, i) => React.createElement("input", {
-                key: i, ref: codeRefs[i], value: c, inputMode: "numeric", maxLength: 1, autoFocus: i === 0,
-                onChange: (e) => setCodeDigit(i, e.target.value),
-                onKeyDown: (e) => { if (e.key === "Backspace" && !c && i > 0) codeRefs[i - 1].current.focus(); if (e.key === "Enter" && codeFull) next(); },
-              }))
+            React.createElement("label", null, "Password"),
+            React.createElement("div", { className: "input-wrap" + (password ? (passwordValid ? " good" : " bad") : "") },
+              React.createElement(Icon, { name: "link", size: 19 }),
+              React.createElement("input", {
+                type: "password", placeholder: "at least 6 characters, one capital", value: password, autoFocus: true,
+                onChange: (e) => setPassword(e.target.value),
+              })
             ),
-            React.createElement("div", { className: "hint" }, "// didn't get it? resend in 0:30")
+            password && !passwordValid
+              ? React.createElement("div", { className: "hint err" }, "// 6+ chars · needs one uppercase letter")
+              : passwordValid
+                ? React.createElement("div", { className: "hint ok" }, "// strong enough")
+                : React.createElement("div", { className: "hint" }, "// 6+ chars · needs one uppercase letter")
+          ),
+          React.createElement("div", { className: "field", style: { marginTop: 22 } },
+            React.createElement("label", null, "Confirm password"),
+            React.createElement("div", { className: "input-wrap" + (passwordConfirm ? (confirmValid ? " good" : " bad") : "") },
+              React.createElement(Icon, { name: "check", size: 19 }),
+              React.createElement("input", {
+                type: "password", placeholder: "type it again", value: passwordConfirm,
+                onChange: (e) => setPasswordConfirm(e.target.value),
+                onKeyDown: (e) => { if (e.key === "Enter" && passwordValid && confirmValid) next(); },
+              })
+            ),
+            passwordConfirm && !confirmValid
+              ? React.createElement("div", { className: "hint err" }, "// these don't match yet")
+              : React.createElement("div", { className: "hint" }, "// type it once more to be sure")
           )
         )
       );
@@ -109,23 +360,29 @@ import { Stamp, Av } from './shared'
           ),
           React.createElement("span", { className: "onb-kicker" }, "Step 3 · Your handle"),
           React.createElement("h1", null, "Pick a username."),
-          React.createElement("p", { className: "desc" }, "This is how teammates find and @ you. Lowercase, letters, numbers, ", React.createElement("code", { style: { fontFamily: "var(--mono)" } }, "_ ."), " — you can change it later."),
+          React.createElement("p", { className: "desc" }, "This is how teammates find and @ you. Letters, numbers, and underscores — must start with a letter."),
           React.createElement("div", { className: "field" },
             React.createElement("label", null, "Username"),
-            React.createElement("div", { className: "input-wrap " + (username && (usernameOk ? "good" : "bad")) },
+            React.createElement("div", { className: "input-wrap " + (username && (usernameOk && usernameAvailable !== false ? "good" : "bad")) },
               React.createElement("span", { className: "at" }, "@"),
               React.createElement("input", {
-                placeholder: "maya.builds", value: username, autoFocus: true,
-                onChange: (e) => setUsername(e.target.value.toLowerCase()),
-                onKeyDown: (e) => { if (e.key === "Enter" && usernameOk) next(); },
+                placeholder: "mayabuilds", value: username, autoFocus: true,
+                onChange: (e) => { setUsername(e.target.value.toLowerCase()); setUsernameAvailable(null); },
+                onKeyDown: (e) => { if (e.key === "Enter" && usernameOk && usernameAvailable !== false && !usernameChecking) next(); },
               }),
-              usernameOk && React.createElement(Icon, { name: "check", size: 18, stroke: "var(--c-side)" })
+              usernameOk && usernameAvailable === true && React.createElement(Icon, { name: "check", size: 18, stroke: "var(--c-side)" })
             ),
-            username && !usernameOk
-              ? React.createElement("div", { className: "hint err" }, "// 3+ chars, lowercase letters/numbers/_/. only")
-              : usernameOk
-                ? React.createElement("div", { className: "hint ok" }, "// @" + username.trim() + " is available")
-                : React.createElement("div", { className: "hint" }, "// at least 3 characters")
+            !username
+              ? React.createElement("div", { className: "hint" }, "// start with a letter · 3+ chars")
+              : !usernameFmt.valid
+                ? React.createElement("div", { className: "hint err" }, "// " + (usernameFmt.error || "invalid"))
+                : usernameChecking
+                  ? React.createElement("div", { className: "hint" }, "// checking availability…")
+                  : usernameAvailable === false
+                    ? React.createElement("div", { className: "hint err" }, "// @" + username.trim() + " is taken")
+                    : usernameAvailable === true
+                      ? React.createElement("div", { className: "hint ok" }, "// @" + username.trim() + " is available")
+                      : React.createElement("div", { className: "hint" }, "// looking good")
           )
         )
       );
@@ -138,17 +395,29 @@ import { Stamp, Av } from './shared'
           React.createElement("div", { className: "field" },
             React.createElement("label", null, "Campus"),
             React.createElement("div", { className: "uni-list" },
-              UNIVERSITIES.map((u) => (
+              UNIVERSITIES.slice(uniTab * UNIS_PER_TAB, (uniTab + 1) * UNIS_PER_TAB).map((u) => (
                 React.createElement("button", {
                   key: u.id, className: "uni-opt" + (uni === u.id ? " on" : ""), onClick: () => setUni(u.id),
                 },
-                  React.createElement("span", { className: "seal", style: { background: u.color } }, u.name[0]),
+                  React.createElement(UniSeal, { u }),
                   React.createElement("span", null,
                     React.createElement("b", null, u.name),
                     React.createElement("small", null, u.domain)
                   )
                 )
               ))
+            ),
+            React.createElement("div", {
+              style: {
+                display: "flex", alignItems: "center", justifyContent: "space-between",
+                marginTop: 12, fontFamily: "var(--mono)", fontSize: 11.5, color: "var(--ink-faint)",
+              },
+            },
+              React.createElement("span", null, "// " + (uniTab + 1) + " of " + Math.ceil(UNIVERSITIES.length / UNIS_PER_TAB)),
+              React.createElement("button", {
+                className: "ghost-link",
+                onClick: () => setUniTab((tab) => (tab + 1) % Math.ceil(UNIVERSITIES.length / UNIS_PER_TAB)),
+              }, "More schools →")
             )
           ),
           React.createElement("div", { className: "field", style: { marginTop: 22 } },
@@ -179,18 +448,47 @@ import { Stamp, Av } from './shared'
                   it
                 );
               })
-            )
+            ),
+            submitError && React.createElement("div", { className: "hint err", style: { marginTop: 16 } }, "// " + submitError)
           )
         )
       );
     }
 
     // ---------- gating ----------
-    const canNext = [isEdu, codeFull, usernameOk, !!uni && !!major, interests.length >= 3][step];
+    const signupGates = [
+      isEdu && !checkingEmail && !emailError,
+      passwordValid && confirmValid,
+      usernameOk && usernameAvailable !== false && !usernameChecking,
+      !!uni && !!major,
+      interests.length >= 3,
+    ];
+    const signinGates = [isEdu, password.length > 0];
+    const canNext = mode === "signup" ? signupGates[step] : signinGates[step];
+
+    const onLastStep = step === totalSteps - 1;
+    const ctaDisabled = submitting || !canNext;
+    const ctaStyle = ctaDisabled ? { opacity: 0.4, pointerEvents: "none" } : {};
+
+    function handlePrimary() {
+      if (mode === "signin") {
+        if (onLastStep) return finishSignin();
+        return next();
+      }
+      if (onLastStep) return finishSignup();
+      if (step === 0) return attemptNext();
+      return next();
+    }
+
+    const primaryLabel = (() => {
+      if (submitting) return "Just a sec…";
+      if (mode === "signin") return onLastStep ? "Sign in" : "Continue";
+      if (onLastStep) return "Enter Nested";
+      return "Continue";
+    })();
 
     return (
       React.createElement("div", { className: "onb" },
-        // aside
         React.createElement("div", { className: "onb-aside corkbg grain" },
           React.createElement("div", { className: "a-top" },
             React.createElement("div", { className: "brand" },
@@ -211,25 +509,33 @@ import { Stamp, Av } from './shared'
                 React.createElement("b", null, "Loop"), React.createElement("small", null, "NYU · startup")
               )
             )
+          ),
+          onOrgPath && React.createElement("div", { className: "a-footer" },
+            React.createElement("button", { className: "a-footer-link", onClick: onOrgPath, type: "button" },
+              "Running a uni or club? ",
+              React.createElement("span", null, "Org sign-up →")
+            )
           )
         ),
-        // main
         React.createElement("div", { className: "onb-main grain" },
           React.createElement("div", { className: "onb-card" },
             React.createElement("div", { className: "onb-steps" },
-              Array.from({ length: STEP_COUNT }).map((_, i) => (
+              Array.from({ length: totalSteps }).map((_, i) => (
                 React.createElement("span", { key: i, className: "dot" + (i < step ? " done" : i === step ? " cur" : "") })
               ))
             ),
             body,
             React.createElement("div", { className: "onb-actions" },
-              step > 0 && React.createElement("button", { className: "ghost-link", onClick: back }, "← Back"),
+              step > 0 && React.createElement("button", { className: "ghost-link", onClick: back, disabled: submitting }, "← Back"),
               React.createElement("span", { className: "spacer" }),
-              step < STEP_COUNT - 1
-                ? React.createElement("button", { className: "btn btn-primary", disabled: !canNext, style: !canNext ? { opacity: .4, pointerEvents: "none" } : {}, onClick: next },
-                    "Continue", React.createElement(Icon, { name: "arrowRight", size: 17, stroke: "var(--paper)" }))
-                : React.createElement("button", { className: "btn btn-primary", disabled: !canNext, style: !canNext ? { opacity: .4, pointerEvents: "none" } : {}, onClick: finish },
-                    "Enter Nested", React.createElement(Icon, { name: "arrowRight", size: 17, stroke: "var(--paper)" }))
+              React.createElement("button", {
+                className: "btn btn-primary",
+                disabled: ctaDisabled, style: ctaStyle,
+                onClick: handlePrimary,
+              },
+                primaryLabel,
+                React.createElement(Icon, { name: "arrowRight", size: 17, stroke: "var(--paper)" })
+              )
             )
           )
         )

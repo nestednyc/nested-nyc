@@ -5,6 +5,8 @@ import React from 'react'
 import Icon from './icons'
 import { avColor, initials } from './data'
 
+  const { useState } = React;
+
   function Av({ name, color, size }) {
     const style = { background: color || avColor(name) };
     if (size) { style.width = size; style.height = size; style.fontSize = Math.round(size * 0.36); }
@@ -46,8 +48,9 @@ import { avColor, initials } from './data'
     );
   }
 
-  // rubber stamp ".edu verified"
-  function Stamp({ size = 120, className, style }) {
+  // rubber stamp ".edu verified" — third line defaults to STUDENT, but org
+  // pages pass label="ORG" so it reads ".EDU / VERIFIED / ORG".
+  function Stamp({ size = 120, className, style, label = "STUDENT" }) {
     return (
       React.createElement("svg", { className, style, width: size, height: size, viewBox: "0 0 120 120" },
         React.createElement("g", { fill: "none", stroke: "var(--accent)", strokeWidth: 2.5 },
@@ -56,7 +59,7 @@ import { avColor, initials } from './data'
         ),
         React.createElement("text", { x: 60, y: 50, textAnchor: "middle", fontFamily: "Spline Sans Mono, monospace", fontSize: 14, fontWeight: 600, fill: "var(--accent)", letterSpacing: 1 }, ".EDU"),
         React.createElement("text", { x: 60, y: 68, textAnchor: "middle", fontFamily: "Spline Sans Mono, monospace", fontSize: 9, fill: "var(--accent)", letterSpacing: 1 }, "VERIFIED"),
-        React.createElement("text", { x: 60, y: 82, textAnchor: "middle", fontFamily: "Spline Sans Mono, monospace", fontSize: 7, fill: "var(--accent)", letterSpacing: 1.5 }, "STUDENT")
+        React.createElement("text", { x: 60, y: 82, textAnchor: "middle", fontFamily: "Spline Sans Mono, monospace", fontSize: 7, fill: "var(--accent)", letterSpacing: 1.5 }, label)
       )
     );
   }
@@ -75,5 +78,41 @@ import { avColor, initials } from './data'
     );
   }
 
-  export { Av, Facepile, CatTag, Pin, Stamp, Toasts };
-  export const UI = { Av, Facepile, CatTag, Pin, Stamp, Toasts };
+  // University logo — image on a clean tile, falling back to the colored
+  // initial seal if the URL is missing or fails to load. Handles mixed logo
+  // shapes (square seals + wide wordmarks) via object-fit: contain.
+  function UniLogo({ uni, size = 40, radius = "28%" }) {
+    const [failed, setFailed] = useState(false);
+    if (!uni) return null;
+    const base = { width: size, height: size, borderRadius: radius };
+    if (failed || !uni.logo) {
+      return React.createElement("span", {
+        className: "uni-logo fallback",
+        style: { ...base, background: uni.color || "var(--ink-soft)", fontSize: Math.round(size * 0.42) },
+      }, (uni.name || "?")[0]);
+    }
+    return React.createElement("span", { className: "uni-logo", style: base },
+      React.createElement("img", { src: uni.logo, alt: uni.name + " logo", loading: "lazy", onError: () => setFailed(true) })
+    );
+  }
+
+  // Split a YYYY-MM-DD string into the calendar-card pieces the cork-board
+  // shows on events (postage stamp on the detail page, date block on cards,
+  // event rows on org pages). Single source of truth — any new event UI
+  // should call this rather than re-parsing the date inline.
+  // Returns sentinel "—" values for missing/invalid input so callers can
+  // render unconditionally without null guards.
+  function formatEventDate(iso) {
+    if (!iso) return { mon: "—", day: "—", weekday: "", dateLabel: "" };
+    const d = new Date(iso + "T00:00:00");
+    if (isNaN(d.getTime())) return { mon: "—", day: "—", weekday: "", dateLabel: "" };
+    return {
+      mon: d.toLocaleString("en-US", { month: "short" }).toUpperCase(),
+      day: String(d.getDate()).padStart(2, "0"),
+      weekday: d.toLocaleString("en-US", { weekday: "long" }),
+      dateLabel: d.toLocaleString("en-US", { month: "long", day: "numeric", year: "numeric" }),
+    };
+  }
+
+  export { Av, Facepile, CatTag, Pin, Stamp, Toasts, UniLogo, formatEventDate };
+  export const UI = { Av, Facepile, CatTag, Pin, Stamp, Toasts, UniLogo, formatEventDate };

@@ -40,10 +40,16 @@ import { Av } from './shared'
   }
 
   function ContactLinks({ person, onContact }) {
+    const raw = person.links || [];
+    // Accept either the legacy [{kind, label}] array OR the JSONB object shape
+    // ({github, portfolio, linkedin, discord}). Render uniformly downstream.
+    const links = Array.isArray(raw)
+      ? raw
+      : Object.entries(raw).filter(([, v]) => v).map(([kind, label]) => ({ kind, label }));
     return (
       React.createElement("div", null,
         React.createElement("div", { className: "contact-note" }, React.createElement(Icon, { name: "link", size: 14 }), "Reach out through their links \u2014 Nested has no DMs"),
-        React.createElement("div", { className: "links" }, person.links.map((l, i) => React.createElement(LinkPill, { key: i, link: l, onContact })))
+        React.createElement("div", { className: "links" }, links.map((l, i) => React.createElement(LinkPill, { key: i, link: l, onContact })))
       )
     );
   }

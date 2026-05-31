@@ -86,19 +86,45 @@ export const orgService = {
   },
 
   /**
-   * Create an organization and add the current user as its owner.
-   * Returns the new org row.
+   * Find an available slug derived from a base.
+   * Tries `base`, then `base-2`, `base-3`, … up to 20. Skips any candidate
+   * that fails validateSlug (e.g. lands on a reserved word).
+   * Returns null if nothing fits — shouldn't happen in practice.
+   */
+  async _findAvailableSlug(baseSlug) {
+    for (let i = 1; i <= 20; i++) {
+      const candidate = i === 1 ? baseSlug : `${baseSlug}-${i}`
+      if (validateSlug(candidate)) continue
+      const { available } = await this.isSlugAvailable(candidate)
+      if (available) return candidate
+    }
+    return null
+  },
+
+  /**
+   * Create an organization owned by the current user.
+   * One signup = one org = one entity (the org account IS the user from a
+   * display standpoint), so there's no junction table — the auth user's id
+   * goes straight onto organizations.owner_user_id and RLS enforces from there.
+   *
+   * The URL slug is auto-generated from the org name. Users never pick it —
+   * it's an implementation detail of the URL, not a thing they should think
+   * about. Collisions get suffixed (-2, -3, …).
    */
   async createOrg(input) {
     if (!isSupabaseConfigured() || !supabase) return NOT_CONFIGURED
-    const { data: { user } } = await supabase.auth.getUser()
+    const { data: { session } } = await supabase.auth.getSession()
+    const user = session?.user
     if (!user) return NOT_AUTH
 
-    const formatError = validateSlug(input.slug)
-    if (formatError) return { data: null, error: { message: formatError } }
+    const baseSlug = slugify(input.name) || `org-${Date.now()}`
+    const slug = await this._findAvailableSlug(baseSlug)
+    if (!slug) {
+      return { data: null, error: { message: 'Could not generate a unique URL for that name. Try a different name.' } }
+    }
 
     const payload = {
-      slug: input.slug,
+      slug,
       name: input.name,
       type: input.type,
       university_id: input.university_id ?? null,
@@ -107,32 +133,21 @@ export const orgService = {
       bio: input.bio ?? null,
       website: input.website ?? null,
       instagram: input.instagram ?? null,
-      location: input.location ?? null
+      location: input.location ?? null,
+      owner_user_id: user.id
     }
 
-    const { data: org, error: insertError } = await supabase
+    const { data, error } = await supabase
       .from('organizations')
       .insert(payload)
       .select()
       .single()
 
-    if (insertError) return { data: null, error: insertError }
-
-    const { error: memberError } = await supabase
-      .from('org_members')
-      .insert({ org_id: org.id, user_id: user.id, role: 'owner' })
-
-    if (memberError) {
-      // Roll back the org we just created — leaves no orphans.
-      await supabase.from('organizations').delete().eq('id', org.id)
-      return { data: null, error: memberError }
-    }
-
-    return { data: org, error: null }
+    return { data, error }
   },
 
   /**
-   * Update org settings. RLS restricts to members.
+   * Update org settings. RLS restricts to the owner.
    */
   async updateOrg(orgId, updates) {
     if (!isSupabaseConfigured() || !supabase) return NOT_CONFIGURED
@@ -150,110 +165,38 @@ export const orgService = {
   },
 
   /**
-   * List members of an organization, joined with their profile.
-   */
-  async listMembers(orgId) {
-    if (!isSupabaseConfigured() || !supabase) return NOT_CONFIGURED
-    const { data, error } = await supabase
-      .from('org_members')
-      .select('role, created_at, profile:profiles(id, first_name, last_name, avatar)')
-      .eq('org_id', orgId)
-      .order('created_at', { ascending: true })
-    return { data, error }
-  },
-
-  /**
-   * Add a member (admin) to an org. RLS restricts to owners.
-   */
-  async addMember(orgId, profileId, role = 'admin') {
-    if (!isSupabaseConfigured() || !supabase) return NOT_CONFIGURED
-    const { data, error } = await supabase
-      .from('org_members')
-      .insert({ org_id: orgId, user_id: profileId, role })
-      .select()
-      .single()
-    return { data, error }
-  },
-
-  /**
-   * Remove a member. RLS allows self-leave or owner-removes.
-   */
-  async removeMember(orgId, profileId) {
-    if (!isSupabaseConfigured() || !supabase) return { error: NOT_CONFIGURED.error }
-    const { error } = await supabase
-      .from('org_members')
-      .delete()
-      .eq('org_id', orgId)
-      .eq('user_id', profileId)
-    return { error }
-  },
-
-  /**
-   * Promote/demote a member. RLS restricts to owners.
-   */
-  async updateMemberRole(orgId, profileId, role) {
-    if (!isSupabaseConfigured() || !supabase) return NOT_CONFIGURED
-    const { data, error } = await supabase
-      .from('org_members')
-      .update({ role })
-      .eq('org_id', orgId)
-      .eq('user_id', profileId)
-      .select()
-      .single()
-    return { data, error }
-  },
-
-  /**
-   * Orgs the current user is a member of, with their role.
+   * Orgs the current user owns.
    */
   async getMyOrgs() {
     if (!isSupabaseConfigured() || !supabase) return { data: [], error: null }
-    const { data: { user } } = await supabase.auth.getUser()
+    const { data: { session } } = await supabase.auth.getSession()
+    const user = session?.user
     if (!user) return { data: [], error: null }
 
     const { data, error } = await supabase
-      .from('org_members')
-      .select('role, organization:organizations(*)')
-      .eq('user_id', user.id)
+      .from('organizations')
+      .select('*')
+      .eq('owner_user_id', user.id)
       .order('created_at', { ascending: true })
 
-    if (error) return { data: [], error }
-    const orgs = (data || [])
-      .map(row => row.organization ? { ...row.organization, member_role: row.role } : null)
-      .filter(Boolean)
-    return { data: orgs, error: null }
+    return { data: data || [], error }
   },
 
   /**
-   * Is the current user a member of this org?
-   */
-  async isMember(orgId) {
-    if (!isSupabaseConfigured() || !supabase) return false
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return false
-    const { data } = await supabase
-      .from('org_members')
-      .select('role')
-      .eq('org_id', orgId)
-      .eq('user_id', user.id)
-      .maybeSingle()
-    return !!data
-  },
-
-  /**
-   * Is the current user the owner of this org?
+   * Does the current user own this org? (No team/multi-admin concept — the
+   * owner is the only one allowed to act on the org's behalf.)
    */
   async isOwner(orgId) {
     if (!isSupabaseConfigured() || !supabase) return false
-    const { data: { user } } = await supabase.auth.getUser()
+    const { data: { session } } = await supabase.auth.getSession()
+    const user = session?.user
     if (!user) return false
     const { data } = await supabase
-      .from('org_members')
-      .select('role')
-      .eq('org_id', orgId)
-      .eq('user_id', user.id)
+      .from('organizations')
+      .select('owner_user_id')
+      .eq('id', orgId)
       .maybeSingle()
-    return data?.role === 'owner'
+    return data?.owner_user_id === user.id
   },
 
   /**

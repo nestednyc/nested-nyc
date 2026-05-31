@@ -3,7 +3,7 @@
    ============================================================ */
 import React from 'react'
 import Icon from './icons'
-import { CAT } from './data'
+import { CAT, isProjectAdmin } from './data'
 import { Pin } from './shared'
 import { ProjectCard } from './discover'
 
@@ -21,12 +21,12 @@ import { ProjectCard } from './discover'
     );
   }
 
-  function Matches({ projects = [], profile, saved, joined, onOpen, onSave, onStart, onBrowse }) {
+  function Matches({ projects = [], profile, saved, joined, onOpen, onSave, onStart, onBrowse, onEdit }) {
     const [tab, setTab] = useState("saved");
     const savedList = projects.filter((p) => saved.has(p.id));
     const reqList = projects.filter((p) => joined.has(p.id));
-    const myName = profile && profile.username;
-    const mineList = myName ? projects.filter((p) => p.lead && p.lead.name === myName) : [];
+    // "Your projects" = anything you can administer (own or co-admin).
+    const mineList = profile ? projects.filter((p) => isProjectAdmin(p, profile)) : [];
 
     const TABS = [
       { id: "saved", label: "Saved", icon: "bookmark", n: savedList.length },
@@ -59,7 +59,7 @@ import { ProjectCard } from './discover'
     } else {
       body = mineList.length
         ? React.createElement("div", { className: "board" },
-            mineList.map((p) => React.createElement(ProjectCard, { key: p.id, p, saved: saved.has(p.id), joined: joined.has(p.id), onOpen, onSave })))
+            mineList.map((p) => React.createElement(ProjectCard, { key: p.id, p, saved: saved.has(p.id), joined: joined.has(p.id), onOpen, onSave, onEdit })))
         : React.createElement(EmptyState, { icon: "plus", pin: true, title: "Pin your first project", body: "Recruiting for a startup, class team, or hackathon crew? Post it and we'll match you with students across NYC.", cta: "Start a project", onCta: onStart });
     }
 

@@ -5,7 +5,7 @@
    ============================================================ */
 import React from 'react'
 import Icon from './icons'
-import { CATEGORIES, CAT, UNI } from './data'
+import { CATEGORIES, CAT, UNI, statusMeta } from './data'
 import { Facepile, CatTag, Pin } from './shared'
 
   const { useState, useMemo, useRef } = React;
@@ -48,7 +48,7 @@ import { Facepile, CatTag, Pin } from './shared'
     );
   }
 
-  function ProjectCard({ p, saved, joined, onOpen, onSave, hint, fasteners, onPeel, sticking }) {
+  function ProjectCard({ p, saved, joined, onOpen, onSave, onEdit, hint, fasteners, onPeel, sticking }) {
     const cat = CAT[p.cat];
     const openRoles = p.roles.filter((r) => r.open);
     const teamNames = [p.lead.name, ...p.team.map((t) => t.name)];
@@ -113,6 +113,11 @@ import { Facepile, CatTag, Pin } from './shared'
           React.createElement(CatTag, { cat }),
           React.createElement("h3", null, p.title),
           React.createElement("p", { className: "blurb" }, p.blurb),
+          (() => { const m = statusMeta(p.status); return React.createElement("div", { className: "card-status" },
+            React.createElement("span", { className: "status-pill sm", style: { color: m.ink, background: m.wash } },
+              React.createElement("span", { className: "status-dot", style: { background: m.ink } }), m.label),
+            p.alert && p.alert.trim() && React.createElement("span", { className: "card-alert" }, p.alert)
+          ); })(),
           openRoles.length > 0 && React.createElement("div", { className: "looking" },
             React.createElement("span", { className: "role", style: { borderStyle: "solid", background: "transparent", borderColor: "transparent", paddingLeft: 0, color: "var(--ink-faint)" } }, "looking for:"),
             openRoles.map((r, i) => React.createElement("span", { className: "role", key: i }, r.title))
@@ -127,10 +132,16 @@ import { Facepile, CatTag, Pin } from './shared'
                 className: "savebtn" + (saved ? " on" : ""), title: saved ? "Saved" : "Save",
                 onClick: (e) => { e.stopPropagation(); onSave(p.id); },
               }, React.createElement(Icon, { name: "bookmark", size: 17, fill: saved ? "var(--accent)" : "none" })),
-              React.createElement("button", {
-                className: "btn " + (joined ? "btn-primary done" : "btn-primary"),
-                onClick: (e) => { e.stopPropagation(); onOpen(p.id); },
-              }, joined ? [React.createElement(Icon, { name: "check", size: 16, stroke: "var(--paper)", key: "i" }), "Requested"] : "Join")
+              onEdit
+                ? React.createElement("button", {
+                    className: "btn btn-primary",
+                    title: "Edit your flyer",
+                    onClick: (e) => { e.stopPropagation(); onEdit(p); },
+                  }, React.createElement(Icon, { name: "pin", size: 16, stroke: "var(--paper)" }), "Edit")
+                : React.createElement("button", {
+                    className: "btn " + (joined ? "btn-primary done" : "btn-primary"),
+                    onClick: (e) => { e.stopPropagation(); onOpen(p.id); },
+                  }, joined ? [React.createElement(Icon, { name: "check", size: 16, stroke: "var(--paper)", key: "i" }), "Requested"] : "Join")
             )
           )
         )

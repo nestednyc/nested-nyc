@@ -3,15 +3,96 @@
    ============================================================ */
 import React from 'react'
 import Icon from './icons'
-import { CAT, UNI } from './data'
-import { CatTag, Pin, Stamp, Av, Facepile } from './shared'
+import { CAT, UNI, isProjectAdmin, statusMeta, STATUSES } from './data'
+import { CatTag, Pin, Av, Facepile } from './shared'
+
+  const { useState } = React;
+
+  /* Live status pill + "latest update" note. Admins edit both inline —
+     the status via a one-click popover, the alert via a click-to-edit note.
+     Non-admins see the pill, and the note only when there's an update. */
+  function StatusBlock({ p, isAdmin, onUpdate }) {
+    const [open, setOpen] = useState(false);
+    const [editing, setEditing] = useState(false);
+    const [draft, setDraft] = useState(p.alert || "");
+    const meta = statusMeta(p.status);
+    const hasAlert = !!(p.alert && p.alert.trim());
+    const canEdit = isAdmin && typeof onUpdate === "function";
+
+    function pickStatus(id) { setOpen(false); if (id !== p.status) onUpdate({ status: id }); }
+    function startEdit() { setDraft(p.alert || ""); setEditing(true); }
+    function saveAlert() { setEditing(false); if ((draft || "").trim() !== (p.alert || "").trim()) onUpdate({ alert: draft.trim() }); }
+
+    const pillStyle = { color: meta.ink, background: meta.wash };
+    const dot = React.createElement("span", { className: "status-dot", style: { background: meta.ink } });
+
+    const pill = canEdit
+      ? React.createElement("div", { className: "status-pickwrap" },
+          React.createElement("button", {
+            className: "status-pill editable", style: pillStyle,
+            onClick: () => setOpen((v) => !v), title: "Change status",
+          }, dot, meta.label, React.createElement("span", { className: "status-caret", style: { borderTopColor: meta.ink } })),
+          open && React.createElement("div", { className: "status-pop" },
+            STATUSES.map((s) => React.createElement("button", {
+              key: s.id, className: "status-pop-item" + (s.id === p.status ? " on" : ""),
+              onClick: () => pickStatus(s.id),
+            },
+              React.createElement("span", { className: "status-dot", style: { background: s.ink } }),
+              s.label,
+              s.id === p.status && React.createElement(Icon, { name: "check", size: 14, stroke: meta.ink })
+            ))
+          )
+        )
+      : React.createElement("span", { className: "status-pill", style: pillStyle }, dot, meta.label);
+
+    let note = null;
+    if (editing) {
+      note = React.createElement("div", { className: "alert-note editing" },
+        React.createElement("div", { className: "alert-kicker" }, "// latest update"),
+        React.createElement("textarea", {
+          className: "alert-input", value: draft, autoFocus: true, rows: 2, maxLength: 140,
+          placeholder: "Looking for a backend dev · MVP is live · need beta testers…",
+          onChange: (e) => setDraft(e.target.value),
+          onKeyDown: (e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) saveAlert(); if (e.key === "Escape") setEditing(false); },
+        }),
+        React.createElement("div", { className: "alert-actions" },
+          React.createElement("span", { className: "alert-count" }, draft.length + " / 140"),
+          React.createElement("button", { className: "btn btn-ghost btn-sm", onClick: () => setEditing(false) }, "Cancel"),
+          React.createElement("button", { className: "btn btn-primary btn-sm", onClick: saveAlert },
+            React.createElement(Icon, { name: "check", size: 15, stroke: "var(--paper)" }), "Post update")
+        )
+      );
+    } else if (hasAlert) {
+      note = React.createElement("div", { className: "alert-note" + (canEdit ? " editable" : ""), onClick: canEdit ? startEdit : undefined },
+        React.createElement("div", { className: "alert-kicker" }, "// latest update"),
+        React.createElement("p", null, p.alert),
+        canEdit && React.createElement("span", { className: "alert-edit" }, React.createElement(Icon, { name: "pin", size: 13 }), "Edit")
+      );
+    } else if (canEdit) {
+      note = React.createElement("button", { className: "alert-add", onClick: startEdit },
+        React.createElement(Icon, { name: "plus", size: 15, stroke: "var(--accent)" }),
+        "Post a quick update — what's happening right now?"
+      );
+    }
+
+    return React.createElement("div", { className: "status-block" },
+      React.createElement("div", { className: "status-row" },
+        React.createElement("span", { className: "status-lbl" }, "Status"),
+        pill
+      ),
+      note
+    );
+  }
 
 
-  function ProjectDetail({ p, saved, joined, onBack, onSave, onRequest, onMessage }) {
+  function ProjectDetail({ p, profile, saved, joined, onBack, onSave, onRequest, onMessage, onEdit, onUpdateStatus }) {
     const cat = CAT[p.cat];
     const uni = UNI[p.uni];
     const teamNames = [p.lead.name, ...p.team.map((t) => t.name)];
     const extra = Math.max(0, p.joinedCount - Math.min(3, teamNames.length));
+    // Admin (owner or co-admin) edits status/alert inline and sees the edit CTA.
+    const isAdmin = isProjectAdmin(p, profile);
+    const isOwner = !!(onEdit && isAdmin);
 
     return (
       React.createElement("div", { className: "detail-wrap" },
@@ -23,7 +104,6 @@ import { CatTag, Pin, Stamp, Av, Facepile } from './shared'
         React.createElement("div", { className: "detail grain fade-up" },
           React.createElement(Pin, null),
           React.createElement("div", { className: "cat-bar", style: { background: cat.color } }),
-          React.createElement(Stamp, { size: 96, className: "detail-stamp" }),
           React.createElement("div", { className: "detail-inner" },
             React.createElement("div", { className: "detail-top" },
               React.createElement(CatTag, { cat, large: true }),
@@ -35,13 +115,18 @@ import { CatTag, Pin, Stamp, Av, Facepile } from './shared'
             React.createElement("h1", null, p.title),
             React.createElement("p", { className: "lede" }, p.blurb),
 
+            React.createElement(StatusBlock, { p, isAdmin, onUpdate: (patch) => onUpdateStatus && onUpdateStatus(p.id, patch) }),
+
             React.createElement("div", { className: "detail-cta" },
-              React.createElement("button", {
-                className: "btn " + (joined ? "btn-primary done" : "btn-primary"), onClick: () => onRequest(p),
-              }, joined
-                ? [React.createElement(Icon, { name: "check", size: 18, stroke: "var(--paper)", key: "i" }), "Request sent"]
-                : [React.createElement(Icon, { name: "plus", size: 18, stroke: "var(--paper)", key: "i" }), "Request to join"]),
-              React.createElement("button", { className: "btn btn-ghost", onClick: () => onMessage(p.lead) },
+              isOwner
+                ? React.createElement("button", { className: "btn btn-primary", onClick: () => onEdit(p) },
+                    React.createElement(Icon, { name: "pin", size: 18, stroke: "var(--paper)" }), "Edit flyer")
+                : React.createElement("button", {
+                    className: "btn " + (joined ? "btn-primary done" : "btn-primary"), onClick: () => onRequest(p),
+                  }, joined
+                    ? [React.createElement(Icon, { name: "check", size: 18, stroke: "var(--paper)", key: "i" }), "Request sent"]
+                    : [React.createElement(Icon, { name: "plus", size: 18, stroke: "var(--paper)", key: "i" }), "Request to join"]),
+              !isOwner && React.createElement("button", { className: "btn btn-ghost", onClick: () => onMessage(p) },
                 React.createElement(Icon, { name: "link", size: 17 }), "Contact " + p.lead.name.split(" ")[0])
             ),
 
