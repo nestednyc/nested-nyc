@@ -4,7 +4,7 @@
 import React from 'react'
 import Icon from './icons'
 import { CAT, UNI, isProjectAdmin, statusMeta, STATUSES } from './data'
-import { CatTag, Pin, Av, Facepile } from './shared'
+import { CatTag, Av, Facepile } from './shared'
 
   const { useState } = React;
 
@@ -102,7 +102,6 @@ import { CatTag, Pin, Av, Facepile } from './shared'
         ),
 
         React.createElement("div", { className: "detail grain fade-up" },
-          React.createElement(Pin, null),
           React.createElement("div", { className: "cat-bar", style: { background: cat.color } }),
           React.createElement("div", { className: "detail-inner" },
             React.createElement("div", { className: "detail-top" },

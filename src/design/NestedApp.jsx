@@ -882,10 +882,9 @@ import { toDbProfile, fromDbProfile, dataUrlToFile } from './profileAdapter'
           React.createElement("div", { className: "cat-bar", style: { background: cat.color } }),
           React.createElement("button", { className: "modal-close", onClick: onClose }, React.createElement(Icon, { name: "x", size: 18 })),
           React.createElement("div", { className: "modal-inner" },
-            React.createElement("h2", null, isJoin ? "Request to join" : "Message " + lead.name.split(" ")[0]),
-            React.createElement("p", null, isJoin
-              ? ["Send a note to ", React.createElement("b", { key: "b" }, lead.name), ", who's leading ", React.createElement("b", { key: "b2" }, "\u201C" + modal.project.title.split(" — ")[0] + "\u201D"), ". A line about why you're a fit goes a long way."]
-              : ["Direct message to ", React.createElement("b", { key: "b" }, lead.name), " · ", lead.role, "."]),
+            React.createElement("h2", null, "Request to join"),
+            React.createElement("p", null,
+              "Send a note to ", React.createElement("b", { key: "b" }, lead.name), ", who's leading ", React.createElement("b", { key: "b2" }, "“" + modal.project.title.split(" — ")[0] + "”"), ". A line about why you're a fit goes a long way."),
             React.createElement("textarea", { placeholder, value: text, autoFocus: true, onChange: (e) => setText(e.target.value) }),
             React.createElement("div", { className: "modal-actions" },
               React.createElement("button", { className: "btn btn-ghost", onClick: onClose }, "Cancel"),
@@ -923,7 +922,6 @@ import { toDbProfile, fromDbProfile, dataUrlToFile } from './profileAdapter'
     const copy = {
       Events: ["Events across NYC campuses", "Hackathons, demo days, mixers and workshops from every school on Nested — in one feed."],
       Matches: ["Your matches & saved", "Projects you've saved, your own projects, and requests to join will live here."],
-      Messages: ["Messages", "Direct messages with the students you're building alongside."],
       Profile: ["Your profile", "Your major, school, interests, photos, and the links teammates use to reach you."],
       Notifications: ["Notifications", "Replies to your join requests, new connections, and events you RSVP'd to will surface here."],
       "Create a project": ["Pin a new project", "Post what you're building and the roles you need. Recruit teammates from every NYC campus."],
