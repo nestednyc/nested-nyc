@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "seed": "node scripts/seed.mjs",
+    "unseed": "node scripts/unseed.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.78.0",
