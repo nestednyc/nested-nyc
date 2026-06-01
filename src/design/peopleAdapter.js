@@ -46,7 +46,6 @@ export function toPerson(row) {
     role: roleFromProfile(fields, skills),
     avatar: photoUrls[0] || null,
     photos: [0, 1, 2].map((i) => ({ src: photoUrls[i] || null, l: label })),
-    looking: "",                 // `looking_for` was dropped from the schema
     skills,
     building: row.building || "",
     avail: row.availability || "",

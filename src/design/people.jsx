@@ -179,10 +179,6 @@ import { Av } from './shared'
           ),
           React.createElement("div", { className: "sc-meta" }, "@" + person.handle + " \u00b7 " + UNI[person.uni].name + " \u00b7 " + person.major + " " + person.year),
           React.createElement("div", { className: "sc-bio" }, person.bio),
-          React.createElement("div", { className: "sc-looking" },
-            React.createElement(Icon, { name: "search", size: 16 }),
-            React.createElement("div", { className: "t" }, React.createElement("b", null, "Looking for: "), person.looking)
-          ),
           React.createElement("div", { className: "sc-tags" }, person.skills.slice(0, 5).map((s, i) => React.createElement("span", { className: "tag2", key: i }, s))),
           React.createElement("div", { className: "sc-foot" },
             React.createElement("span", { className: "av-pin" }), "building " + person.building + " \u00b7 " + person.avail)
@@ -232,9 +228,14 @@ import { Av } from './shared'
             ),
             React.createElement("div", { className: "sc-meta" }, "@" + person.handle + " \u00b7 " + UNI[person.uni].full + " \u00b7 " + person.major + " " + person.year),
             React.createElement("p", { className: "sc-bio", style: { fontSize: 16 } }, person.bio),
-            React.createElement("div", { className: "sc-looking" },
-              React.createElement(Icon, { name: "search", size: 16 }),
-              React.createElement("div", { className: "t" }, React.createElement("b", null, "Looking for: "), person.looking, " \u00b7 building ", React.createElement("b", null, person.building), " \u00b7 ", person.avail)
+            (person.building || person.avail) && React.createElement("div", { className: "sc-looking" },
+              React.createElement(Icon, { name: "pin", size: 16 }),
+              React.createElement("div", { className: "t" }, [
+                person.building ? "Building " : null,
+                person.building ? React.createElement("b", { key: "b" }, person.building) : null,
+                (person.building && person.avail) ? " \u00b7 " : null,
+                person.avail || null,
+              ].filter(Boolean))
             ),
             React.createElement("div", { className: "pm-section" },
               React.createElement("div", { className: "sec-h" }, "Skills"),
