@@ -7,9 +7,16 @@ import { avColor, initials } from './data'
 
   const { useState } = React;
 
-  function Av({ name, color, size }) {
+  function Av({ name, color, size, img }) {
     const style = { background: color || avColor(name) };
     if (size) { style.width = size; style.height = size; style.fontSize = Math.round(size * 0.36); }
+    if (img) {
+      return React.createElement("span", { className: "av", style },
+        React.createElement("img", {
+          src: img, alt: name, loading: "lazy",
+          style: { width: "100%", height: "100%", objectFit: "cover", borderRadius: "inherit", display: "block" },
+        }));
+    }
     return React.createElement("span", { className: "av", style }, initials(name));
   }
 

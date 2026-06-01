@@ -32,6 +32,9 @@ export function toPerson(row) {
   const fields = Array.isArray(row.fields) ? row.fields : [];
   const skills = Array.isArray(row.skills) ? row.skills : [];
   const label = initials(name);
+  // Real uploaded photos when present (a 3-slot gallery); empty slots fall back
+  // to the initials polaroid so the card never breaks.
+  const photoUrls = Array.isArray(row.photos) ? row.photos.filter((u) => typeof u === "string" && u.length) : [];
   return {
     id: row.id,
     name,
@@ -41,7 +44,8 @@ export function toPerson(row) {
     year: row.year || "",
     bio: row.bio || "",
     role: roleFromProfile(fields, skills),
-    photos: [{ l: label }, { l: label }, { l: label }],
+    avatar: photoUrls[0] || null,
+    photos: [0, 1, 2].map((i) => ({ src: photoUrls[i] || null, l: label })),
     looking: "",                 // `looking_for` was dropped from the schema
     skills,
     building: row.building || "",

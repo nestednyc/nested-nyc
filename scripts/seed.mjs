@@ -81,7 +81,63 @@ const UNI_DOMAIN = {
   yeshiva: 'yu.edu', barnard: 'barnard.edu', 'manhattan-college': 'manhattan.edu',
   liu: 'liu.edu', marymount: 'mmm.edu',
 }
-const portrait = (g, n) => `https://randomuser.me/api/portraits/${g}/${n}.jpg`
+// Mock portraits: real, beautiful Unsplash photos (every id HEAD-checked → 200),
+// assigned by gender so faces match names. Each student gets ONE photo rendered
+// as a 3-shot gallery — three different framings of the SAME person — so the
+// profile gallery is full and coherent. profiles.photos holds the 3 URLs and the
+// avatar (photos[0], the portrait crop) is trigger-synced from it. `portrait(g)`
+// here just tags the student's gender; real URLs are drawn from the pools below.
+const portrait = (g) => g
+const UNSPLASH_WOMEN = [
+  'https://images.unsplash.com/photo-1544005313-94ddf0286df2',
+  'https://images.unsplash.com/photo-1552699611-e2c208d5d9cf',
+  'https://images.unsplash.com/photo-1534528741775-53994a69daeb',
+  'https://images.unsplash.com/photo-1669844444850-5acd7e8c71c5',
+  'https://images.unsplash.com/photo-1536896407451-6e3dd976edd1',
+  'https://images.unsplash.com/photo-1674932668403-33398b81c92f',
+  'https://images.unsplash.com/photo-1616790876844-97c0c6057364',
+  'https://images.unsplash.com/photo-1583432144811-0d1f4df02a02',
+  'https://images.unsplash.com/photo-1533919484729-be3fa3fa0325',
+  'https://images.unsplash.com/photo-1612203304476-2ed23c55b5b9',
+  'https://images.unsplash.com/photo-1607569708758-0270aa4651bd',
+  'https://images.unsplash.com/photo-1524550158212-33f2ff985344',
+  'https://images.unsplash.com/photo-1615414400871-0c67042d9653',
+  'https://images.unsplash.com/photo-1633355130553-2d90ad3507d3',
+  'https://images.unsplash.com/photo-1554151228-14d9def656e4',
+]
+const UNSPLASH_MEN = [
+  'https://images.unsplash.com/flagged/photo-1595514191830-3e96a518989b',
+  'https://images.unsplash.com/photo-1611695434398-4f4b330623e6',
+  'https://images.unsplash.com/photo-1635046778483-c190a4bb49c5',
+  'https://images.unsplash.com/photo-1653055645127-54ec96add7b5',
+  'https://images.unsplash.com/photo-1525457136159-8878648a7ad0',
+  'https://images.unsplash.com/photo-1600603406200-5b2a104684ac',
+  'https://images.unsplash.com/photo-1681097561932-36d0df02b379',
+  'https://images.unsplash.com/photo-1596478454926-473e1a88a639',
+  'https://images.unsplash.com/photo-1614321375197-c5083895b054',
+  'https://images.unsplash.com/photo-1567934859879-9addfb1e07f8',
+  'https://images.unsplash.com/photo-1583674392771-2abf6be75965',
+  'https://images.unsplash.com/photo-1623140922112-9cfc0e71b8fc',
+  'https://images.unsplash.com/photo-1574948082432-ef3fc11f0f36',
+  'https://images.unsplash.com/photo-1508341591423-4347099e1f19',
+  'https://images.unsplash.com/photo-1600603405959-6d623e92445c',
+]
+const _IMGQ = 'auto=format&fit=crop&q=80'
+// three framings of one portrait → a coherent 3-photo gallery
+function photoTrio(base) {
+  return [
+    `${base}?w=640&h=800&crop=faces&${_IMGQ}`,
+    `${base}?w=680&h=560&crop=faces&${_IMGQ}`,
+    `${base}?w=640&h=900&crop=faces&${_IMGQ}`,
+  ]
+}
+const _pool = { women: UNSPLASH_WOMEN, men: UNSPLASH_MEN }
+const _cur = { women: 0, men: 0 }
+// Round-robin a distinct portrait per student of the matching gender.
+function photosForGender(g) {
+  const pool = _pool[g] || _pool.men
+  return photoTrio(pool[_cur[g]++ % pool.length])
+}
 
 /* ── students (every account is a full student → all show in People) ───────*/
 // key, name, uni, major, year, bio, fields[], skills[], building, avail, links, photo
@@ -371,7 +427,7 @@ async function seed(admin) {
   }
   const profileRows = ALL_PEOPLE.map((s) => ({
     id: id[s.key], username: s.username, first_name: s.first, last_name: s.last,
-    university: s.uni, major: s.major, bio: s.bio, photos: [s.photo],
+    university: s.uni, major: s.major, bio: s.bio, photos: photosForGender(s.photo),
     fields: s.fields, skills: s.skills, year: s.year, building: s.building,
     availability: s.avail, links: s.links, onboarding_completed: true, account_type: 'student',
   }))

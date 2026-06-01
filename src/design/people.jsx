@@ -10,10 +10,17 @@ import { Av } from './shared'
 
   const { useState, useRef } = React;
 
-  function Polaroid({ label }) {
+  function Polaroid({ label, src }) {
     return (
       React.createElement("div", { className: "polaroid" },
-        React.createElement("div", { className: "ph" }, React.createElement("span", { className: "pl" }, label)),
+        React.createElement("div", { className: "ph" },
+          src
+            ? React.createElement("img", {
+                className: "pimg", src, alt: label, loading: "lazy", draggable: false,
+                style: { width: "100%", height: "100%", objectFit: "cover", display: "block" },
+              })
+            : React.createElement("span", { className: "pl" }, label)
+        ),
         React.createElement("div", { className: "cap" }, label)
       )
     );
@@ -164,7 +171,7 @@ import { Av } from './shared'
         React.createElement("div", { className: "swipe-stamp connect", style: { opacity: stampDir === "right" ? stampOp : 0 } }, "Connect"),
         React.createElement("div", { className: "swipe-stamp skip", style: { opacity: stampDir === "left" ? stampOp : 0 } }, "Skip"),
         React.createElement("div", { className: "cat-bar", style: { background: r.color } }),
-        React.createElement("div", { className: "sc-photos" }, person.photos.slice(0, 3).map((p, i) => React.createElement(Polaroid, { key: i, label: p.l }))),
+        React.createElement("div", { className: "sc-photos" }, person.photos.slice(0, 3).map((p, i) => React.createElement(Polaroid, { key: i, label: p.l, src: p.src }))),
         React.createElement("div", { className: "sc-body" },
           React.createElement("div", { className: "sc-namerow" },
             React.createElement("span", { className: "sc-name" }, person.name),
@@ -190,7 +197,7 @@ import { Av } from './shared'
     return (
       React.createElement("div", { className: "person-card", onClick: () => onOpen(person) },
         React.createElement("div", { className: "cat-bar", style: { background: r.color } }),
-        React.createElement("div", { className: "pc-photos" }, person.photos.slice(0, 3).map((p, i) => React.createElement(Polaroid, { key: i, label: p.l }))),
+        React.createElement("div", { className: "pc-photos" }, person.photos.slice(0, 3).map((p, i) => React.createElement(Polaroid, { key: i, label: p.l, src: p.src }))),
         React.createElement("div", { className: "pc-body" },
           React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 } },
             React.createElement("div", null,
@@ -218,7 +225,7 @@ import { Av } from './shared'
           React.createElement("div", { className: "cat-bar", style: { background: r.color } }),
           React.createElement("button", { className: "modal-close", onClick: onClose }, React.createElement(Icon, { name: "x", size: 18 })),
           React.createElement("div", { className: "pm-inner" },
-            React.createElement("div", { className: "pm-photos" }, person.photos.slice(0, 3).map((p, i) => React.createElement(Polaroid, { key: i, label: p.l }))),
+            React.createElement("div", { className: "pm-photos" }, person.photos.slice(0, 3).map((p, i) => React.createElement(Polaroid, { key: i, label: p.l, src: p.src }))),
             React.createElement("div", { className: "sc-namerow" },
               React.createElement("span", { className: "sc-name", style: { fontSize: 30 } }, person.name),
               React.createElement(RoleBadge, { role: person.role })
@@ -289,7 +296,7 @@ import { Av } from './shared'
             connectedPeople.map((p) => (
               React.createElement("div", { className: "conn-card", key: p.id },
                 React.createElement("div", { className: "conn-head" },
-                  React.createElement(Av, { name: p.name, color: ROLE[p.role].color }),
+                  React.createElement(Av, { name: p.name, color: ROLE[p.role].color, img: p.avatar }),
                   React.createElement("div", { className: "who" },
                     React.createElement("b", null, p.name),
                     React.createElement("small", null, "@" + p.handle + " \u00b7 " + UNI[p.uni].name)),
@@ -311,7 +318,7 @@ import { Av } from './shared'
               const mutual = connSet.has(p.id);
               return React.createElement("div", { className: "conn-card", key: p.id },
                 React.createElement("div", { className: "conn-head" },
-                  React.createElement(Av, { name: p.name, color: ROLE[p.role].color }),
+                  React.createElement(Av, { name: p.name, color: ROLE[p.role].color, img: p.avatar }),
                   React.createElement("div", { className: "who" },
                     React.createElement("b", null, p.name),
                     React.createElement("small", null, "@" + p.handle + " · " + UNI[p.uni].name)),
