@@ -85,7 +85,7 @@ import { CatTag, Av, Facepile } from './shared'
   }
 
 
-  function ProjectDetail({ p, profile, saved, joined, onBack, onSave, onRequest, onMessage, onEdit, onUpdateStatus }) {
+  function ProjectDetail({ p, profile, saved, joined, onBack, onSave, onRequest, onMessage, onEdit, onUpdateStatus, pendingRequests = [], onApprove, onReject, onOpenProfile }) {
     const cat = CAT[p.cat];
     const uni = UNI[p.uni];
     const teamNames = [p.lead.name, ...p.team.map((t) => t.name)];
@@ -93,6 +93,22 @@ import { CatTag, Av, Facepile } from './shared'
     // Admin (owner or co-admin) edits status/alert inline and sees the edit CTA.
     const isAdmin = isProjectAdmin(p, profile);
     const isOwner = !!(onEdit && isAdmin);
+    // Crew + lead rows deep-link to each person's real profile when we know
+    // their user id (carried through from team_members.user_id / owner_id).
+    const canOpen = typeof onOpenProfile === "function";
+    function personRow(name, sub, userId, key) {
+      const clickable = canOpen && !!userId;
+      return React.createElement("div", {
+        className: "team-row" + (clickable ? " clickable" : ""), key,
+        onClick: clickable ? () => onOpenProfile(userId) : undefined,
+        title: clickable ? "View " + name + "'s profile" : undefined,
+      },
+        React.createElement(Av, { name }),
+        React.createElement("span", { className: "t-who" },
+          React.createElement("b", null, name),
+          React.createElement("small", null, sub))
+      );
+    }
 
     return (
       React.createElement("div", { className: "detail-wrap" },
@@ -102,7 +118,7 @@ import { CatTag, Av, Facepile } from './shared'
         ),
 
         React.createElement("div", { className: "detail grain fade-up" },
-          React.createElement("div", { className: "cat-bar", style: { background: cat.color } }),
+          React.createElement("div", { className: "cat-bar", style: { background: p.flyerColor || cat.color } }),
           React.createElement("div", { className: "detail-inner" },
             React.createElement("div", { className: "detail-top" },
               React.createElement(CatTag, { cat, large: true }),
@@ -124,9 +140,7 @@ import { CatTag, Av, Facepile } from './shared'
                     className: "btn " + (joined ? "btn-primary done" : "btn-primary"), onClick: () => onRequest(p),
                   }, joined
                     ? [React.createElement(Icon, { name: "check", size: 18, stroke: "var(--paper)", key: "i" }), "Request sent"]
-                    : [React.createElement(Icon, { name: "plus", size: 18, stroke: "var(--paper)", key: "i" }), "Request to join"]),
-              !isOwner && React.createElement("button", { className: "btn btn-ghost", onClick: () => onMessage(p) },
-                React.createElement(Icon, { name: "link", size: 17 }), "Contact " + p.lead.name.split(" ")[0])
+                    : [React.createElement(Icon, { name: "plus", size: 18, stroke: "var(--paper)", key: "i" }), "Request to join"])
             ),
 
             React.createElement("div", { className: "detail-grid" },
@@ -161,8 +175,33 @@ import { CatTag, Av, Facepile } from './shared'
 
               // side rail
               React.createElement("div", { className: "rail" },
+                // Owner-only: pending join requests with approve / decline.
+                isOwner && pendingRequests.length > 0 && React.createElement("div", { className: "rail-card" },
+                  React.createElement("div", { className: "sec-h" }, "Requests to join · " + pendingRequests.length),
+                  React.createElement("div", { className: "team-pile" },
+                    pendingRequests.map((req) => (
+                      React.createElement("div", { className: "team-row", key: req.id, style: { alignItems: "flex-start" } },
+                        React.createElement(Av, { name: req.name }),
+                        React.createElement("span", { className: "t-who", style: { flex: 1 } },
+                          React.createElement("b", null, req.name),
+                          React.createElement("small", null, req.message || req.school || "wants to join")
+                        ),
+                        React.createElement("span", { style: { display: "flex", gap: 6 } },
+                          React.createElement("button", { className: "btn btn-primary btn-sm", title: "Approve", onClick: () => onApprove && onApprove(req.id) },
+                            React.createElement(Icon, { name: "check", size: 14, stroke: "var(--paper)" })),
+                          React.createElement("button", { className: "btn btn-ghost btn-sm", title: "Decline", onClick: () => onReject && onReject(req.id) },
+                            React.createElement(Icon, { name: "x", size: 14 }))
+                        )
+                      )
+                    ))
+                  )
+                ),
                 React.createElement("div", { className: "rail-card lead" },
-                  React.createElement("div", { className: "lead-head" },
+                  React.createElement("div", {
+                    className: "lead-head" + (canOpen && p.lead.userId ? " clickable" : ""),
+                    onClick: canOpen && p.lead.userId ? () => onOpenProfile(p.lead.userId) : undefined,
+                    title: canOpen && p.lead.userId ? "View " + p.lead.name + "'s profile" : undefined,
+                  },
                     React.createElement(Av, { name: p.lead.name }),
                     React.createElement("span", { className: "who" },
                       React.createElement("b", null, p.lead.name),
@@ -191,16 +230,8 @@ import { CatTag, Av, Facepile } from './shared'
                     React.createElement("span", { style: { fontFamily: "var(--mono)", fontSize: 11, color: "var(--ink-faint)" } }, "the crew")
                   ),
                   React.createElement("div", { className: "team-pile" },
-                    React.createElement("div", { className: "team-row" },
-                      React.createElement(Av, { name: p.lead.name }),
-                      React.createElement("span", { className: "t-who" }, React.createElement("b", null, p.lead.name), React.createElement("small", null, "lead · " + p.lead.role))
-                    ),
-                    p.team.map((t, i) => (
-                      React.createElement("div", { className: "team-row", key: i },
-                        React.createElement(Av, { name: t.name }),
-                        React.createElement("span", { className: "t-who" }, React.createElement("b", null, t.name), React.createElement("small", null, t.role))
-                      )
-                    ))
+                    personRow(p.lead.name, p.lead.role, p.lead.userId, "lead"),
+                    p.team.map((t, i) => personRow(t.name, t.role, t.userId, i))
                   )
                 )
               )

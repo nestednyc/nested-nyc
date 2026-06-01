@@ -453,7 +453,7 @@ import { ContactLinks } from './people'
                             onClick: () => onOpenProject(p.id),
                             style: { textAlign: "left", border: 0, cursor: "pointer", fontFamily: "inherit", color: "inherit" },
                           },
-                            React.createElement("div", { className: "cat-bar", style: { background: c.color } }),
+                            React.createElement("div", { className: "cat-bar", style: { background: p.flyerColor || c.color } }),
                             React.createElement("b", null, p.title),
                             React.createElement("small", null, uName + (uName && c.label ? " · " : "") + (c.label || ""))
                           );

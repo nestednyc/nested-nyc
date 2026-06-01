@@ -44,7 +44,7 @@ import ProjectForm from './projectForm'
           React.createElement("p", null, "Five quick steps. Your flyer goes up on the board so students across NYC can find you and join in."),
           React.createElement("div", { className: "onb-mini-board" },
             React.createElement("div", { className: "mini-flyer", style: { transform: "rotate(-3deg)" } },
-              React.createElement("div", { className: "cat-bar", style: { background: values.cat ? CAT[values.cat].color : "var(--c-hack)" } }),
+              React.createElement("div", { className: "cat-bar", style: { background: values.flyerColor || (values.cat ? CAT[values.cat].color : "var(--c-hack)") } }),
               React.createElement("b", null, (values.title || "").trim() || "Your project"),
               React.createElement("small", null, uniName + (values.cat ? " · " + CAT[values.cat].label.toLowerCase() : ""))
             ),
@@ -80,6 +80,7 @@ import ProjectForm from './projectForm'
         about: values.about,
         rot,
         pinType: values.pinType,
+        flyerColor: values.flyerColor,
         tags: values.tags,
         roles: values.roles,
         joinedCount: 1,

@@ -27,6 +27,7 @@ import ProjectForm from './projectForm'
       tags: Array.isArray(p.tags) ? [...p.tags] : [],
       commitment: p.commitment || "",
       pinType: p.pinType || "tape",
+      flyerColor: p.flyerColor || "",
       commLink: p.communicationLink || "",
     };
   }
@@ -49,6 +50,7 @@ import ProjectForm from './projectForm'
       tags: v.tags || [],
       commitment: v.commitment,
       pinType: v.pinType || "tape",
+      flyerColor: v.flyerColor || "",
       commLink: (v.commLink || "").trim(),
     };
   }
@@ -86,7 +88,7 @@ import ProjectForm from './projectForm'
                     React.createElement("span", { key: "r", className: "tape right" }),
                   ]
                 : React.createElement(Pin, null),
-              React.createElement("div", { className: "cat-bar", style: { background: cat.color } }),
+              React.createElement("div", { className: "cat-bar", style: { background: project.flyerColor || cat.color } }),
               React.createElement("div", { className: "body" },
                 React.createElement("div", { className: "stamp-meta" }, uniName),
                 React.createElement(CatTag, { cat }),
@@ -117,7 +119,7 @@ import ProjectForm from './projectForm'
     return (
       React.createElement("div", { className: "scrim", onClick: onCancel },
         React.createElement("div", { className: "modal", onClick: (e) => e.stopPropagation(), style: { maxWidth: 440 } },
-          React.createElement("div", { className: "cat-bar", style: { background: cat.color } }),
+          React.createElement("div", { className: "cat-bar", style: { background: project.flyerColor || cat.color } }),
           React.createElement("button", { className: "modal-close", onClick: onCancel },
             React.createElement(Icon, { name: "x", size: 18 })),
           React.createElement("div", { className: "modal-inner" },
@@ -174,6 +176,7 @@ import ProjectForm from './projectForm'
         blurb: values.tagline,
         about: values.about,
         pinType: values.pinType,
+        flyerColor: values.flyerColor,
         tags: values.tags,
         roles: values.roles,
         event: values.timeline,

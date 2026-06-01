@@ -46,7 +46,7 @@ import { ProjectCard } from './discover'
             reqList.map((p) => {
               const cat = CAT[p.cat];
               return React.createElement("div", { className: "req-card", key: p.id, onClick: () => onOpen(p.id) },
-                React.createElement("div", { className: "stripe", style: { background: cat.color } }),
+                React.createElement("div", { className: "stripe", style: { background: p.flyerColor || cat.color } }),
                 React.createElement("div", { className: "req-body" },
                   React.createElement("h3", null, p.title.split(" — ")[0]),
                   React.createElement("div", { className: "req-sub" }, "led by " + p.lead.name + " · requested just now")

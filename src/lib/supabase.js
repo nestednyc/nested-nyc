@@ -49,7 +49,10 @@ const isSupabaseConfigured = () => {
   // Validate URL format (should be a valid Supabase URL)
   try {
     const url = new URL(supabaseUrl)
-    if (!url.hostname.includes('supabase.co')) {
+    // Accept hosted Supabase (*.supabase.co) and local Docker (localhost / 127.0.0.1)
+    const host = url.hostname
+    const isLocal = host === 'localhost' || host === '127.0.0.1'
+    if (!host.includes('supabase.co') && !isLocal) {
       return false
     }
   } catch {

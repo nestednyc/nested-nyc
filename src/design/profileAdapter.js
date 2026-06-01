@@ -57,6 +57,7 @@ export function toDbProfile(local, userId) {
 export function fromDbProfile(row, fallbackEmail) {
   if (!row) return null;
   return {
+    id: row.id,
     username: row.username || "",
     firstName: row.first_name || "",
     lastName: row.last_name || "",

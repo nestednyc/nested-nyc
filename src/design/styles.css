@@ -468,6 +468,13 @@ input, textarea, select { font-family: inherit; }
 .team-row .av { width: 36px; height: 36px; font-size: 13px; }
 .team-row .t-who b { font-size: 14px; font-weight: 600; display: block; line-height: 1.2; }
 .team-row .t-who small { font-family: var(--mono); font-size: 10.5px; color: var(--ink-faint); }
+/* Crew / lead rows that deep-link to a profile get a hover hit-area. */
+.team-row.clickable { cursor: pointer; border-radius: 10px; padding: 5px 8px; margin: -5px -8px; transition: background .14s ease; }
+.team-row.clickable:hover { background: var(--accent-wash); }
+.team-row.clickable:hover .t-who b { color: var(--accent-ink); }
+.lead-head.clickable { cursor: pointer; transition: opacity .14s ease; }
+.lead-head.clickable:hover { opacity: .82; }
+.lead-head.clickable:hover .who b { color: var(--accent-ink); }
 
 .detail-cta { display: flex; gap: 12px; margin-top: 26px; flex-wrap: wrap; }
 .detail-cta .btn { padding: 14px 24px; font-size: 15.5px; }

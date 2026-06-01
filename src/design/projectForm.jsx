@@ -14,6 +14,9 @@ import { Av, Facepile, CatTag, Pin } from './shared'
     { id: "tape", label: "Masking tape", note: "two strips across the top" },
     { id: "pin",  label: "Push pin",     note: "one centered pin" },
   ];
+  // Approx hex per category — only seeds the native color input's swatch; the
+  // live flyer still uses the exact CSS var until the user picks a custom color.
+  const CAT_HEX = { startup: "#c0563b", class: "#4f6bd0", hack: "#b8902f", side: "#3f9d6c", research: "#9b4dca" };
 
   const EMPTY_VALUES = {
     cat: "",
@@ -28,6 +31,7 @@ import { Av, Facepile, CatTag, Pin } from './shared'
     commitment: "",
     pinType: "tape",
     commLink: "",
+    flyerColor: "",
   };
 
   function ProjectForm({
@@ -59,6 +63,7 @@ import { Av, Facepile, CatTag, Pin } from './shared'
     const [commitment, setCommitment] = useState(init.commitment);
     const [pinType, setPinType] = useState(init.pinType || "tape");
     const [commLink, setCommLink] = useState(init.commLink || "");
+    const [flyerColor, setFlyerColor] = useState(init.flyerColor || "");
 
     const editable = mode === "edit";
     const cta = ctaCopy || { primary: "Pin to the board", icon: "pin" };
@@ -109,11 +114,12 @@ import { Av, Facepile, CatTag, Pin } from './shared'
         commitment,
         pinType,
         commLink: commLink.trim(),
+        flyerColor,
       });
     }
 
     // Values passed to the aside render-prop on every render (for live previews).
-    const currentValues = { cat, stage, timeline, title, tagline, place, about, roles, tags, commitment, pinType, commLink };
+    const currentValues = { cat, stage, timeline, title, tagline, place, about, roles, tags, commitment, pinType, commLink, flyerColor };
 
     // ---------- step bodies ----------
     let body;
@@ -347,7 +353,7 @@ import { Av, Facepile, CatTag, Pin } from './shared'
                     React.createElement("span", { key: "r", className: "tape right" }),
                   ]
                 : React.createElement(Pin, null),
-              React.createElement("div", { className: "cat-bar", style: { background: previewCat.color } }),
+              React.createElement("div", { className: "cat-bar", style: { background: flyerColor || previewCat.color } }),
               React.createElement("div", { className: "body" },
                 React.createElement("div", { className: "stamp-meta" }, previewUni),
                 React.createElement(CatTag, { cat: previewCat }),
@@ -393,6 +399,24 @@ import { Av, Facepile, CatTag, Pin } from './shared'
                 );
               })
             )
+          ),
+
+          React.createElement("div", { className: "field", style: { marginTop: 22 } },
+            React.createElement("label", null, "Flyer head color"),
+            React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 12 } },
+              React.createElement("input", {
+                type: "color",
+                value: flyerColor || CAT_HEX[cat] || "#cf5c3a",
+                onChange: (e) => setFlyerColor(e.target.value),
+                title: "Color of the strip across the top of your flyer",
+                style: { width: 54, height: 38, padding: 2, border: "1.5px solid var(--paper-edge)", borderRadius: 8, background: "var(--paper)", cursor: "pointer" },
+              }),
+              flyerColor
+                ? React.createElement("button", { type: "button", className: "ghost-link", style: { fontSize: 13 }, onClick: () => setFlyerColor("") },
+                    React.createElement(Icon, { name: "x", size: 13 }), "Use category color")
+                : React.createElement("span", { style: { fontFamily: "var(--mono)", fontSize: 12, color: "var(--ink-faint)" } }, "// defaults to your category color")
+            ),
+            React.createElement("div", { className: "hint" }, "// personalize the strip across the top of your flyer"),
           ),
 
           React.createElement("div", { className: "field", style: { marginTop: 22 } },

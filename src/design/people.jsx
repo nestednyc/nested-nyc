@@ -253,36 +253,37 @@ import { Av } from './shared'
     );
   }
 
-  function People({ initialConnected, onConnectedChange, onToast }) {
-    const [mode, setMode] = useState("swipe");
-    const [connected, setConnected] = useState(new Set(initialConnected || []));
+  function People({ connected = [], onConnect, onDisconnect, onToast, incoming = [], initialTab, people = PEOPLE }) {
+    const [mode, setMode] = useState(initialTab || "swipe");
     const [modalPerson, setModalPerson] = useState(null);
-
-    function sync(next) { setConnected(new Set(next)); onConnectedChange && onConnectedChange([...next]); }
-    function addConn(id) { const n = new Set(connected); n.add(id); sync(n); const p = PEOPLE.find((x) => x.id === id); onToast && onToast("Connected with " + (p ? p.name.split(" ")[0] : "them") + " \u2014 reach out via their links", "heart"); }
-    function removeConn(id) { const n = new Set(connected); n.delete(id); sync(n); }
-    function toggleConn(id) { connected.has(id) ? removeConn(id) : addConn(id); }
+    // Controlled: NestedApp owns the connection set (optimistic + revert, like
+    // toggleSave). We read it and call the handlers; no local connection state.
+    const connSet = new Set(connected);
+    function addConn(id) { if (connSet.has(id)) return; onConnect && onConnect(id); }
+    function removeConn(id) { if (!connSet.has(id)) return; onDisconnect && onDisconnect(id); }
+    function toggleConn(id) { connSet.has(id) ? removeConn(id) : addConn(id); }
     function contact(link) { onToast && onToast("Opening " + link.label + " \u2026", "external"); }
 
     const TABS = [
       { id: "swipe", label: "Swipe", icon: "heart" },
       { id: "browse", label: "Browse", icon: "grid" },
-      { id: "connected", label: "Connected", icon: "users", n: connected.size },
+      { id: "connected", label: "Connected", icon: "users", n: connected.length },
+      { id: "incoming", label: "Incoming", icon: "bell", n: incoming.length },
     ];
 
-    const connectedPeople = PEOPLE.filter((p) => connected.has(p.id));
+    const connectedPeople = people.filter((p) => connSet.has(p.id));
 
     let body;
     if (mode === "swipe") {
       body = React.createElement(SwipeDeck, {
-        people: PEOPLE, connectedIds: connected,
+        people, connectedIds: connected,
         onConnect: addConn, onSkip: () => {}, onUndo: removeConn,
         onOpen: (p) => setModalPerson(p),
       });
     } else if (mode === "browse") {
       body = React.createElement("div", { className: "people-grid" },
-        PEOPLE.map((p) => React.createElement(PersonCard, { key: p.id, person: p, onOpen: setModalPerson })));
-    } else {
+        people.map((p) => React.createElement(PersonCard, { key: p.id, person: p, onOpen: setModalPerson })));
+    } else if (mode === "connected") {
       body = connectedPeople.length
         ? React.createElement("div", { className: "conn-grid" },
             connectedPeople.map((p) => (
@@ -303,6 +304,34 @@ import { Av } from './shared'
             React.createElement("p", null, "Swipe right on someone (or hit Connect on a profile) and they'll show up here with their links so you can reach out."),
             React.createElement("button", { className: "btn btn-primary", style: { marginTop: 22 }, onClick: () => setMode("swipe") },
               React.createElement(Icon, { name: "heart", size: 16, stroke: "var(--paper)" }), "Start swiping"));
+    } else if (mode === "incoming") {
+      body = incoming.length
+        ? React.createElement("div", { className: "conn-grid" },
+            incoming.map((p) => {
+              const mutual = connSet.has(p.id);
+              return React.createElement("div", { className: "conn-card", key: p.id },
+                React.createElement("div", { className: "conn-head" },
+                  React.createElement(Av, { name: p.name, color: ROLE[p.role].color }),
+                  React.createElement("div", { className: "who" },
+                    React.createElement("b", null, p.name),
+                    React.createElement("small", null, "@" + p.handle + " · " + UNI[p.uni].name)),
+                  React.createElement("button", {
+                    className: "btn " + (mutual ? "btn-primary done" : "btn-primary"),
+                    style: { marginLeft: "auto", padding: "7px 13px", fontSize: 13 },
+                    onClick: () => { if (!mutual) addConn(p.id); },
+                  }, mutual
+                    ? [React.createElement(Icon, { name: "check", size: 15, stroke: "var(--paper)", key: "i" }), "Mutual"]
+                    : [React.createElement(Icon, { name: "heart", size: 15, stroke: "var(--paper)", key: "i" }), "Connect back"])
+                ),
+                React.createElement(ContactLinks, { person: p, onContact: contact })
+              );
+            }))
+        : React.createElement("div", { className: "match-empty fade-up" },
+            React.createElement("div", { className: "ill" }, React.createElement(Icon, { name: "bell", size: 42, stroke: "var(--accent)" })),
+            React.createElement("h3", null, "No incoming connections yet"),
+            React.createElement("p", null, "When another student connects with you, they show up here with their links — connect back, or reach out directly."),
+            React.createElement("button", { className: "btn btn-primary", style: { marginTop: 22 }, onClick: () => setMode("swipe") },
+              React.createElement(Icon, { name: "heart", size: 16, stroke: "var(--paper)" }), "Find people"));
     }
 
     return (
@@ -322,12 +351,12 @@ import { Av } from './shared'
         ),
         body,
         modalPerson && React.createElement(ProfileModal, {
-          person: modalPerson, connected: connected.has(modalPerson.id),
+          person: modalPerson, connected: connSet.has(modalPerson.id),
           onClose: () => setModalPerson(null), onConnect: toggleConn, onContact: contact,
         })
       )
     );
   }
 
-  export { People, ContactLinks };
+  export { People, ContactLinks, ProfileModal };
   export default People;

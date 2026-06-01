@@ -11,7 +11,7 @@ import ForgotPassword from './forgot'
 import Discover, { ProjectCard } from './discover'
 import Events from './events'
 import Matches from './matches'
-import People, { ContactLinks } from './people'
+import People, { ContactLinks, ProfileModal } from './people'
 import ProjectDetail from './detail'
 import Profile from './profile'
 import Create from './create'
@@ -31,6 +31,10 @@ import { orgService } from '../services/orgService'
 import { eventService } from '../services/eventService'
 import { storageService } from '../services/storageService'
 import { toDbProfile, fromDbProfile, dataUrlToFile } from './profileAdapter'
+import { projectService } from '../services/projectService'
+import { toDbProject, fromDbProject, creatorTeamMember } from './projectAdapter'
+import { toPerson } from './peopleAdapter'
+import { connectionService } from '../services/connectionService'
 
   const { useState, useEffect, useRef } = React;
 
@@ -69,11 +73,22 @@ import { toDbProfile, fromDbProfile, dataUrlToFile } from './profileAdapter'
     const [profile, setProfile] = useState(persisted.current.profile || null);
     const [detailId, setDetailId] = useState(persisted.current.detailId || null);
     const [editId, setEditId] = useState(persisted.current.editId || null);
-    const [saved, setSaved] = useState(new Set(persisted.current.saved || []));
-    const [joined, setJoined] = useState(new Set(persisted.current.joined || []));
-    const [rsvped, setRsvped] = useState(new Set(persisted.current.rsvped || []));
-    const [connected, setConnected] = useState(persisted.current.connected || []);
-    const [created, setCreated] = useState(persisted.current.created || []);
+    // Supabase is the source of truth for these now — start empty and hydrate
+    // from the services on login (see the project load effect below). `connected`
+    // (outgoing) and `incoming` (who connected with you) are both persisted.
+    const [saved, setSaved] = useState(new Set());
+    const [joined, setJoined] = useState(new Set());
+    const [rsvped, setRsvped] = useState(new Set());
+    const [connected, setConnected] = useState([]);
+    const [projects, setProjects] = useState([]);
+    const [people, setPeople] = useState([]);
+    const [incoming, setIncoming] = useState([]);
+    const [peopleInitialTab, setPeopleInitialTab] = useState(null);
+    const [pendingRequests, setPendingRequests] = useState([]);
+    // A student profile being viewed in a modal (opened from a project's crew
+    // list / lead). Resolved from `people` by user id. Null = closed.
+    const [viewPerson, setViewPerson] = useState(null);
+    const [projectsLoading, setProjectsLoading] = useState(false);
     // Org-account state. Populated by session hydration via orgService.getMyOrgs.
     // When orgAccount is non-null the user is signed in AS an organization,
     // not a student, and we render the OrgAppShell subtree instead of the
@@ -109,10 +124,9 @@ import { toDbProfile, fromDbProfile, dataUrlToFile } from './profileAdapter'
     useEffect(() => {
       localStorage.setItem(LS, JSON.stringify({
         profile, route, detailId, editId,
-        saved: [...saved], joined: [...joined], rsvped: [...rsvped], connected, created,
         joinedAt: persisted.current.joinedAt,
       }));
-    }, [profile, route, detailId, editId, saved, joined, rsvped, connected, created]);
+    }, [profile, route, detailId, editId]);
 
     function toast(text, icon) {
       const id = Math.random().toString(36).slice(2);
@@ -134,6 +148,57 @@ import { toDbProfile, fromDbProfile, dataUrlToFile } from './profileAdapter'
       });
       return () => { cancelled = true; };
     }, [orgAccount && orgAccount.id]);
+
+    // Hydrate the student's project surface from Supabase once signed in.
+    // Supabase is the source of truth; localStorage no longer caches these.
+    // Mirrors the orgEvents loader above. Keyed on the user id so it runs once
+    // per session, not on every profile field edit.
+    useEffect(() => {
+      if (!profile || !profile.id || !isSupabaseConfigured()) return;
+      let cancelled = false;
+      setProjectsLoading(true);
+      (async () => {
+        const [disc, savedRes, joinedRes, rsvpRes, peopleRes, connRes, incomingRes] = await Promise.all([
+          projectService.getDiscoverProjects(),
+          projectService.getSavedProjects(),
+          projectService.getJoinedProjects(),
+          eventService.getMyRegisteredEvents(),
+          profileService.getAllProfiles(),
+          connectionService.getMyConnections(),
+          connectionService.getIncomingConnections(),
+        ]);
+        if (cancelled) return;
+        setProjects(((disc && disc.data) || []).map(fromDbProject));
+        setSaved(new Set(((savedRes && savedRes.data) || []).map((p) => p.id)));
+        setJoined(new Set(((joinedRes && joinedRes.data) || []).map((p) => p.id)));
+        setRsvped(new Set(((rsvpRes && rsvpRes.data) || []).map((e) => e.id)));
+        setPeople(((peopleRes && peopleRes.data) || [])
+          .filter((r) => r.id !== profile.id && r.account_type !== "org_admin")
+          .map(toPerson));
+        setConnected(((connRes && connRes.data) || []).map((t) => t.id));
+        setIncoming(((incomingRes && incomingRes.data) || [])
+          .filter((r) => r.account_type !== "org_admin")
+          .map(toPerson));
+        setProjectsLoading(false);
+      })();
+      return () => { cancelled = true; };
+    }, [profile && profile.id]);
+
+    // Owner-only: load pending join requests for the project being viewed, so
+    // the owner can approve/decline from the project page.
+    useEffect(() => {
+      if (route !== "detail" || !detailId || !profile || !profile.id || !isSupabaseConfigured()) {
+        setPendingRequests([]);
+        return;
+      }
+      const proj = projects.find((p) => p.id === detailId);
+      if (!proj || !isProjectAdmin(proj, profile)) { setPendingRequests([]); return; }
+      let cancelled = false;
+      projectService.getPendingRequests(detailId).then(({ data }) => {
+        if (!cancelled) setPendingRequests(data || []);
+      });
+      return () => { cancelled = true; };
+    }, [route, detailId, profile && profile.id, projects]);
 
     // ─── Session hydration ──────────────────────────────────────
     // Called on mount AND after the forgot-password flow completes, so a
@@ -258,11 +323,12 @@ import { toDbProfile, fromDbProfile, dataUrlToFile } from './profileAdapter'
         await authService.signOut();
       }
       setProfile(null);
-      setCreated([]);
+      setProjects([]);
       setSaved(new Set());
       setJoined(new Set());
       setRsvped(new Set());
       setConnected([]);
+      setIncoming([]);
       setOrgAccount(null);
       setOrgEvents([]);
       setEventDraftId(null);
@@ -284,24 +350,93 @@ import { toDbProfile, fromDbProfile, dataUrlToFile } from './profileAdapter'
       setEditId(id); setRoute("edit"); window.scrollTo({ top: 0 });
     }
     // Inline status/alert update from the project page. Admin-only (the page
-    // also hides the controls from non-admins; this is the backstop). Patch
-    // is {status} or {alert}. Writes to `created` — the only place owned
-    // projects live — and persists via the localStorage effect.
-    // Phase 2: call projectService.updateProject(id, patch) here.
-    function updateProjectStatus(id, patch) {
-      const proj = projectsList.find((p) => p.id === id);
-      if (!proj || !isProjectAdmin(proj, profile)) {
+    // also hides the controls from non-admins; this is the backstop). Patch is
+    // {status} or {alert} — both are real columns now. Optimistic, reverts with
+    // a toast if the write fails.
+    async function updateProjectStatus(id, patch) {
+      const prev = projectsList.find((p) => p.id === id);
+      if (!prev || !isProjectAdmin(prev, profile)) {
         toast("Only an admin can update this project", "x");
         return;
       }
-      setCreated((arr) => arr.map((p) =>
+      setProjects((arr) => arr.map((p) =>
         p.id === id ? { ...p, ...patch, updatedAt: new Date().toISOString() } : p));
       toast("status" in patch ? "Status updated" : "Update posted", "check");
+      if (!isSupabaseConfigured()) return;
+      const { error } = await projectService.updateProject(id, patch);
+      if (error) {
+        setProjects((arr) => arr.map((p) => p.id === id ? prev : p));
+        toast("Couldn't save — " + (error.message || "try again"), "x");
+      }
     }
-    function toggleSave(id) {
-      setSaved((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); toast(n.has(id) ? "Saved to your board" : "Removed from saved", "bookmark"); return n; });
+    // Owner-only: approve/decline a pending join request (team_members status).
+    async function approveRequest(memberId) {
+      const req = pendingRequests.find((r) => r.id === memberId);
+      setPendingRequests((arr) => arr.filter((r) => r.id !== memberId));
+      const { error } = await projectService.approveRequest(memberId);
+      if (error) {
+        toast("Couldn't approve — " + (error.message || "try again"), "x");
+        if (req) setPendingRequests((arr) => [req, ...arr]);
+        return;
+      }
+      // Reflect the new crew member on the flyer optimistically.
+      if (req) setProjects((arr) => arr.map((p) => p.id === req.project_id
+        ? { ...p, joinedCount: (p.joinedCount || 1) + 1, team: [...(p.team || []), { name: req.name, role: req.role || "Member" }] }
+        : p));
+      toast("Added to the crew", "check");
+    }
+    async function rejectRequest(memberId) {
+      const req = pendingRequests.find((r) => r.id === memberId);
+      setPendingRequests((arr) => arr.filter((r) => r.id !== memberId));
+      const { error } = await projectService.rejectRequest(memberId);
+      if (error) {
+        toast("Couldn't decline — " + (error.message || "try again"), "x");
+        if (req) setPendingRequests((arr) => [req, ...arr]);
+      } else {
+        toast("Request declined", "x");
+      }
+    }
+    async function toggleSave(id) {
+      const wasSaved = saved.has(id);
+      setSaved((s) => { const n = new Set(s); wasSaved ? n.delete(id) : n.add(id); return n; });
+      toast(wasSaved ? "Removed from saved" : "Saved to your board", "bookmark");
+      if (!isSupabaseConfigured()) return;
+      const { error } = wasSaved
+        ? await projectService.unsaveProject(id)
+        : await projectService.saveProject(id);
+      if (error) {
+        setSaved((s) => { const n = new Set(s); wasSaved ? n.add(id) : n.delete(id); return n; });
+        toast("Couldn't update saved — " + (error.message || "try again"), "x");
+      }
+    }
+    // Connections: optimistic add/remove with revert-on-failure (mirrors
+    // toggleSave). People is controlled — it owns no connection state.
+    // connect() treats a duplicate (23505) as success and a 0-row delete is a
+    // no-op, so redundant calls are harmless.
+    async function onConnect(id) {
+      if (connected.includes(id)) return;
+      setConnected((arr) => [...arr, id]);
+      const p = people.find((x) => x.id === id);
+      toast("Connected with " + (p ? p.name.split(" ")[0] : "them") + " — reach out via their links", "heart");
+      if (!isSupabaseConfigured()) return;
+      const { error } = await connectionService.connect(id);
+      if (error) {
+        setConnected((arr) => arr.filter((x) => x !== id));
+        toast("Couldn't connect — " + (error.message || "try again"), "x");
+      }
+    }
+    async function onDisconnect(id) {
+      if (!connected.includes(id)) return;
+      setConnected((arr) => arr.filter((x) => x !== id));
+      if (!isSupabaseConfigured()) return;
+      const { error } = await connectionService.disconnect(id);
+      if (error) {
+        setConnected((arr) => [...arr, id]);
+        toast("Couldn't disconnect — " + (error.message || "try again"), "x");
+      }
     }
     function goNav(id) {
+      if (id === "people") setPeopleInitialTab(null);
       if (id === "discover" || id === "events" || id === "people" || id === "saved") { setRoute(id); }
       else { setSoonLabel(NAV.find((n) => n.id === id).label); setRoute("soon"); }
       window.scrollTo({ top: 0 });
@@ -338,17 +473,40 @@ import { toDbProfile, fromDbProfile, dataUrlToFile } from './profileAdapter'
       window.scrollTo({ top: 0 });
     }
 
-    function submitModal(text) {
-      if (!modal) return;
-      // Only the join flow submits; the contact modal just surfaces real links.
-      if (modal.type === "join") {
-        setJoined((j) => new Set(j).add(modal.project.id));
-        toast("Request sent to " + modal.project.lead.name.split(" ")[0], "check");
-      }
-      setModal(null);
+    // Open a teammate's profile from a project's crew/lead. Self → own profile
+    // page; everyone else → the shared People ProfileModal, resolved from the
+    // already-loaded `people` list by user id.
+    function openProfile(userId) {
+      if (!userId) return;
+      if (profile && userId === profile.id) { setRoute("profile"); window.scrollTo({ top: 0 }); return; }
+      const person = people.find((pp) => pp.id === userId);
+      if (person) setViewPerson(person);
+      else toast("That profile isn't available yet", "x");
     }
 
-    const projectsList = [...created, ...PROJECTS];
+    async function submitModal(text) {
+      if (!modal) return;
+      // Only the join flow submits; the contact modal just surfaces real links.
+      if (modal.type !== "join") { setModal(null); return; }
+      const proj = modal.project;
+      setJoined((j) => new Set(j).add(proj.id)); // optimistic
+      setModal(null);
+      toast("Request sent to " + proj.lead.name.split(" ")[0], "check");
+      if (!isSupabaseConfigured()) return;
+      // Inserts a pending team_members row (RLS: a user may add self as 'pending').
+      const { error } = await projectService.joinProject(proj.id, "", text || "");
+      if (error) {
+        setJoined((j) => { const n = new Set(j); n.delete(proj.id); return n; });
+        toast("Request didn't send — " + (error.message || "try again"), "x");
+      }
+    }
+
+    const projectsList = projects;
+    // Incoming connections the user hasn't reciprocated yet — drives the bell dot.
+    const incomingPending = incoming.filter((p) => !connected.includes(p.id));
+    // "My projects" = the ones I own, derived from the discover list (all my
+    // flyers publish to discover). Drives the profile's pinned-projects rail.
+    const myProjects = profile ? projectsList.filter((p) => isProjectOwner(p, profile)) : [];
     const detailProject = projectsList.find((p) => p.id === detailId);
     const accent = ACCENTS.find((a) => a.v === t.accent) || ACCENTS[0];
 
@@ -558,9 +716,24 @@ import { toDbProfile, fromDbProfile, dataUrlToFile } from './profileAdapter'
             profile,
             existingIds: new Set(projectsList.map((p) => p.id)),
             onCancel: () => setRoute("discover"),
-            onCreate: (project) => {
-              setCreated((arr) => [project, ...arr]);
+            onCreate: async (project) => {
               setRoute("discover");
+              window.scrollTo({ top: 0 });
+              if (!isSupabaseConfigured()) {
+                setProjects((arr) => [project, ...arr]);
+                toast("Pinned to the board", "pin");
+                return;
+              }
+              const { data: row, error } = await projectService.createProject(toDbProject(project, profile && profile.id));
+              if (error || !row) {
+                toast("Couldn't pin — " + ((error && error.message) || "try again"), "x");
+                return;
+              }
+              // Stamp the creator into the crew so joinedCount + the team join work.
+              const lead = creatorTeamMember(profile, row.owner_id);
+              await projectService.addTeamMember(row.id, lead);
+              const uiProject = fromDbProject({ ...row, team_members: [lead] });
+              setProjects((arr) => [uiProject, ...arr]);
               toast("Pinned to the board", "pin");
             },
           }),
@@ -596,29 +769,34 @@ import { toDbProfile, fromDbProfile, dataUrlToFile } from './profileAdapter'
               setEditId(null);
               setRoute(detailId === editProject.id ? "detail" : "discover");
             },
-            onSave: (updated) => {
-              // Phase 2: call projectService.updateProject(updated) here.
-              setCreated((arr) => arr.map((p) => p.id === updated.id ? updated : p));
+            onSave: async (updated) => {
+              // Optimistic: drop the user back on the detail page immediately.
+              setProjects((arr) => arr.map((p) => p.id === updated.id ? updated : p));
               setEditId(null);
               setDetailId(updated.id);
               setRoute("detail");
-              toast("Flyer updated", "check");
+              if (!isSupabaseConfigured()) { toast("Flyer updated", "check"); return; }
+              const { error } = await projectService.updateProject(updated.id, toDbProject(updated, updated.ownerId));
+              if (error) toast("Couldn't save — " + (error.message || "try again"), "x");
+              else toast("Flyer updated", "check");
             },
-            onDelete: (id) => {
+            onDelete: async (id) => {
               // Taking the flyer down is owner-only — co-admins can edit but
               // not delete. (Editor still guards entry; this is the backstop.)
               if (!isProjectOwner(editProject, profile)) {
                 toast("Only the owner can take this flyer down", "x");
                 return;
               }
-              // Phase 2: call projectService.deleteProject(id) here.
-              setCreated((arr) => arr.filter((p) => p.id !== id));
+              setProjects((arr) => arr.filter((p) => p.id !== id));
               setSaved((s) => { const n = new Set(s); n.delete(id); return n; });
               setJoined((j) => { const n = new Set(j); n.delete(id); return n; });
               setEditId(null);
               if (detailId === id) setDetailId(null);
               setRoute("discover");
               toast("Flyer taken down", "x");
+              if (!isSupabaseConfigured()) return;
+              const { error } = await projectService.deleteProject(id);
+              if (error) toast("Delete didn't sync — " + (error.message || "try again"), "x");
             },
           }),
           React.createElement(Toasts, { items: toasts }),
@@ -739,8 +917,8 @@ import { toDbProfile, fromDbProfile, dataUrlToFile } from './profileAdapter'
           ),
           React.createElement("button", { className: "iconbtn", onClick: () => goNav("saved"), title: "Saved projects" },
             React.createElement(Icon, { name: "bookmark", size: 20 })),
-          React.createElement("button", { className: "iconbtn", onClick: () => { setSoonLabel("Notifications"); setRoute("soon"); }, title: "Notifications" },
-            React.createElement(Icon, { name: "bell", size: 20 }), React.createElement("span", { className: "dot" })),
+          React.createElement("button", { className: "iconbtn", onClick: () => { setPeopleInitialTab("incoming"); setRoute("people"); window.scrollTo({ top: 0 }); }, title: "Incoming connections" },
+            React.createElement(Icon, { name: "bell", size: 20 }), incomingPending.length > 0 && React.createElement("span", { className: "dot" })),
           profile && justVerified && React.createElement("span", {
             className: "corner-stamp enter",
             title: "@" + profile.username + " · verified .edu student",
@@ -792,8 +970,13 @@ import { toDbProfile, fromDbProfile, dataUrlToFile } from './profileAdapter'
         }),
 
         route === "people" && React.createElement(People, {
-          initialConnected: connected,
-          onConnectedChange: (arr) => setConnected(arr),
+          key: peopleInitialTab || "swipe",
+          people,
+          incoming,
+          connected,
+          initialTab: peopleInitialTab,
+          onConnect,
+          onDisconnect,
           onToast: toast,
         }),
 
@@ -808,18 +991,21 @@ import { toDbProfile, fromDbProfile, dataUrlToFile } from './profileAdapter'
         route === "detail" && detailProject && React.createElement(ProjectDetail, {
           p: detailProject, profile,
           saved: saved.has(detailProject.id), joined: joined.has(detailProject.id),
+          pendingRequests,
+          onApprove: approveRequest,
+          onReject: rejectRequest,
           onBack: () => setRoute("discover"),
           onSave: toggleSave,
           onRequest: (p) => { if (joined.has(p.id)) { toast("You've already requested to join", "check"); } else { setModal({ type: "join", project: p }); } },
-          onMessage: (project) => setModal({ type: "contact", project, lead: project.lead }),
           onEdit: (p) => openEdit(p.id),
           onUpdateStatus: updateProjectStatus,
+          onOpenProfile: openProfile,
         }),
 
         route === "profile" && React.createElement(Profile, {
           profile,
-          pinnedProjects: created,
-          projectCount: created.length,
+          pinnedProjects: myProjects,
+          projectCount: myProjects.length,
           eventCount: rsvped.size,
           connectionCount: connected.length,
           joinedAt: (profile && profile.joinedAt) || persisted.current.joinedAt,
@@ -832,6 +1018,13 @@ import { toDbProfile, fromDbProfile, dataUrlToFile } from './profileAdapter'
         route === "soon" && React.createElement(SoonPane, { label: soonLabel, saved, joined, projects: projectsList, onOpen: openProject, onSave: toggleSave, onBack: () => goNav("discover") }),
 
         modal && React.createElement(Modal, { modal, onClose: () => setModal(null), onSubmit: submitModal, profile }),
+        viewPerson && React.createElement(ProfileModal, {
+          person: viewPerson,
+          connected: connected.includes(viewPerson.id),
+          onClose: () => setViewPerson(null),
+          onConnect: (id) => { connected.includes(id) ? onDisconnect(id) : onConnect(id); },
+          onContact: (link) => toast("Opening " + link.label + " …", "external"),
+        }),
         React.createElement(Toasts, { items: toasts }),
         React.createElement(StyleTweaks, { t, setTweak })
       )
