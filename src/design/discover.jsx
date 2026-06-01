@@ -263,17 +263,36 @@ import { Facepile, CatTag, Pin } from './shared'
       return c;
     }, [projects]);
 
-    // build the category shelves
+    // Build the discovery shelves dynamically from the live projects. These used
+    // to reference hard-coded mock ids; once the feed came from Supabase those
+    // ids matched nothing, so every project fell through to "Popular now" and the
+    // other shelves rendered empty. Deriving each shelf from the data fixes that
+    // for any dataset. A project can appear on more than one shelf (it's a
+    // curated discovery feed, like rows on a storefront), but each shelf is a
+    // distinct, meaningful cut so the board never piles everything into one.
     const feeds = useMemo(() => {
-      const byId = (id) => projects.find((p) => p.id === id);
-      const pick = (ids) => ids.map(byId).filter(Boolean);
-      const popular = [...projects].sort((a, b) => b.joinedCount - a.joinedCount);
+      const openRoles = (p) => (p.roles || []).filter((r) => r.open).length;
+      const ts = (p) => new Date(p.createdAt || p.updatedAt || 0).getTime();
+
+      const popular = [...projects].sort((a, b) => b.joinedCount - a.joinedCount).slice(0, 8);
+      const newest = [...projects].sort((a, b) => ts(b) - ts(a)).slice(0, 8);
+      // Featured = building momentum: startups / research / hackathons, or anything
+      // actively recruiting — ranked by how many open roles they're hiring for.
+      const featured = [...projects]
+        .filter((p) => ["startup", "research", "hack"].includes(p.cat) || ["looking", "need-help"].includes(p.status))
+        .sort((a, b) => openRoles(b) - openRoles(a))
+        .slice(0, 8);
+      // Beginner-friendly = low-commitment or just-getting-started projects to jump into.
+      const beginner = projects
+        .filter((p) => ["hackathon", "side-project"].includes(p.commitment) || ["idea", "looking"].includes(p.status))
+        .slice(0, 8);
+
       return [
-        { id: "popular",  label: "Popular now",      sub: "most students joining",    color: "var(--c-startup)", cols: 4, rows: 1, items: popular },
-        { id: "featured", label: "Featured",         sub: "editors' picks this week", color: "var(--c-hack)",    cols: 4, rows: 2, items: pick(["subway-pulse", "loop", "threadbare", "nyc-air", "inkwell", "greenmap", "setlist", "studyroom"]) },
-        { id: "new",      label: "New on Nested",     sub: "just pinned",              color: "var(--c-side)",    cols: 4, rows: 1, items: pick(["setlist", "threadbare", "riso-club", "studyroom", "greenmap", "nyc-air"]) },
-        { id: "beginner", label: "Beginner-friendly", sub: "great first projects",     color: "var(--c-class)",   cols: 4, rows: 1, items: pick(["greenmap", "setlist", "riso-club", "inkwell", "studyroom"]) },
-      ];
+        { id: "popular",  label: "Popular now",       sub: "most students joining",    color: "var(--c-startup)", cols: 4, rows: 1, items: popular },
+        { id: "featured", label: "Featured",          sub: "editors' picks this week", color: "var(--c-hack)",    cols: 4, rows: 2, items: featured },
+        { id: "new",      label: "New on Nested",      sub: "just pinned",              color: "var(--c-side)",    cols: 4, rows: 1, items: newest },
+        { id: "beginner", label: "Beginner-friendly", sub: "great first projects",     color: "var(--c-class)",   cols: 4, rows: 1, items: beginner },
+      ].filter((f) => f.items.length > 0);
     }, [projects]);
 
     const q = query.trim().toLowerCase();

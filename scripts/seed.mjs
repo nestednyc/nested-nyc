@@ -272,7 +272,7 @@ const PROJECTS = [
     members: ['marcus'], pending: [] },
 ]
 
-/* ── events (hosted by clubs; some upcoming, some past) ────────────────────*/
+/* ── events (hosted by clubs; ALL upcoming — no past/"ended" events) ───────*/
 // slug, club, type, title, blurb, date(YYYY-MM-DD), time, location, address,
 // tags[], highlights[], capacity, going(target attendee count), isPast
 const EVENTS = [
@@ -304,19 +304,18 @@ const EVENTS = [
     blurb: 'A 24-hour build sprint to kick off summer projects.', date: '2026-06-20', time: '10:00 AM',
     location: 'NYU Tandon — Event Hall', address: '6 MetroTech Center, Brooklyn, NY', tags: ['AI / ML', 'Civic / NYC', 'Hardware'],
     highlights: ['24-hour build sprint', '$2k in prizes', 'Meals + cold brew all weekend'], capacity: 100, going: 71, isPast: false },
-  // ---- past ----
   { slug: 'intro-to-figma', club: 'columbia-build', type: 'design', title: 'Intro to Figma for Builders',
-    blurb: 'Engineers, learn to prototype your own MVPs fast.', date: '2026-05-21', time: '6:00 PM',
+    blurb: 'Engineers, learn to prototype your own MVPs fast.', date: '2026-06-25', time: '6:00 PM',
     location: 'Columbia SEAS — Mudd 233', address: '500 W 120th St, New York, NY', tags: ['Creative tools', 'Consumer apps'],
-    highlights: ['A starter Figma file to keep', 'Live prototype demo', 'Open Q&A'], capacity: 45, going: 40, isPast: true },
-  { slug: 'ai-welcome-social', club: 'nyu-ai-collective', type: 'social', title: 'AI Collective Welcome Social',
-    blurb: 'Our first social of the term — 90 new members joined.', date: '2026-05-08', time: '7:00 PM',
+    highlights: ['A starter Figma file to keep', 'Live prototype demo', 'Open Q&A'], capacity: 45, going: 40, isPast: false },
+  { slug: 'ai-welcome-social', club: 'nyu-ai-collective', type: 'social', title: 'AI Collective Summer Social',
+    blurb: 'Meet the collective — new members always welcome.', date: '2026-07-02', time: '7:00 PM',
     location: 'NYU Tandon — Lounge', address: '6 MetroTech Center, Brooklyn, NY', tags: ['Social impact'],
-    highlights: ['90+ new members', 'Project pod sign-ups', 'Snacks + music'], capacity: 100, going: 90, isPast: true },
-  { slug: 'founders-pitch-night', club: 'nyc-student-founders', type: 'demo', title: 'Spring Pitch Night',
-    blurb: 'Eight student startups pitched for a $5k grant.', date: '2026-04-30', time: '7:00 PM',
+    highlights: ['Meet 90+ members', 'Project pod sign-ups', 'Snacks + music'], capacity: 100, going: 90, isPast: false },
+  { slug: 'founders-pitch-night', club: 'nyc-student-founders', type: 'demo', title: 'Summer Pitch Night',
+    blurb: 'Eight student startups pitch for a $5k grant.', date: '2026-07-09', time: '7:00 PM',
     location: 'Cornell Tech — Verizon Hall', address: '2 W Loop Rd, New York, NY', tags: ['Startup', 'Fintech'],
-    highlights: ['8 startup pitches', '$5k grant awarded', 'Angel investor panel'], capacity: 120, going: 96, isPast: true },
+    highlights: ['8 startup pitches', '$5k grant awarded', 'Angel investor panel'], capacity: 120, going: 96, isPast: false },
 ]
 
 /* ── demo account wiring (RLS-scoped, only visible when logged in as demo) ──*/
