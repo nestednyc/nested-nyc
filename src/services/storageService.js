@@ -7,6 +7,20 @@ import { supabase, isSupabaseConfigured } from '../lib/supabase'
 
 const AVATAR_BUCKET = 'avatars'
 
+/**
+ * Current authenticated user's id, or null. Storage RLS scopes every write to a
+ * `<uid>/` folder (migration 20260602000003), so uploads must live under the
+ * uploader's own uid folder or they're rejected.
+ */
+async function authUid() {
+  try {
+    const { data } = await supabase.auth.getUser()
+    return data?.user?.id || null
+  } catch {
+    return null
+  }
+}
+
 export const storageService = {
   /**
    * Upload an avatar image
@@ -36,10 +50,11 @@ export const storageService = {
     }
 
     try {
-      // Create a unique filename
+      const uid = await authUid()
+      if (!uid) return { url: null, error: { message: 'You must be signed in to upload.' } }
+      // RLS scopes writes to the uploader's own folder: <uid>/<file>
       const fileExt = file.name.split('.').pop()
-      const fileName = `${userId}-${Date.now()}.${fileExt}`
-      const filePath = `${fileName}`
+      const filePath = `${uid}/${Date.now()}.${fileExt}`
 
       // Upload to Supabase Storage
       const { data, error: uploadError } = await supabase.storage
@@ -90,8 +105,10 @@ export const storageService = {
     }
 
     try {
+      const uid = await authUid()
+      if (!uid) return { url: null, error: { message: 'You must be signed in to upload.' } }
       const fileExt = file.name.split('.').pop()
-      const fileName = `photo-${userId}-${slot}-${Date.now()}.${fileExt}`
+      const fileName = `${uid}/photo-${slot}-${Date.now()}.${fileExt}`
 
       const { error: uploadError } = await supabase.storage
         .from(AVATAR_BUCKET)
@@ -161,8 +178,10 @@ export const storageService = {
     }
 
     try {
+      const uid = await authUid()
+      if (!uid) return { url: null, error: { message: 'You must be signed in to upload.' } }
       const fileExt = file.name.split('.').pop()
-      const fileName = `project-${projectId}-${Date.now()}.${fileExt}`
+      const fileName = `${uid}/project-${projectId}-${Date.now()}.${fileExt}`
 
       const { data, error: uploadError } = await supabase.storage
         .from('project-icons')
@@ -205,8 +224,10 @@ export const storageService = {
     }
 
     try {
+      const uid = await authUid()
+      if (!uid) return { url: null, error: { message: 'You must be signed in to upload.' } }
       const fileExt = file.name.split('.').pop()
-      const fileName = `org-${orgIdOrTempKey}-${Date.now()}.${fileExt}`
+      const fileName = `${uid}/org-${orgIdOrTempKey}-${Date.now()}.${fileExt}`
 
       const { error: uploadError } = await supabase.storage
         .from(AVATAR_BUCKET)

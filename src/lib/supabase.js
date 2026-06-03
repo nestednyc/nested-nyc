@@ -89,8 +89,6 @@ const getConfigurationError = () => {
 // Create Supabase client - only initialize if configured, otherwise create a safe placeholder
 let supabase = null
 
-console.log('[DEBUG supabase init] URL:', supabaseUrl, 'Key set:', !!supabaseAnonKey, 'Configured:', isSupabaseConfigured())
-
 if (isSupabaseConfigured()) {
   try {
     // Only create client if properly configured
@@ -179,6 +177,18 @@ export const authService = {
       }
     }
 
+    // Student-only network: require a .edu address. Org admins sign up via
+    // signUpAsOrg(), which skips this check (the DB trigger exempts them too).
+    if (!email.trim().toLowerCase().endsWith('.edu')) {
+      return {
+        valid: false,
+        error: {
+          message: 'Use your school email — a .edu address is required to join.',
+          code: 'NOT_EDU_EMAIL'
+        }
+      }
+    }
+
     return { valid: true, error: null }
   },
 
@@ -252,30 +262,25 @@ export const authService = {
    * @returns {Promise<{data: any, error: any}>}
    */
   async signUpWithEmailPassword(email, password) {
-    console.log('[DEBUG authService] signUpWithEmailPassword called')
     // Validate email first
     const emailValidation = this.validateEduEmail(email)
     if (!emailValidation.valid) {
-      console.log('[DEBUG authService] Email validation failed:', emailValidation.error)
       return { data: null, error: emailValidation.error }
     }
 
     // Validate password
     const passwordValidation = this.validatePassword(password)
     if (!passwordValidation.valid) {
-      console.log('[DEBUG authService] Password validation failed:', passwordValidation.error)
       return { data: null, error: passwordValidation.error }
     }
 
     // Check Supabase is ready
     const { ready, error: configError } = this.checkSupabaseReady()
-    console.log('[DEBUG authService] Supabase ready:', ready, configError)
     if (!ready) {
       return { data: null, error: configError }
     }
 
     try {
-      console.log('[DEBUG authService] About to call supabase.auth.signUp, URL:', supabaseUrl)
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
@@ -286,7 +291,6 @@ export const authService = {
           }
         }
       })
-      console.log('[DEBUG authService] signUp returned:', { data, error })
 
       if (error) {
         return { data: null, error: this._mapSupabaseError(error) }

@@ -201,14 +201,9 @@ import { eventService } from '../services/eventService'
         if (cancelled) return;
 
         if (eventRes.error || !eventRes.data) {
-          // Fall back to seed by id (works for the demo data flow on a fresh
-          // install where the user might be browsing the seed feed).
-          const seed = NestedData.EVENTS.find((e) => e.id === eventId);
-          if (seed) {
-            setRaw(seed);
-          } else {
-            setMissing(true);
-          }
+          // Configured + not in the DB → it genuinely doesn't exist. Show the
+          // missing state rather than a seed stand-in.
+          setMissing(true);
           setLoading(false);
           return;
         }

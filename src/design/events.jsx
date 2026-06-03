@@ -112,13 +112,12 @@ import { eventService } from '../services/eventService'
         if (cancelled) return;
         if (fetchErr) {
           setError(fetchErr.message || 'Could not load events.');
-          setEvents(SEED_EVENTS);
+          setEvents([]);
           return;
         }
-        const live = (data || []).map(toUiEvent);
-        // If the DB is empty (fresh install), fall back to the seed feed so
-        // the cork-board doesn't render an empty page during onboarding.
-        setEvents(live.length ? live : SEED_EVENTS);
+        // Supabase is the source of truth — show real events, even if there
+        // are none yet. (Seed is only used in the offline branch above.)
+        setEvents((data || []).map(toUiEvent));
       })();
       return () => { cancelled = true; };
     }, []);
@@ -165,7 +164,9 @@ import { eventService } from '../services/eventService'
           ))
         ),
         React.createElement("div", { className: "events", style: { padding: 0 } },
-          groups.map((g) => (
+          list.length === 0
+            ? React.createElement("div", { className: "hint", style: { padding: "28px 4px" } }, "No events posted yet — check back soon, or host the first one.")
+            : groups.map((g) => (
             React.createElement("div", { className: "day-group", key: g.label },
               React.createElement("div", { className: "day-label" }, g.label, React.createElement("span", { className: "n" }, g.items.length + (g.items.length === 1 ? " event" : " events"))),
               g.items.map((e) => React.createElement(EventCard, { key: e.id, e, going: rsvped.has(e.id), onRSVP, onOpenOrg, onOpenEvent }))

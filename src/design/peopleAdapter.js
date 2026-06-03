@@ -9,7 +9,7 @@
    ============================================================ */
 import { UNI } from './data'
 
-// The People deck wants ONE discipline `role`; profiles carry fields + skills.
+// The People card wants ONE discipline `role`; profiles carry fields + skills.
 // Best-effort bucket into one of the five ROLE ids (defaults to engineer).
 function roleFromProfile(fields, skills) {
   const hay = [...(fields || []), ...(skills || [])].join(" ").toLowerCase();
@@ -26,7 +26,7 @@ function initials(name) {
 }
 
 // Supabase profiles row → cork-board People card. Defaults keep UNI[uni],
-// ROLE[role] and every array field safe so the swipe deck never crashes.
+// ROLE[role] and every array field safe so the People cards never crash.
 export function toPerson(row) {
   const name = `${row.first_name || ""} ${row.last_name || ""}`.trim() || row.username || "Student";
   const fields = Array.isArray(row.fields) ? row.fields : [];

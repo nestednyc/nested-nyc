@@ -88,7 +88,16 @@ import { connectionService } from '../services/connectionService'
     // A student profile being viewed in a modal (opened from a project's crew
     // list / lead). Resolved from `people` by user id. Null = closed.
     const [viewPerson, setViewPerson] = useState(null);
-    const [projectsLoading, setProjectsLoading] = useState(false);
+    // Start true when a Supabase hydration is actually coming (returning user with
+    // a persisted profile) so the first paint is a skeleton, not a flash of the
+    // empty state. The early-return below resolves it to false otherwise.
+    const [projectsLoading, setProjectsLoading] = useState(() => !!(persisted.current.profile && persisted.current.profile.id && isSupabaseConfigured()));
+    // Surface hydration error + retry. loadErrors is { discover, people, saved }
+    // (each a Supabase error or undefined) so each page shows its own error
+    // state; retrySurface bumps reloadNonce, which the loader effect depends on.
+    const [loadErrors, setLoadErrors] = useState(null);
+    const [reloadNonce, setReloadNonce] = useState(0);
+    const retrySurface = () => setReloadNonce((n) => n + 1);
     // Org-account state. Populated by session hydration via orgService.getMyOrgs.
     // When orgAccount is non-null the user is signed in AS an organization,
     // not a student, and we render the OrgAppShell subtree instead of the
@@ -154,35 +163,52 @@ import { connectionService } from '../services/connectionService'
     // Mirrors the orgEvents loader above. Keyed on the user id so it runs once
     // per session, not on every profile field edit.
     useEffect(() => {
-      if (!profile || !profile.id || !isSupabaseConfigured()) return;
+      if (!profile || !profile.id || !isSupabaseConfigured()) { setProjectsLoading(false); return; }
       let cancelled = false;
       setProjectsLoading(true);
+      setLoadErrors(null);
       (async () => {
-        const [disc, savedRes, joinedRes, rsvpRes, peopleRes, connRes, incomingRes] = await Promise.all([
-          projectService.getDiscoverProjects(),
-          projectService.getSavedProjects(),
-          projectService.getJoinedProjects(),
-          eventService.getMyRegisteredEvents(),
-          profileService.getAllProfiles(),
-          connectionService.getMyConnections(),
-          connectionService.getIncomingConnections(),
-        ]);
-        if (cancelled) return;
-        setProjects(((disc && disc.data) || []).map(fromDbProject));
-        setSaved(new Set(((savedRes && savedRes.data) || []).map((p) => p.id)));
-        setJoined(new Set(((joinedRes && joinedRes.data) || []).map((p) => p.id)));
-        setRsvped(new Set(((rsvpRes && rsvpRes.data) || []).map((e) => e.id)));
-        setPeople(((peopleRes && peopleRes.data) || [])
-          .filter((r) => r.id !== profile.id && r.account_type !== "org_admin")
-          .map(toPerson));
-        setConnected(((connRes && connRes.data) || []).map((t) => t.id));
-        setIncoming(((incomingRes && incomingRes.data) || [])
-          .filter((r) => r.account_type !== "org_admin")
-          .map(toPerson));
-        setProjectsLoading(false);
+        try {
+          const [disc, savedRes, joinedRes, rsvpRes, peopleRes, connRes, incomingRes] = await Promise.all([
+            projectService.getDiscoverProjects(),
+            projectService.getSavedProjects(),
+            projectService.getJoinedProjects(),
+            eventService.getMyRegisteredEvents(),
+            profileService.getAllProfiles(),
+            connectionService.getMyConnections(),
+            connectionService.getIncomingConnections(),
+          ]);
+          if (cancelled) return;
+          setProjects(((disc && disc.data) || []).map(fromDbProject));
+          setSaved(new Set(((savedRes && savedRes.data) || []).map((p) => p.id)));
+          setJoined(new Set(((joinedRes && joinedRes.data) || []).map((p) => p.id)));
+          setRsvped(new Set(((rsvpRes && rsvpRes.data) || []).map((e) => e.id)));
+          setPeople(((peopleRes && peopleRes.data) || [])
+            .filter((r) => r.id !== profile.id && r.account_type !== "org_admin")
+            .map(toPerson));
+          setConnected(((connRes && connRes.data) || []).map((t) => t.id));
+          setIncoming(((incomingRes && incomingRes.data) || [])
+            .filter((r) => r.account_type !== "org_admin")
+            .map(toPerson));
+          // Surface per-page load errors so each page can show its own retry.
+          setLoadErrors({
+            discover: disc && disc.error,
+            people: (peopleRes && peopleRes.error) || (incomingRes && incomingRes.error),
+            saved: (savedRes && savedRes.error) || (joinedRes && joinedRes.error),
+          });
+        } catch (err) {
+          // A thrown (rejected) service strands no state: log it and mark every
+          // surface errored so the user gets a retry instead of a blank page.
+          if (!cancelled) {
+            console.error('Project surface hydration failed:', err);
+            setLoadErrors({ discover: err, people: err, saved: err });
+          }
+        } finally {
+          if (!cancelled) setProjectsLoading(false);
+        }
       })();
       return () => { cancelled = true; };
-    }, [profile && profile.id]);
+    }, [profile && profile.id, reloadNonce]);
 
     // Owner-only: load pending join requests for the project being viewed, so
     // the owner can approve/decline from the project page.
@@ -936,6 +962,7 @@ import { connectionService } from '../services/connectionService'
           projects: projectsList, profile, saved, joined, query,
           onOpen: openProject, onSave: toggleSave,
           onStart: () => setRoute("create"),
+          loading: projectsLoading, error: loadErrors && loadErrors.discover, onRetry: retrySurface,
         }),
 
         route === "events" && React.createElement(Events, {
@@ -970,7 +997,7 @@ import { connectionService } from '../services/connectionService'
         }),
 
         route === "people" && React.createElement(People, {
-          key: peopleInitialTab || "swipe",
+          key: peopleInitialTab || "browse",
           people,
           incoming,
           connected,
@@ -978,6 +1005,9 @@ import { connectionService } from '../services/connectionService'
           onConnect,
           onDisconnect,
           onToast: toast,
+          loading: projectsLoading,
+          error: loadErrors && loadErrors.people,
+          onRetry: retrySurface,
         }),
 
         route === "saved" && React.createElement(Matches, {
@@ -986,6 +1016,9 @@ import { connectionService } from '../services/connectionService'
           onStart: () => setRoute("create"),
           onBrowse: () => goNav("discover"),
           onEdit: (p) => openEdit(p.id),
+          loading: projectsLoading,
+          error: loadErrors && loadErrors.saved,
+          onRetry: retrySurface,
         }),
 
         route === "detail" && detailProject && React.createElement(ProjectDetail, {
@@ -1023,7 +1056,13 @@ import { connectionService } from '../services/connectionService'
           connected: connected.includes(viewPerson.id),
           onClose: () => setViewPerson(null),
           onConnect: (id) => { connected.includes(id) ? onDisconnect(id) : onConnect(id); },
-          onContact: (link) => toast("Opening " + link.label + " …", "external"),
+          onContact: (link) => {
+            // discord → copy the handle; URL/email links open via the anchor.
+            if (link.kind === "discord") {
+              try { if (navigator.clipboard) navigator.clipboard.writeText(link.label); } catch (e) {}
+              toast("Copied " + link.label, "check");
+            }
+          },
         }),
         React.createElement(Toasts, { items: toasts }),
         React.createElement(StyleTweaks, { t, setTweak })

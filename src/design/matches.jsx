@@ -4,7 +4,7 @@
 import React from 'react'
 import Icon from './icons'
 import { CAT, isProjectAdmin } from './data'
-import { Pin } from './shared'
+import { Pin, Skeleton } from './shared'
 import { ProjectCard } from './discover'
 
   const { useState } = React;
@@ -21,7 +21,7 @@ import { ProjectCard } from './discover'
     );
   }
 
-  function Matches({ projects = [], profile, saved, joined, onOpen, onSave, onStart, onBrowse, onEdit }) {
+  function Matches({ projects = [], profile, saved, joined, onOpen, onSave, onStart, onBrowse, onEdit, loading = false, error = null, onRetry }) {
     const [tab, setTab] = useState("saved");
     const savedList = projects.filter((p) => saved.has(p.id));
     const reqList = projects.filter((p) => joined.has(p.id));
@@ -35,7 +35,11 @@ import { ProjectCard } from './discover'
     ];
 
     let body;
-    if (tab === "saved") {
+    if (loading) {
+      body = React.createElement(Skeleton, { count: 6 });
+    } else if (error) {
+      body = React.createElement(EmptyState, { icon: "refresh", title: "Couldn't load your board", body: "Something went wrong reaching Nested — check your connection and try again.", cta: "Try again", onCta: onRetry });
+    } else if (tab === "saved") {
       body = savedList.length
         ? React.createElement("div", { className: "board" },
             savedList.map((p) => React.createElement(ProjectCard, { key: p.id, p, saved: true, joined: joined.has(p.id), onOpen, onSave })))

@@ -6,7 +6,7 @@
 import React from 'react'
 import Icon from './icons'
 import { CATEGORIES, CAT, UNI, statusMeta } from './data'
-import { Facepile, CatTag, Pin } from './shared'
+import { Facepile, CatTag, Pin, Skeleton } from './shared'
 
   const { useState, useMemo, useRef } = React;
 
@@ -254,7 +254,7 @@ import { Facepile, CatTag, Pin } from './shared'
     );
   }
 
-  function Discover({ projects, profile, saved, joined, query, onOpen, onSave, onStart }) {
+  function Discover({ projects, profile, saved, joined, query, onOpen, onSave, onStart, loading = false, error = null, onRetry }) {
     const [cat, setCat] = useState("all");
 
     const counts = useMemo(() => {
@@ -342,7 +342,15 @@ import { Facepile, CatTag, Pin } from './shared'
           ))
         ),
 
-        single
+        loading
+          ? React.createElement(Skeleton, { count: 8 })
+          : error
+          ? React.createElement("div", { className: "empty" },
+              React.createElement("div", { style: { fontFamily: "var(--disp)", fontWeight: 800, fontSize: 28, marginBottom: 8 } }, "Couldn't load the board"),
+              React.createElement("div", { className: "mono" }, "// check your connection and try again"),
+              React.createElement("button", { className: "btn btn-primary", style: { marginTop: 18 }, onClick: onRetry },
+                React.createElement(Icon, { name: "refresh", size: 16, stroke: "var(--paper)" }), "Try again"))
+          : single
           ? (single.items.length === 0
               ? React.createElement("div", { className: "empty" },
                   React.createElement("div", { style: { fontFamily: "var(--disp)", fontWeight: 800, fontSize: 28, marginBottom: 8 } }, "Nothing pinned here yet"),

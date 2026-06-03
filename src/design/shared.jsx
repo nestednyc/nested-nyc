@@ -121,5 +121,16 @@ import { avColor, initials } from './data'
     };
   }
 
-  export { Av, Facepile, CatTag, Pin, Stamp, Toasts, UniLogo, formatEventDate };
-  export const UI = { Av, Facepile, CatTag, Pin, Stamp, Toasts, UniLogo, formatEventDate };
+  // Loading placeholder — a responsive grid of shimmer cards (reuses the
+  // .ev-skel shimmer from styles.css). Shown by the data-driven surfaces
+  // (People, Discover, Saved) while their Supabase fetch is in flight.
+  function Skeleton({ count = 6 }) {
+    return (
+      React.createElement("div", { className: "skel-grid" },
+        Array.from({ length: count }).map((_, i) =>
+          React.createElement("div", { className: "ev-skel skel-card", key: i })))
+    );
+  }
+
+  export { Av, Facepile, CatTag, Pin, Stamp, Toasts, UniLogo, formatEventDate, Skeleton };
+  export const UI = { Av, Facepile, CatTag, Pin, Stamp, Toasts, UniLogo, formatEventDate, Skeleton };
