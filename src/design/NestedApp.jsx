@@ -107,6 +107,10 @@ import { connectionService } from '../services/connectionService'
     // A student profile being viewed in a modal (opened from a project's crew
     // list / lead). Resolved from `people` by user id. Null = closed.
     const [viewPerson, setViewPerson] = useState(null);
+    // One-shot: set when a student finishes onboarding so we land on their own
+    // profile in edit mode (to nudge them to fill it out). Profile clears it via
+    // onAutoEditConsumed, so a normal later visit stays read-only. Not persisted.
+    const [profileEditOnArrive, setProfileEditOnArrive] = useState(false);
     // Start true when a Supabase hydration is actually coming (returning user with
     // a persisted profile) so the first paint is a skeleton, not a flash of the
     // empty state. The early-return below resolves it to false otherwise.
@@ -694,8 +698,8 @@ import { connectionService } from '../services/connectionService'
         React.createElement("div", { className: rootClass, style: rootStyle },
           React.createElement(Onboarding, {
             onComplete: (p) => {
-              setProfile(p); setRoute("discover"); window.scrollTo({ top: 0 });
-              toast("Welcome to Nested, @" + p.username, "sparkle");
+              setProfile(p); setProfileEditOnArrive(true); setRoute("profile"); window.scrollTo({ top: 0 });
+              toast("Welcome to Nested, @" + p.username + " — finish your profile so people can find you", "sparkle");
               setJustVerified(true);
               setTimeout(() => setJustVerified(false), 1500);
             },
@@ -1236,6 +1240,8 @@ import { connectionService } from '../services/connectionService'
           onOpenProject: openProject,
           onSaveProfile: saveProfileToSupabase,
           onSignOut: signOut,
+          startInEdit: profileEditOnArrive,
+          onAutoEditConsumed: () => setProfileEditOnArrive(false),
         }),
 
         route === "soon" && React.createElement(SoonPane, { label: soonLabel, saved, joined, requested, projects: projectsList, onOpen: openProject, onSave: toggleSave, onBack: () => goNav("discover") }),

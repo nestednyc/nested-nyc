@@ -7,7 +7,7 @@ import { UNI, CAT, FIELDS, SKILLS, LINK_ICON } from './data'
 import { ContactLinks } from './people'
 import { ShareStoryButton } from './storyCard'
 
-  const { useState, useRef } = React;
+  const { useState, useRef, useEffect } = React;
 
   const MAX_BIO = 280;
 
@@ -113,11 +113,24 @@ import { ShareStoryButton } from './storyCard'
 
   function Profile({
     profile, pinnedProjects, projectCount, eventCount, connectionCount, joinedAt,
-    onBack, onOpenProject, onSaveProfile, onSignOut,
+    onBack, onOpenProject, onSaveProfile, onSignOut, startInEdit, onAutoEditConsumed,
   }) {
     const [editing, setEditing] = useState(false);
     const [draft, setDraft] = useState(null);
     const [saving, setSaving] = useState(false);
+
+    // Fresh from onboarding, land straight in edit mode so the empty fields
+    // (bio, snaps, links, what you're shipping) invite filling-out instead of
+    // showing a sparse read-only page. One-shot: the ref guards against
+    // re-triggering on later prop updates within this mount.
+    const didAutoEdit = useRef(false);
+    useEffect(() => {
+      if (startInEdit && profile && !didAutoEdit.current) {
+        didAutoEdit.current = true;
+        startEdit();
+        if (onAutoEditConsumed) onAutoEditConsumed();
+      }
+    }, [startInEdit, profile]);
 
     if (!profile) return null;
 
