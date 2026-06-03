@@ -516,6 +516,58 @@ export const authService = {
   },
 
   /**
+   * Verify the 6-digit signup confirmation code (used when mailer_autoconfirm
+   * is off). On success the account is confirmed and a real session is set on
+   * the client, so the caller can immediately create the user's profile.
+   * @param {string} email
+   * @param {string} token - 6-digit code from the confirmation email
+   * @returns {Promise<{data: any, error: any}>}
+   */
+  async verifySignupOtp(email, token) {
+    if (!token || !/^\d{6}$/.test(token)) {
+      return { data: null, error: { message: 'Please enter the 6-digit code from your email.', code: 'INVALID_OTP_FORMAT' } }
+    }
+    const { ready, error: configError } = this.checkSupabaseReady()
+    if (!ready) return { data: null, error: configError }
+
+    try {
+      const { data, error } = await supabase.auth.verifyOtp({ email, token, type: 'signup' })
+      if (error) {
+        return {
+          data: null,
+          error: {
+            message: /expired/i.test(error.message || '')
+              ? 'This code has expired. Request a new one.'
+              : 'Invalid code. Double-check and try again.',
+            code: 'VERIFICATION_ERROR',
+            originalError: error
+          }
+        }
+      }
+      return { data, error: null }
+    } catch (err) {
+      return { data: null, error: this._handleNetworkError(err) }
+    }
+  },
+
+  /**
+   * Resend the signup confirmation code to an unconfirmed account.
+   * @param {string} email
+   * @returns {Promise<{data: any, error: any}>}
+   */
+  async resendSignupOtp(email) {
+    const { ready, error: configError } = this.checkSupabaseReady()
+    if (!ready) return { data: null, error: configError }
+    try {
+      const { data, error } = await supabase.auth.resend({ type: 'signup', email })
+      if (error) return { data: null, error: this._mapSupabaseError(error) }
+      return { data, error: null }
+    } catch (err) {
+      return { data: null, error: this._handleNetworkError(err) }
+    }
+  },
+
+  /**
    * Verify a 6-digit OTP code for password reset
    * On success, Supabase sets a recovery session and updatePassword() can be called
    * @param {string} email - User's email

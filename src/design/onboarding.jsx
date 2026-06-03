@@ -18,6 +18,14 @@ import { toDbProfile, fromDbProfile } from './profileAdapter'
   const SIGNIN_STEPS = 2;
   const UNIS_PER_TAB = 6;
 
+  const CODE_BOX_STYLE = {
+    width: 46, height: 56, textAlign: "center",
+    fontFamily: "var(--mono)", fontSize: 22, fontWeight: 700,
+    color: "var(--ink)", background: "var(--paper)",
+    border: "1.5px solid var(--paper-edge)", borderRadius: 11,
+    outline: "none", transition: "border-color .15s, box-shadow .15s",
+  };
+
   function detectUni(email) {
     const at = email.split("@")[1] || "";
     const u = UNIVERSITIES.find((x) => at.endsWith(x.domain));
@@ -65,6 +73,23 @@ import { toDbProfile, fromDbProfile } from './profileAdapter'
 
     const [submitting, setSubmitting] = useState(false);
     const [submitError, setSubmitError] = useState("");
+
+    // Signup email-confirmation code step. Shown after signup when the account
+    // must confirm its .edu inbox (mailer_autoconfirm off) before the profile
+    // can be created. Reuses the same 6-box code UX as the password-reset flow.
+    const [awaitingCode, setAwaitingCode] = useState(false);
+    const [code, setCode] = useState(["", "", "", "", "", ""]);
+    const [resendCooldown, setResendCooldown] = useState(0);
+    const codeRefs = useRef([]);
+    const codeString = code.join("");
+    const codeReady = codeString.length === 6;
+
+    // Resend cooldown ticker for the code step.
+    useEffect(() => {
+      if (resendCooldown <= 0) return;
+      const t = setTimeout(() => setResendCooldown((s) => s - 1), 1000);
+      return () => clearTimeout(t);
+    }, [resendCooldown]);
 
     const totalSteps = mode === "signup" ? SIGNUP_STEPS : SIGNIN_STEPS;
 
@@ -175,6 +200,16 @@ import { toDbProfile, fromDbProfile } from './profileAdapter'
         return;
       }
 
+      // Confirmation required: the account exists but has no session yet. Hold
+      // the profile and collect the 6-digit code from the user's .edu inbox.
+      if (signupRes.data && signupRes.data.needsEmailConfirmation) {
+        setCode(["", "", "", "", "", ""]);
+        setResendCooldown(30);
+        setAwaitingCode(true);
+        setSubmitting(false);
+        return;
+      }
+
       const userId = signupRes.data && signupRes.data.user && signupRes.data.user.id;
       if (!userId) {
         setSubmitError("Couldn't determine your account ID. Try signing in.");
@@ -192,6 +227,70 @@ import { toDbProfile, fromDbProfile } from './profileAdapter'
 
       setSubmitting(false);
       onComplete(fromDbProfile(row, email.trim()));
+    }
+
+    // Verify the 6-digit signup code, then create the profile now that the
+    // confirmed account has a real session.
+    async function verifyCodeAndFinish() {
+      if (!codeReady || submitting) return;
+      setSubmitting(true);
+      setSubmitError("");
+      const { data: vData, error: vErr } = await authService.verifySignupOtp(email.trim(), codeString);
+      if (vErr) { setSubmitError(getErrorMessage(vErr)); setSubmitting(false); return; }
+
+      const userId = (vData && vData.user && vData.user.id)
+        || (vData && vData.session && vData.session.user && vData.session.user.id);
+      if (!userId) { setSubmitError("Couldn't confirm your account. Try the code again."); setSubmitting(false); return; }
+
+      const localProfile = {
+        username: username.trim(),
+        uni: uni || (detected && detected.id) || "nyu",
+        major: major || "Undeclared",
+        fields: interests,
+        email: email.trim(),
+      };
+      const { data: row, error: upErr } = await profileService.upsertProfile(userId, toDbProfile(localProfile, userId));
+      if (upErr) { setSubmitError(getErrorMessage(upErr)); setSubmitting(false); return; }
+
+      setSubmitting(false);
+      onComplete(fromDbProfile(row, email.trim()));
+    }
+
+    async function resendSignupCode() {
+      if (resendCooldown > 0 || submitting) return;
+      setCode(["", "", "", "", "", ""]);
+      setSubmitError("");
+      const { error } = await authService.resendSignupOtp(email.trim());
+      if (error) { setSubmitError(getErrorMessage(error)); return; }
+      setResendCooldown(30);
+      setTimeout(() => codeRefs.current[0] && codeRefs.current[0].focus(), 50);
+    }
+
+    function setCodeDigit(i, raw) {
+      const digit = (raw || "").replace(/\D/g, "").slice(0, 1);
+      const next = code.slice();
+      next[i] = digit;
+      setCode(next);
+      setSubmitError("");
+      if (digit && i < 5) codeRefs.current[i + 1] && codeRefs.current[i + 1].focus();
+    }
+    function onCodeKeyDown(i, e) {
+      if (e.key === "Backspace" && !code[i] && i > 0) {
+        codeRefs.current[i - 1] && codeRefs.current[i - 1].focus();
+      } else if (e.key === "Enter" && codeReady) {
+        verifyCodeAndFinish();
+      }
+    }
+    function onCodePaste(e) {
+      const pasted = (e.clipboardData.getData("text") || "").replace(/\D/g, "").slice(0, 6);
+      if (!pasted) return;
+      e.preventDefault();
+      const next = ["", "", "", "", "", ""];
+      pasted.split("").forEach((d, i) => { if (i < 6) next[i] = d; });
+      setCode(next);
+      setSubmitError("");
+      const firstEmpty = next.findIndex((c) => !c);
+      codeRefs.current[firstEmpty === -1 ? 5 : firstEmpty] && codeRefs.current[firstEmpty === -1 ? 5 : firstEmpty].focus();
     }
 
     async function finishSignin() {
@@ -486,6 +585,71 @@ import { toDbProfile, fromDbProfile } from './profileAdapter'
       if (onLastStep) return "Enter Nested";
       return "Continue";
     })();
+
+    // Email-confirmation code screen — a terminal step shown only when signup
+    // needs the .edu inbox confirmed. Mirrors the password-reset code UX.
+    if (awaitingCode) {
+      return (
+        React.createElement("div", { className: "onb" },
+          React.createElement("div", { className: "onb-aside corkbg grain" },
+            React.createElement("div", { className: "a-top" },
+              React.createElement("div", { className: "brand" },
+                React.createElement("span", { className: "mark" }, React.createElement(Icon, { name: "pin", size: 21, stroke: "var(--paper)" })),
+                React.createElement("span", { className: "name" }, "Nested", React.createElement("span", null, "."))
+              )
+            ),
+            React.createElement("div", { className: "onb-pitch" },
+              React.createElement("h2", null, "Check your", React.createElement("br"), "inbox.")
+            )
+          ),
+          React.createElement("div", { className: "onb-main grain" },
+            React.createElement("div", { className: "onb-card" },
+              React.createElement("div", { className: "fade-up" },
+                React.createElement("span", { className: "onb-kicker" }, "Last step · Confirm your .edu"),
+                React.createElement("h1", null, "Enter the code."),
+                React.createElement("p", { className: "desc" }, "We sent a 6-digit code to ", React.createElement("b", null, email.trim()), ". Check your inbox (and spam, just in case)."),
+                React.createElement("div", { className: "field" },
+                  React.createElement("label", null, "6-digit code"),
+                  React.createElement("div", { style: { display: "flex", gap: 10 }, onPaste: onCodePaste },
+                    code.map((d, i) => (
+                      React.createElement("input", {
+                        key: i,
+                        ref: (el) => { codeRefs.current[i] = el; },
+                        type: "text", inputMode: "numeric", maxLength: 1, autoFocus: i === 0,
+                        value: d, className: "code-box", style: CODE_BOX_STYLE,
+                        onChange: (e) => setCodeDigit(i, e.target.value),
+                        onKeyDown: (e) => onCodeKeyDown(i, e),
+                      })
+                    ))
+                  ),
+                  submitError
+                    ? React.createElement("div", { className: "hint err" }, "// " + submitError)
+                    : React.createElement("div", { className: "hint" }, "// paste the full code if it's easier")
+                ),
+                React.createElement("div", { style: { marginTop: 14, fontFamily: "var(--mono)", fontSize: 12 } },
+                  resendCooldown > 0
+                    ? React.createElement("span", { style: { color: "var(--ink-faint)" } }, "// resend available in " + resendCooldown + "s")
+                    : React.createElement("button", { className: "ghost-link", onClick: resendSignupCode, disabled: submitting }, "Didn't get it? Resend the code →")
+                )
+              ),
+              React.createElement("div", { className: "onb-actions" },
+                React.createElement("button", { className: "ghost-link", onClick: () => { setAwaitingCode(false); setSubmitError(""); }, disabled: submitting }, "← Back"),
+                React.createElement("span", { className: "spacer" }),
+                React.createElement("button", {
+                  className: "btn btn-primary",
+                  disabled: !codeReady || submitting,
+                  style: (!codeReady || submitting) ? { opacity: 0.4, pointerEvents: "none" } : {},
+                  onClick: verifyCodeAndFinish,
+                },
+                  submitting ? "Just a sec…" : "Verify & enter Nested",
+                  React.createElement(Icon, { name: "arrowRight", size: 17, stroke: "var(--paper)" })
+                )
+              )
+            )
+          )
+        )
+      );
+    }
 
     return (
       React.createElement("div", { className: "onb" },
