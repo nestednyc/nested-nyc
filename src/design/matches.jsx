@@ -21,10 +21,13 @@ import { ProjectCard } from './discover'
     );
   }
 
-  function Matches({ projects = [], profile, saved, joined, onOpen, onSave, onStart, onBrowse, onEdit, loading = false, error = null, onRetry }) {
+  function Matches({ projects = [], profile, saved, joined, requested, onOpen, onSave, onStart, onBrowse, onEdit, loading = false, error = null, onRetry }) {
     const [tab, setTab] = useState("saved");
     const savedList = projects.filter((p) => saved.has(p.id));
-    const reqList = projects.filter((p) => joined.has(p.id));
+    // "Requests" tracks everything you've asked to join — both still-pending
+    // requests AND approved memberships. Each row shows its real status below,
+    // so an approved member never reads as "awaiting reply".
+    const reqList = projects.filter((p) => joined.has(p.id) || requested.has(p.id));
     // "Your projects" = anything you can administer (own or co-admin).
     const mineList = profile ? projects.filter((p) => isProjectAdmin(p, profile)) : [];
 
@@ -42,28 +45,31 @@ import { ProjectCard } from './discover'
     } else if (tab === "saved") {
       body = savedList.length
         ? React.createElement("div", { className: "board" },
-            savedList.map((p) => React.createElement(ProjectCard, { key: p.id, p, saved: true, joined: joined.has(p.id), onOpen, onSave })))
+            savedList.map((p) => React.createElement(ProjectCard, { key: p.id, p, saved: true, joined: joined.has(p.id), requested: requested.has(p.id), onOpen, onSave })))
         : React.createElement(EmptyState, { icon: "bookmark", title: "Nothing saved yet", body: "Tap the bookmark on any project to pin it here for later.", cta: "Browse the board", onCta: onBrowse });
     } else if (tab === "requests") {
       body = reqList.length
         ? React.createElement("div", { className: "req-list" },
             reqList.map((p) => {
               const cat = CAT[p.cat];
+              const inTeam = joined.has(p.id); // approved member vs pending request
               return React.createElement("div", { className: "req-card", key: p.id, onClick: () => onOpen(p.id) },
                 React.createElement("div", { className: "stripe", style: { background: p.flyerColor || cat.color } }),
                 React.createElement("div", { className: "req-body" },
                   React.createElement("h3", null, p.title.split(" — ")[0]),
-                  React.createElement("div", { className: "req-sub" }, "led by " + p.lead.name + " · requested just now")
+                  React.createElement("div", { className: "req-sub" }, "led by " + p.lead.name + (inTeam ? " · you're on the team" : " · awaiting reply"))
                 ),
                 React.createElement("div", { className: "req-status" },
-                  React.createElement("span", { className: "pending" }, React.createElement(Icon, { name: "clock", size: 14, stroke: "currentColor" }), "Awaiting reply"))
+                  inTeam
+                    ? React.createElement("span", { className: "pending acc" }, React.createElement(Icon, { name: "check", size: 14, stroke: "currentColor" }), "On the team")
+                    : React.createElement("span", { className: "pending" }, React.createElement(Icon, { name: "clock", size: 14, stroke: "currentColor" }), "Awaiting reply"))
               );
             }))
         : React.createElement(EmptyState, { icon: "send", title: "No requests out yet", body: "When you request to join a project, you'll track its status here.", cta: "Find a project to join", onCta: onBrowse });
     } else {
       body = mineList.length
         ? React.createElement("div", { className: "board" },
-            mineList.map((p) => React.createElement(ProjectCard, { key: p.id, p, saved: saved.has(p.id), joined: joined.has(p.id), onOpen, onSave, onEdit })))
+            mineList.map((p) => React.createElement(ProjectCard, { key: p.id, p, saved: saved.has(p.id), joined: joined.has(p.id), requested: requested.has(p.id), onOpen, onSave, onEdit })))
         : React.createElement(EmptyState, { icon: "plus", pin: true, title: "Pin your first project", body: "Recruiting for a startup, class team, or hackathon crew? Post it and we'll match you with students across NYC.", cta: "Start a project", onCta: onStart });
     }
 

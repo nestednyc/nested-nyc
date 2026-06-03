@@ -513,6 +513,56 @@ export const projectService = {
     return { data: data || [], error }
   },
 
+  /**
+   * Get projects the current user has REQUESTED to join but isn't approved for
+   * yet (their team_members row is still 'pending'). Mirrors getJoinedProjects,
+   * which returns only 'approved' memberships — together they let the UI tell
+   * "Request sent" (pending) apart from "You're in" (approved).
+   * @returns {Promise<{data: array|null, error: object|null}>}
+   */
+  async getRequestedProjects() {
+    if (!isSupabaseConfigured() || !supabase) {
+      return { data: [], error: null }
+    }
+
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      return { data: [], error: null }
+    }
+
+    // Pending team memberships where user_id matches
+    const { data: memberships, error: memberError } = await supabase
+      .from('team_members')
+      .select('project_id')
+      .eq('user_id', user.id)
+      .eq('status', 'pending')
+
+    if (memberError || !memberships?.length) {
+      return { data: [], error: memberError }
+    }
+
+    const projectIds = memberships.map(m => m.project_id)
+
+    // Get those projects (excluding ones user owns — you can't request your own)
+    const { data, error } = await supabase
+      .from('projects')
+      .select('*, team_members(*)')
+      .in('id', projectIds)
+      .neq('owner_id', user.id)
+      .order('created_at', { ascending: false })
+
+    // Only approved members belong on the public flyer's crew/facepile.
+    if (data) {
+      data.forEach(project => {
+        if (project.team_members) {
+          project.team_members = project.team_members.filter(m => m.status === 'approved')
+        }
+      })
+    }
+
+    return { data: data || [], error }
+  },
+
   // ============================================
   // SAVED PROJECTS (bookmarks)
   // ============================================

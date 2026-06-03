@@ -85,7 +85,7 @@ import { CatTag, Av, Facepile } from './shared'
   }
 
 
-  function ProjectDetail({ p, profile, saved, joined, onBack, onSave, onRequest, onMessage, onEdit, onUpdateStatus, pendingRequests = [], onApprove, onReject, onOpenProfile }) {
+  function ProjectDetail({ p, profile, saved, joined, requested, onBack, onSave, onRequest, onMessage, onEdit, onUpdateStatus, pendingRequests = [], onApprove, onReject, onOpenProfile }) {
     const cat = CAT[p.cat];
     const uni = UNI[p.uni];
     const teamNames = [p.lead.name, ...p.team.map((t) => t.name)];
@@ -137,10 +137,15 @@ import { CatTag, Av, Facepile } from './shared'
                 ? React.createElement("button", { className: "btn btn-primary", onClick: () => onEdit(p) },
                     React.createElement(Icon, { name: "pin", size: 18, stroke: "var(--paper)" }), "Edit flyer")
                 : React.createElement("button", {
-                    className: "btn " + (joined ? "btn-primary done" : "btn-primary"), onClick: () => onRequest(p),
+                    // `joined` = approved member ("You're in"); `requested` =
+                    // pending request ("Request sent"). Both render the green
+                    // "done" treatment; only the unjoined state is a live CTA.
+                    className: "btn " + (joined || requested ? "btn-primary done" : "btn-primary"), onClick: () => onRequest(p),
                   }, joined
-                    ? [React.createElement(Icon, { name: "check", size: 18, stroke: "var(--paper)", key: "i" }), "Request sent"]
-                    : [React.createElement(Icon, { name: "plus", size: 18, stroke: "var(--paper)", key: "i" }), "Request to join"])
+                    ? [React.createElement(Icon, { name: "check", size: 18, stroke: "var(--paper)", key: "i" }), "You're in"]
+                    : requested
+                      ? [React.createElement(Icon, { name: "clock", size: 18, stroke: "var(--paper)", key: "i" }), "Request sent"]
+                      : [React.createElement(Icon, { name: "plus", size: 18, stroke: "var(--paper)", key: "i" }), "Request to join"])
             ),
 
             React.createElement("div", { className: "detail-grid" },

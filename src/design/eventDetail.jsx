@@ -12,7 +12,7 @@
    ============================================================ */
 import React from 'react'
 import Icon from './icons'
-import { NestedData, ETYPE } from './data'
+import { NestedData, ETYPE, UNI } from './data'
 import { Av, Facepile, Pin, formatEventDate } from './shared'
 import { OrgCard } from './orgProfile'
 import { isSupabaseConfigured } from '../lib/supabase'
@@ -156,6 +156,69 @@ import { eventService } from '../services/eventService'
   }
 
   // ──────────────────────────────────────────────────────────────────────
+  // "Who's going" sheet — a scrollable roster pinned over the flyer. Each row
+  // is a student going to the event: tap the name/avatar to open their full
+  // profile, or hit Connect to link up without leaving the page.
+  //
+  // Two data shapes feed it: the live `attendees` rows (id + avatar + uni, so
+  // rows are clickable + connectable) or, offline, just `names` strings from
+  // the seed (shown as a static list — nothing to link to without ids).
+  // ──────────────────────────────────────────────────────────────────────
+  function AttendeesSheet({ attendees, names, total, connected, selfId, onConnect, onOpenProfile, onClose }) {
+    const connSet = new Set(connected || []);
+    const rows = (attendees && attendees.length)
+      ? attendees.map((a) => ({
+          id: a.id,
+          name: [a.first_name, a.last_name].filter(Boolean).join(' ').trim() || 'Student',
+          avatar: a.avatar || null,
+          uni: (UNI[a.university] && UNI[a.university].name) || '',
+        }))
+      : (names || []).map((n) => ({ id: null, name: n, avatar: null, uni: '' }));
+
+    const moreCount = Math.max(0, (total || rows.length) - rows.length);
+
+    return (
+      React.createElement("div", { className: "scrim", onClick: onClose },
+        React.createElement("div", { className: "att-sheet", onClick: (e) => e.stopPropagation() },
+          React.createElement("button", { className: "modal-close", onClick: onClose }, React.createElement(Icon, { name: "x", size: 18 })),
+          React.createElement("div", { className: "att-head" },
+            React.createElement("div", { className: "sec-h" }, "Going"),
+            React.createElement("h3", null, (total || rows.length) + " going"),
+            React.createElement("p", null, "Tap anyone to see their profile — or connect right here.")
+          ),
+          rows.length === 0
+            ? React.createElement("div", { className: "att-empty" }, "No one's RSVP'd yet. Be the first.")
+            : React.createElement("div", { className: "att-list" },
+                rows.map((p, i) => {
+                  const isSelf = p.id && selfId && p.id === selfId;
+                  const isConn = p.id && connSet.has(p.id);
+                  const canOpen = !!(p.id && onOpenProfile && !isSelf);
+                  return React.createElement("div", {
+                    className: "att-row" + (canOpen ? " clickable" : ""),
+                    key: p.id || ('n' + i),
+                    onClick: canOpen ? () => onOpenProfile(p.id) : undefined,
+                  },
+                    React.createElement(Av, { name: p.name, img: p.avatar }),
+                    React.createElement("div", { className: "att-who" },
+                      React.createElement("b", null, p.name, isSelf && React.createElement("span", { className: "att-you" }, "You")),
+                      p.uni && React.createElement("small", null, p.uni)
+                    ),
+                    p.id && !isSelf && onConnect && React.createElement("button", {
+                      className: "btn " + (isConn ? "btn-primary done" : "btn-ghost") + " att-connect",
+                      onClick: (e) => { e.stopPropagation(); if (!isConn && onConnect) onConnect(p.id); },
+                    }, isConn
+                      ? [React.createElement(Icon, { name: "check", size: 15, stroke: "var(--paper)", key: "i" }), "Connected"]
+                      : [React.createElement(Icon, { name: "heart", size: 15, stroke: "var(--accent)", key: "i" }), "Connect"])
+                  );
+                }),
+                moreCount > 0 && React.createElement("div", { className: "att-more" }, "+ " + moreCount + " more going")
+              )
+        )
+      )
+    );
+  }
+
+  // ──────────────────────────────────────────────────────────────────────
   // The page.
   // ──────────────────────────────────────────────────────────────────────
   function EventDetail({
@@ -168,11 +231,15 @@ import { eventService } from '../services/eventService'
     onOpenOrg,
     onEditEvent,
     onSignIn,
+    onOpenProfile,
+    onConnect,
+    connected,
   }) {
     const [raw, setRaw] = useState(null);
     const [attendees, setAttendees] = useState([]);
     const [loading, setLoading] = useState(true);
     const [missing, setMissing] = useState(false);
+    const [showAttendees, setShowAttendees] = useState(false);
     const ticketRef = useRef(null);
 
     useEffect(() => {
@@ -196,7 +263,7 @@ import { eventService } from '../services/eventService'
         // the page, just with an empty facepile.
         const [eventRes, attRes] = await Promise.all([
           eventService.getEventWithRegistration(eventId),
-          eventService.getAttendees(eventId, 8),
+          eventService.getAttendees(eventId, 60),
         ]);
         if (cancelled) return;
 
@@ -357,17 +424,29 @@ import { eventService } from '../services/eventService'
                 React.createElement("div", { className: "ev-rail-where" }, ev.location || 'Venue TBA'),
                 ev.address && React.createElement("span", { className: "ev-rail-sub" }, "// " + ev.address)
               ),
-              React.createElement("div", { className: "ev-rail-card" },
-                React.createElement("div", { className: "sec-h" }, "Going"),
-                React.createElement("div", { className: "ev-going-row" },
-                  facepileNames.length > 0 && React.createElement(Facepile, { names: facepileNames, extra: facepileExtra }),
-                  React.createElement("span", { className: "txt" }, ev.attendees + " going")
-                ),
-                cap && React.createElement("div", { className: "cap-tape" },
-                  React.createElement("div", { className: "cap-tape-fill", style: { width: pct + "%" } })
-                ),
-                React.createElement("span", { className: "cap-tape-cap" }, capCaption)
-              ),
+              (() => {
+                const hasRoster = (attendees && attendees.length > 0) || facepileNames.length > 0;
+                return React.createElement("div", {
+                  className: "ev-rail-card ev-going-card" + (hasRoster ? " clickable" : ""),
+                  onClick: hasRoster ? () => setShowAttendees(true) : undefined,
+                  role: hasRoster ? "button" : undefined,
+                  tabIndex: hasRoster ? 0 : undefined,
+                  onKeyDown: hasRoster ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setShowAttendees(true); } } : undefined,
+                },
+                  React.createElement("div", { className: "ev-going-head" },
+                    React.createElement("div", { className: "sec-h" }, "Going"),
+                    hasRoster && React.createElement("span", { className: "ev-going-see" }, "see all →")
+                  ),
+                  React.createElement("div", { className: "ev-going-row" },
+                    facepileNames.length > 0 && React.createElement(Facepile, { names: facepileNames, extra: facepileExtra }),
+                    React.createElement("span", { className: "txt" }, ev.attendees + " going")
+                  ),
+                  cap && React.createElement("div", { className: "cap-tape" },
+                    React.createElement("div", { className: "cap-tape-fill", style: { width: pct + "%" } })
+                  ),
+                  React.createElement("span", { className: "cap-tape-cap" }, capCaption)
+                );
+              })(),
               React.createElement("div", { className: "ev-rail-card" },
                 rsvpSlot
               )
@@ -429,7 +508,21 @@ import { eventService } from '../services/eventService'
               ? React.createElement("button", { className: "ev-rsvp-btn", disabled: true }, "Full")
               : React.createElement("button", { className: "ev-rsvp-btn", onClick: handleRsvpClick },
                   React.createElement(Icon, { name: "plus", size: 14, stroke: "var(--paper)" }), "RSVP")
-        )
+        ),
+
+        // ── WHO'S GOING SHEET ──
+        showAttendees && React.createElement(AttendeesSheet, {
+          attendees,
+          names: ev.attendeeNames,
+          total: ev.attendees,
+          connected,
+          selfId: profile && profile.id,
+          onConnect,
+          onOpenProfile: onOpenProfile
+            ? (id) => { setShowAttendees(false); onOpenProfile(id); }
+            : null,
+          onClose: () => setShowAttendees(false),
+        })
       )
     );
   }

@@ -751,6 +751,21 @@ export const authService = {
   },
 
   /**
+   * Force a session/token refresh. Used before sensitive writes (e.g. storage
+   * uploads) so a near-expiry token isn't sent as anon and rejected by RLS.
+   * @returns {Promise<{data: any, error: any}>}
+   */
+  async refreshSession() {
+    const { ready, error: configError } = this.checkSupabaseReady()
+    if (!ready) {
+      return { data: null, error: configError }
+    }
+
+    const { data, error } = await supabase.auth.refreshSession()
+    return { data, error }
+  },
+
+  /**
    * Get current user (validates JWT with server)
    * @returns {Promise<{data: any, error: any}>}
    */

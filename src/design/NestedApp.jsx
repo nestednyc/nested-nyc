@@ -77,7 +77,11 @@ import { connectionService } from '../services/connectionService'
     // from the services on login (see the project load effect below). `connected`
     // (outgoing) and `incoming` (who connected with you) are both persisted.
     const [saved, setSaved] = useState(new Set());
+    // `joined` = projects you're an APPROVED member of ("You're in").
+    // `requested` = projects you've asked to join, still pending approval
+    // ("Request sent"). Two distinct states — never conflate them.
     const [joined, setJoined] = useState(new Set());
+    const [requested, setRequested] = useState(new Set());
     const [rsvped, setRsvped] = useState(new Set());
     const [connected, setConnected] = useState([]);
     const [projects, setProjects] = useState([]);
@@ -169,10 +173,11 @@ import { connectionService } from '../services/connectionService'
       setLoadErrors(null);
       (async () => {
         try {
-          const [disc, savedRes, joinedRes, rsvpRes, peopleRes, connRes, incomingRes] = await Promise.all([
+          const [disc, savedRes, joinedRes, requestedRes, rsvpRes, peopleRes, connRes, incomingRes] = await Promise.all([
             projectService.getDiscoverProjects(),
             projectService.getSavedProjects(),
             projectService.getJoinedProjects(),
+            projectService.getRequestedProjects(),
             eventService.getMyRegisteredEvents(),
             profileService.getAllProfiles(),
             connectionService.getMyConnections(),
@@ -182,6 +187,7 @@ import { connectionService } from '../services/connectionService'
           setProjects(((disc && disc.data) || []).map(fromDbProject));
           setSaved(new Set(((savedRes && savedRes.data) || []).map((p) => p.id)));
           setJoined(new Set(((joinedRes && joinedRes.data) || []).map((p) => p.id)));
+          setRequested(new Set(((requestedRes && requestedRes.data) || []).map((p) => p.id)));
           setRsvped(new Set(((rsvpRes && rsvpRes.data) || []).map((e) => e.id)));
           setPeople(((peopleRes && peopleRes.data) || [])
             .filter((r) => r.id !== profile.id && r.account_type !== "org_admin")
@@ -194,7 +200,7 @@ import { connectionService } from '../services/connectionService'
           setLoadErrors({
             discover: disc && disc.error,
             people: (peopleRes && peopleRes.error) || (incomingRes && incomingRes.error),
-            saved: (savedRes && savedRes.error) || (joinedRes && joinedRes.error),
+            saved: (savedRes && savedRes.error) || (joinedRes && joinedRes.error) || (requestedRes && requestedRes.error),
           });
         } catch (err) {
           // A thrown (rejected) service strands no state: log it and mark every
@@ -303,6 +309,18 @@ import { connectionService } from '../services/connectionService'
       };
     }, []);
 
+    // A lost/stale auth context surfaces as an RLS/JWT error: the request reached
+    // Supabase as `anon`, so auth.uid() was null and a WITH CHECK (… = auth.uid())
+    // policy rejected it. Used to decide when to refresh-and-retry a write.
+    function isAuthError(err) {
+      const m = ((err && (err.message || err.error_description)) || "").toLowerCase();
+      const status = err && (err.status || err.statusCode);
+      return status === 401 || status === 403 ||
+        m.includes("row-level security") || m.includes("violates row-level") ||
+        m.includes("jwt") || m.includes("token") || m.includes("expired") ||
+        m.includes("not authenticated") || m.includes("unauthorized");
+    }
+
     async function saveProfileToSupabase(draft) {
       // Local-only path when Supabase isn't configured
       if (!isSupabaseConfigured()) {
@@ -310,6 +328,18 @@ import { connectionService } from '../services/connectionService'
         toast("Saved locally", "check");
         return true;
       }
+
+      // Pre-flight a valid session BEFORE any upload. A stale/expiring access token
+      // is sent to Storage as `anon`, so its RLS check (folder = auth.uid()) fails
+      // with "new row violates row-level security policy". One serial refresh up
+      // front also sidesteps the concurrent-refresh race that loses the session.
+      const { data: sessData } = await authService.getSession();
+      const session = sessData && sessData.session;
+      if (!session) { toast("Your session expired — please sign in again", "x"); return false; }
+      if (session.expires_at && session.expires_at * 1000 - Date.now() < 120000) {
+        await authService.refreshSession();
+      }
+
       const userRes = await authService.getUser();
       const user = userRes && userRes.data && userRes.data.user;
       if (!user) { toast("Sign in to save your profile", "x"); return false; }
@@ -324,18 +354,31 @@ import { connectionService } from '../services/connectionService'
         if (!src || !src.startsWith("data:")) continue;
         const file = await dataUrlToFile(src, "photo-" + i + ".jpg");
         if (!file) continue;
-        const { url, error: upErr } = await storageService.uploadProfilePhoto(userId, file, i);
+        let { url, error: upErr } = await storageService.uploadProfilePhoto(userId, file, i);
+        // Lost/stale auth → refresh once and retry the upload.
+        if (upErr && isAuthError(upErr)) {
+          await authService.refreshSession();
+          ({ url, error: upErr } = await storageService.uploadProfilePhoto(userId, file, i));
+        }
         if (upErr) {
-          toast("Photo " + (i + 1) + " failed: " + (upErr.message || "upload error"), "x");
+          toast(isAuthError(upErr)
+            ? "Your session expired — please sign in again and retry"
+            : "Photo " + (i + 1) + " failed: " + (upErr.message || "upload error"), "x");
           return false;
         }
         nextDraft.photos[i] = { src: url };
       }
 
       const payload = toDbProfile(nextDraft, userId);
-      const { data: row, error: upsertErr } = await profileService.upsertProfile(userId, payload);
+      let { data: row, error: upsertErr } = await profileService.upsertProfile(userId, payload);
+      if (upsertErr && isAuthError(upsertErr)) {
+        await authService.refreshSession();
+        ({ data: row, error: upsertErr } = await profileService.upsertProfile(userId, payload));
+      }
       if (upsertErr) {
-        toast("Couldn't save — " + (upsertErr.message || "try again"), "x");
+        toast(isAuthError(upsertErr)
+          ? "Your session expired — please sign in again and retry"
+          : "Couldn't save — " + (upsertErr.message || "try again"), "x");
         return false;
       }
       const hydrated = fromDbProfile(row, user.email);
@@ -352,6 +395,7 @@ import { connectionService } from '../services/connectionService'
       setProjects([]);
       setSaved(new Set());
       setJoined(new Set());
+      setRequested(new Set());
       setRsvped(new Set());
       setConnected([]);
       setIncoming([]);
@@ -502,12 +546,17 @@ import { connectionService } from '../services/connectionService'
     // Open a teammate's profile from a project's crew/lead. Self → own profile
     // page; everyone else → the shared People ProfileModal, resolved from the
     // already-loaded `people` list by user id.
-    function openProfile(userId) {
+    async function openProfile(userId) {
       if (!userId) return;
       if (profile && userId === profile.id) { setRoute("profile"); window.scrollTo({ top: 0 }); return; }
       const person = people.find((pp) => pp.id === userId);
-      if (person) setViewPerson(person);
-      else toast("That profile isn't available yet", "x");
+      if (person) { setViewPerson(person); return; }
+      // Not in the loaded People list (e.g. an event attendee who hasn't surfaced
+      // in browse). Fall back to their public profile so the click still lands.
+      if (!isSupabaseConfigured()) { toast("That profile isn't available yet", "x"); return; }
+      const { data: row, error } = await profileService.getPublicProfile(userId);
+      if (error || !row) { toast("That profile isn't available yet", "x"); return; }
+      setViewPerson(toPerson(row));
     }
 
     async function submitModal(text) {
@@ -515,14 +564,16 @@ import { connectionService } from '../services/connectionService'
       // Only the join flow submits; the contact modal just surfaces real links.
       if (modal.type !== "join") { setModal(null); return; }
       const proj = modal.project;
-      setJoined((j) => new Set(j).add(proj.id)); // optimistic
+      // A sent request is PENDING, not membership — track it in `requested`.
+      // It graduates to `joined` only when the owner approves (next load).
+      setRequested((r) => new Set(r).add(proj.id)); // optimistic
       setModal(null);
       toast("Request sent to " + proj.lead.name.split(" ")[0], "check");
       if (!isSupabaseConfigured()) return;
       // Inserts a pending team_members row (RLS: a user may add self as 'pending').
       const { error } = await projectService.joinProject(proj.id, "", text || "");
       if (error) {
-        setJoined((j) => { const n = new Set(j); n.delete(proj.id); return n; });
+        setRequested((r) => { const n = new Set(r); n.delete(proj.id); return n; });
         toast("Request didn't send — " + (error.message || "try again"), "x");
       }
     }
@@ -816,6 +867,7 @@ import { connectionService } from '../services/connectionService'
               setProjects((arr) => arr.filter((p) => p.id !== id));
               setSaved((s) => { const n = new Set(s); n.delete(id); return n; });
               setJoined((j) => { const n = new Set(j); n.delete(id); return n; });
+              setRequested((r) => { const n = new Set(r); n.delete(id); return n; });
               setEditId(null);
               if (detailId === id) setDetailId(null);
               setRoute("discover");
@@ -907,6 +959,8 @@ import { connectionService } from '../services/connectionService'
             onOpenOrg: openOrgView,
             onEditEvent: (id) => { setEventDraftId(id); setEventViewId(null); setRoute("eventEdit"); window.scrollTo({ top: 0 }); },
             onSignIn: () => {},
+            onOpenProfile: openProfile,
+            connected,
           }),
 
           React.createElement(Toasts, { items: toasts }),
@@ -959,7 +1013,7 @@ import { connectionService } from '../services/connectionService'
         ),
 
         route === "discover" && React.createElement(Discover, {
-          projects: projectsList, profile, saved, joined, query,
+          projects: projectsList, profile, saved, joined, requested, query,
           onOpen: openProject, onSave: toggleSave,
           onStart: () => setRoute("create"),
           loading: projectsLoading, error: loadErrors && loadErrors.discover, onRetry: retrySurface,
@@ -994,6 +1048,9 @@ import { connectionService } from '../services/connectionService'
           onOpenOrg: openOrgView,
           onEditEvent: (id) => { setEventDraftId(id); setEventViewId(null); setRoute("eventEdit"); window.scrollTo({ top: 0 }); },
           onSignIn: () => { setEventViewId(null); setRoute("onboarding"); },
+          onOpenProfile: openProfile,
+          onConnect,
+          connected,
         }),
 
         route === "people" && React.createElement(People, {
@@ -1012,7 +1069,7 @@ import { connectionService } from '../services/connectionService'
 
         route === "saved" && React.createElement(Matches, {
           projects: projectsList, profile,
-          saved, joined, onOpen: openProject, onSave: toggleSave,
+          saved, joined, requested, onOpen: openProject, onSave: toggleSave,
           onStart: () => setRoute("create"),
           onBrowse: () => goNav("discover"),
           onEdit: (p) => openEdit(p.id),
@@ -1023,13 +1080,18 @@ import { connectionService } from '../services/connectionService'
 
         route === "detail" && detailProject && React.createElement(ProjectDetail, {
           p: detailProject, profile,
-          saved: saved.has(detailProject.id), joined: joined.has(detailProject.id),
+          saved: saved.has(detailProject.id),
+          joined: joined.has(detailProject.id), requested: requested.has(detailProject.id),
           pendingRequests,
           onApprove: approveRequest,
           onReject: rejectRequest,
           onBack: () => setRoute("discover"),
           onSave: toggleSave,
-          onRequest: (p) => { if (joined.has(p.id)) { toast("You've already requested to join", "check"); } else { setModal({ type: "join", project: p }); } },
+          onRequest: (p) => {
+            if (joined.has(p.id)) { toast("You're already on this team", "check"); }
+            else if (requested.has(p.id)) { toast("You've already requested to join", "check"); }
+            else { setModal({ type: "join", project: p }); }
+          },
           onEdit: (p) => openEdit(p.id),
           onUpdateStatus: updateProjectStatus,
           onOpenProfile: openProfile,
@@ -1048,7 +1110,7 @@ import { connectionService } from '../services/connectionService'
           onSignOut: signOut,
         }),
 
-        route === "soon" && React.createElement(SoonPane, { label: soonLabel, saved, joined, projects: projectsList, onOpen: openProject, onSave: toggleSave, onBack: () => goNav("discover") }),
+        route === "soon" && React.createElement(SoonPane, { label: soonLabel, saved, joined, requested, projects: projectsList, onOpen: openProject, onSave: toggleSave, onBack: () => goNav("discover") }),
 
         modal && React.createElement(Modal, { modal, onClose: () => setModal(null), onSubmit: submitModal, profile }),
         viewPerson && React.createElement(ProfileModal, {
@@ -1131,7 +1193,7 @@ import { connectionService } from '../services/connectionService'
   }
 
   // ---------- "near-future surface" placeholder ----------
-  function SoonPane({ label, saved, joined, projects, onOpen, onSave, onBack }) {
+  function SoonPane({ label, saved, joined, requested, projects, onOpen, onSave, onBack }) {
     // Matches shows saved projects if any
     if (label === "Matches" && saved.size > 0) {
       const list = projects.filter((p) => saved.has(p.id));
@@ -1145,7 +1207,7 @@ import { connectionService } from '../services/connectionService'
           ),
           React.createElement("div", { className: "board", style: { marginTop: 18 } },
             list.map((p) => React.createElement(ProjectCard, {
-              key: p.id, p, saved: saved.has(p.id), joined: joined.has(p.id), onOpen, onSave,
+              key: p.id, p, saved: saved.has(p.id), joined: joined.has(p.id), requested: requested.has(p.id), onOpen, onSave,
             }))
           )
         )
