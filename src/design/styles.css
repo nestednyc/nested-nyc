@@ -1427,3 +1427,107 @@ input, textarea, select { font-family: inherit; }
   font-family: var(--mono); font-size: 11.5px; color: var(--ink-soft);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%;
 }
+
+/* ============================================================
+   MOBILE   ·  ≤860px chrome swap  ·  ≤540px phone tightening
+   ------------------------------------------------------------
+   Everything below is ADDITIVE: it lives inside @media blocks, or on
+   mobile-only elements that are display:none on desktop, or as override
+   classes that only bite via !important inside a media query. No desktop
+   rule above this banner is changed — the ≥1024px view is byte-identical.
+   ============================================================ */
+
+/* Mobile-only chrome elements — inert on desktop. */
+.topbar-desk { display: contents; }     /* children stay direct flex items of .topbar → desktop layout unchanged */
+.topbar-mob { display: none; }
+.topbar-search-drop { display: none; }
+.sheet-scrim { display: none; }
+
+.mob-avatar {
+  position: relative; flex: none; padding: 0; border: 0; background: transparent;
+  width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; cursor: pointer;
+}
+.mob-avatar .av { width: 36px; height: 36px; font-size: 13px; }
+.mob-avatar .dot {
+  position: absolute; top: 1px; right: 1px; width: 10px; height: 10px;
+  border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 2px var(--paper);
+}
+
+@keyframes sheetUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+
+@media (max-width: 860px) {
+  /* ---- top bar: keep brand mark + the 3 section tabs; swap the utilities ---- */
+  .topbar { gap: 12px; }
+  .topbar .brand .name { display: none; }        /* mark-only */
+  .topbar .nav { margin-left: 2px; gap: 2px; }
+  .topbar .nav button { padding: 9px 11px; }
+  .topbar .nav button svg { display: none; }      /* label-only tabs */
+  .topbar-desk { display: none; }                 /* hide desktop search + bookmark + bell + chip */
+  .topbar-mob { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+  /* org sign-out chip collapses to avatar-only (its .who text is hidden) */
+  .me-chip .who { display: none; }
+  .me-chip { padding: 4px; }
+
+  /* ---- collapsible search field that drops in under the bar ---- */
+  .topbar-search-drop {
+    display: block; background: var(--paper);
+    padding: 10px clamp(18px, 3vw, 40px) 12px;
+    border-bottom: 1.5px solid var(--paper-edge);
+    animation: fadeUp .18s ease both;
+  }
+  .topbar-search-drop .search-field {
+    display: flex; align-items: center; gap: 9px; width: 100%;
+    background: var(--paper-2); border: 1.5px solid var(--paper-edge);
+    border-radius: 10px; padding: 0 13px; height: 46px;
+  }
+  .topbar-search-drop .search-field:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-wash); }
+  .topbar-search-drop .search-field svg { width: 18px; height: 18px; color: var(--ink-faint); flex: none; }
+  .topbar-search-drop .search-field input { border: 0; background: transparent; outline: none; width: 100%; font-size: 16px; color: var(--ink); }
+
+  /* ---- account sheet (bottom sheet, opened by the mobile avatar) ---- */
+  .sheet-scrim {
+    display: block; position: fixed; inset: 0; z-index: 90;
+    background: oklch(0.2 0.02 60 / 0.45); backdrop-filter: blur(2px);
+    animation: fade .2s both;
+  }
+  .acct-sheet {
+    position: absolute; left: 0; right: 0; bottom: 0;
+    background: var(--paper); border-radius: 20px 20px 0 0; box-shadow: var(--shadow-lift);
+    padding: 8px 10px calc(16px + env(safe-area-inset-bottom, 0px));
+    animation: sheetUp .26s cubic-bezier(.2,.9,.3,1) both;
+  }
+  .acct-head { display: flex; align-items: center; gap: 12px; padding: 16px 14px 14px; border-bottom: 1.5px solid var(--paper-edge); margin-bottom: 6px; }
+  .acct-head .av { width: 46px; height: 46px; font-size: 16px; }
+  .acct-id { min-width: 0; }
+  .acct-id b { font-family: var(--disp); font-weight: 800; font-size: 18px; display: block; letter-spacing: -0.01em; }
+  .acct-id small { font-family: var(--mono); font-size: 11px; color: var(--ink-faint); }
+  .acct-item {
+    display: flex; align-items: center; gap: 14px; width: 100%;
+    border: 0; background: transparent; text-align: left; cursor: pointer;
+    padding: 16px 14px; border-radius: 12px;
+    font-family: var(--body); font-size: 16px; font-weight: 600; color: var(--ink);
+  }
+  .acct-item svg { width: 20px; height: 20px; color: var(--ink-soft); flex: none; }
+  .acct-item:active { background: var(--paper-2); }
+  .acct-item.danger { color: oklch(0.55 0.19 28); }
+  .acct-item.danger svg { color: currentColor; }
+  .acct-badge { margin-left: auto; font-family: var(--mono); font-size: 12px; font-weight: 700; background: var(--accent); color: var(--paper); min-width: 22px; height: 22px; padding: 0 7px; border-radius: 999px; display: inline-grid; place-items: center; }
+}
+
+/* ---- phone tightening (≤540px): stack grids that are too narrow at 2-up ---- */
+@media (max-width: 540px) {
+  /* connections / notifications cards (330px min track overflows a phone) */
+  .conn-grid { grid-template-columns: 1fr; }
+  .people-grid { grid-template-columns: 1fr; }
+  /* multi-column form grids → single column */
+  .uni-list { grid-template-columns: 1fr; }
+  .pin-style-picker { grid-template-columns: 1fr; }
+  .stat-row { grid-template-columns: 1fr; }
+  /* role builder: title on its own line, [note][open][x] below */
+  .role-builder .row { grid-template-columns: 1fr auto auto; }
+  .role-builder .row .rb-title { grid-column: 1 / -1; }
+  /* lifted inline-style fields — override ONLY here so desktop keeps its inline values */
+  .form-2col { grid-template-columns: 1fr !important; }
+  .fluid-sm { width: 100% !important; }
+  .fluid-name { min-width: 100% !important; }
+}
