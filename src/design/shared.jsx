@@ -23,7 +23,11 @@ import { avColor, initials } from './data'
   function Facepile({ names, extra }) {
     return (
       React.createElement("div", { className: "facepile" },
-        names.map((n, i) => React.createElement(Av, { key: i, name: n })),
+        names.map((n, i) => React.createElement(Av, {
+          key: i,
+          name: typeof n === "string" ? n : (n && n.name),
+          img: typeof n === "string" ? null : (n && n.img),
+        })),
         extra > 0 && React.createElement("span", {
           className: "av", style: { background: "var(--ink-soft)" },
         }, "+" + extra)

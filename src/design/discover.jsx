@@ -55,9 +55,14 @@ import { Facepile, CatTag, Pin, Skeleton } from './shared'
     // the lead plus anyone who actually joined; the label only reads "Joined by"
     // once there are real joiners, otherwise "Led by {lead}".
     const joiners = p.team.map((t) => t.name);
-    const faceNames = [p.lead.name, ...joiners];
-    const shown = faceNames.slice(0, 3);
-    const extra = Math.max(0, faceNames.length - shown.length);
+    // Facepile items carry the avatar (lead first, then joiners) so the card
+    // shows real pfps, not just initials. Av falls back to initials when img is null.
+    const faces = [
+      { name: p.lead.name, img: p.lead.image },
+      ...p.team.map((t) => ({ name: t.name, img: t.image })),
+    ];
+    const shown = faces.slice(0, 3);
+    const extra = Math.max(0, faces.length - shown.length);
     const joinedTxt = p.joinedCount === 0
       ? "Led by " + p.lead.name.split(" ")[0]
       : "Joined by " + joiners.slice(0, 2).map((n) => n.split(" ")[0]).join(", ") + (p.joinedCount > 2 ? " +" + (p.joinedCount - 2) : "");
