@@ -85,7 +85,8 @@ import { Av, Skeleton } from './shared'
           ),
           React.createElement("div", { className: "pc-bio" }, person.bio),
           React.createElement("div", { className: "pc-foot" },
-            React.createElement("span", { style: { fontFamily: "var(--mono)", fontSize: 11, color: "var(--ink-faint)" } }, "building " + person.building),
+            React.createElement("span", { style: { fontFamily: "var(--mono)", fontSize: 11, color: "var(--ink-faint)" } },
+              person.building ? "building " + person.building : ""),
             React.createElement("span", { className: "btn btn-ghost", style: { padding: "7px 13px", fontSize: 13 } }, "View profile")
           )
         )

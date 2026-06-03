@@ -184,7 +184,7 @@ async function renderStoryCanvas({ displayName, username, school, major, bio, bu
   ctx.fillText("nested", PAD + 60, 84 + 33);
   const nW = ctx.measureText("nested").width;
   ctx.fillStyle = C.accent;
-  ctx.fillText(".nyc", PAD + 60 + nW, 84 + 33);
+  ctx.fillText(".social", PAD + 60 + nW, 84 + 33);
   ctx.restore();
 
   // ── polaroid fan (the hero) ─────────────────────
@@ -253,7 +253,7 @@ async function renderStoryCanvas({ displayName, username, school, major, bio, bu
   ctx.fillText("find me on the board", PAD, fy);
   ctx.fillStyle = C.accentInk;
   ctx.textAlign = "right";
-  ctx.fillText("nested.nyc", W - PAD, fy);
+  ctx.fillText("nested.social", W - PAD, fy);
 
   return canvas;
 }
