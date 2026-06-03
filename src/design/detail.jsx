@@ -232,8 +232,8 @@ import { CatTag, Av, Facepile } from './shared'
                   )
                 ),
                 React.createElement("div", { className: "rail-card" },
-                  React.createElement("div", { style: { marginBottom: 14, paddingBottom: 10, borderBottom: "1px solid var(--line)" } },
-                    React.createElement("span", { style: { fontFamily: "var(--mono)", fontSize: 11, color: "var(--ink-faint)" } }, "the crew")
+                  React.createElement("div", { style: { marginBottom: 14, paddingBottom: 10, borderBottom: "1px solid var(--line)", textAlign: "center" } },
+                    React.createElement("span", { style: { fontFamily: "var(--mono)", fontSize: 11, fontWeight: 700, letterSpacing: "0.04em", background: "linear-gradient(90deg, #8b0000, #9a5b00, #6b6b00, #0b5a0b, #0b3d6b, #2a1a6b, #5a0b5a)", WebkitBackgroundClip: "text", backgroundClip: "text", WebkitTextFillColor: "transparent", color: "transparent" } }, "the crew")
                   ),
                   React.createElement("div", { className: "team-pile" },
                     personRow(p.lead.name, p.lead.role, p.lead.userId, "lead"),
