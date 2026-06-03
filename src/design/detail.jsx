@@ -232,8 +232,7 @@ import { CatTag, Av, Facepile } from './shared'
                   )
                 ),
                 React.createElement("div", { className: "rail-card" },
-                  React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, marginBottom: 14 } },
-                    React.createElement(Facepile, { names: teamNames.slice(0, 3), extra }),
+                  React.createElement("div", { style: { marginBottom: 14, paddingBottom: 10, borderBottom: "1px solid var(--line)" } },
                     React.createElement("span", { style: { fontFamily: "var(--mono)", fontSize: 11, color: "var(--ink-faint)" } }, "the crew")
                   ),
                   React.createElement("div", { className: "team-pile" },
