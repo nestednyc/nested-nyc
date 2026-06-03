@@ -270,40 +270,32 @@ import { Facepile, CatTag, Pin, Skeleton } from './shared'
       return c;
     }, [projects]);
 
-    // Build the discovery shelves dynamically from the live projects. These used
-    // to reference hard-coded mock ids; once the feed came from Supabase those
-    // ids matched nothing, so every project fell through to "Popular now" and the
-    // other shelves rendered empty. Deriving each shelf from the data fixes that
-    // for any dataset. A project can appear on more than one shelf (it's a
-    // curated discovery feed, like rows on a storefront), but each shelf is a
-    // distinct, meaningful cut so the board never piles everything into one.
+    // Build the discovery shelves from the live projects. "Popular now" gets the
+    // top 5 (most-joined; a fresh dataset with 0 joins just yields the first 5
+    // pinned). Every other project is shuffled and dealt across the remaining
+    // shelves round-robin, so NO project appears on more than one shelf — with a
+    // small launch dataset you simply see fewer shelves instead of the same
+    // project repeated in Popular + Featured + Beginner.
     const feeds = useMemo(() => {
-      // Popular = the first 4 (most-joined; with a fresh launch dataset where
-      // joins are still 0 that's simply the first four pinned).
-      const popular = [...projects].sort((a, b) => b.joinedCount - a.joinedCount).slice(0, 4);
+      const byJoined = [...projects].sort((a, b) => b.joinedCount - a.joinedCount);
+      const popular = byJoined.slice(0, 5);
 
-      // Featured + New: deal the catalog randomly across the two shelves so both
-      // stay populated even with a small launch dataset. Fisher-Yates shuffle,
-      // recomputed only when the project set itself changes (not every render).
-      const shuffled = [...projects];
-      for (let i = shuffled.length - 1; i > 0; i--) {
+      // The rest, Fisher-Yates shuffled (recomputed only when projects change),
+      // then dealt out across Featured / New / Beginner.
+      const rest = byJoined.slice(5);
+      for (let i = rest.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
-        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+        [rest[i], rest[j]] = [rest[j], rest[i]];
       }
-      const mid = Math.ceil(shuffled.length / 2);
-      const featured = shuffled.slice(0, mid).slice(0, 8);
-      const newest = shuffled.slice(mid).slice(0, 8);
-
-      // Beginner-friendly = low-commitment or just-getting-started projects to jump into.
-      const beginner = projects
-        .filter((p) => ["hackathon", "side-project"].includes(p.commitment) || ["idea", "looking"].includes(p.status))
-        .slice(0, 8);
+      const featured = [], newest = [], beginner = [];
+      const buckets = [featured, newest, beginner];
+      rest.forEach((p, i) => buckets[i % buckets.length].push(p));
 
       return [
         { id: "popular",  label: "Popular now",       sub: "most students joining",    color: "var(--c-startup)", cols: 4, rows: 1, items: popular },
-        { id: "featured", label: "Featured",          sub: "editors' picks this week", color: "var(--c-hack)",    cols: 4, rows: 2, items: featured },
-        { id: "new",      label: "New on Nested",      sub: "just pinned",              color: "var(--c-side)",    cols: 4, rows: 1, items: newest },
-        { id: "beginner", label: "Beginner-friendly", sub: "great first projects",     color: "var(--c-class)",   cols: 4, rows: 1, items: beginner },
+        { id: "featured", label: "Featured",          sub: "editors' picks this week", color: "var(--c-hack)",    cols: 4, rows: 2, items: featured.slice(0, 8) },
+        { id: "new",      label: "New on Nested",      sub: "just pinned",              color: "var(--c-side)",    cols: 4, rows: 1, items: newest.slice(0, 8) },
+        { id: "beginner", label: "Beginner-friendly", sub: "great first projects",     color: "var(--c-class)",   cols: 4, rows: 1, items: beginner.slice(0, 8) },
       ].filter((f) => f.items.length > 0);
     }, [projects]);
 
