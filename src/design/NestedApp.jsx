@@ -1113,6 +1113,7 @@ import { connectionService } from '../services/connectionService'
         route === "discover" && React.createElement(Discover, {
           projects: projectsList, profile, saved, joined, requested, query,
           onOpen: openProject, onSave: toggleSave,
+          onEdit: (p) => openEdit(p.id),
           onStart: () => setRoute("create"),
           loading: projectsLoading, error: loadErrors && loadErrors.discover, onRetry: retrySurface,
         }),

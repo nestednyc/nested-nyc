@@ -5,7 +5,7 @@
    ============================================================ */
 import React from 'react'
 import Icon from './icons'
-import { CATEGORIES, CAT, UNI, statusMeta } from './data'
+import { CATEGORIES, CAT, UNI, statusMeta, isProjectAdmin } from './data'
 import { Facepile, CatTag, Pin, Skeleton } from './shared'
 
   const { useState, useMemo, useRef } = React;
@@ -163,7 +163,7 @@ import { Facepile, CatTag, Pin, Skeleton } from './shared'
   }
 
   // ---- one category shelf with flip-and-print pagination ----
-  function FeedRow({ feed, feedIndex = 0, saved, joined, requested, onOpen, onSave }) {
+  function FeedRow({ feed, feedIndex = 0, saved, joined, requested, profile, onOpen, onSave, onEdit }) {
     const cols = feed.cols || 4;
     const rows = feed.rows || 1;
     const pageSize = feed.pageSize || cols * rows;
@@ -255,6 +255,7 @@ import { Facepile, CatTag, Pin, Skeleton } from './shared'
                 },
                   React.createElement(ProjectCard, {
                     p, saved: saved.has(p.id), joined: joined.has(p.id), requested: requested.has(p.id), onOpen, onSave,
+                    onEdit: (onEdit && profile && isProjectAdmin(p, profile)) ? onEdit : undefined,
                     hint: feedIndex === 0 && shown === 0 && i === 0,
                     fasteners: fasteners[p.id],
                     onPeel: peel,
@@ -267,7 +268,7 @@ import { Facepile, CatTag, Pin, Skeleton } from './shared'
     );
   }
 
-  function Discover({ projects, profile, saved, joined, requested, query, onOpen, onSave, onStart, loading = false, error = null, onRetry }) {
+  function Discover({ projects, profile, saved, joined, requested, query, onOpen, onSave, onEdit, onStart, loading = false, error = null, onRetry }) {
     const [cat, setCat] = useState("all");
 
     const counts = useMemo(() => {
@@ -365,9 +366,9 @@ import { Facepile, CatTag, Pin, Skeleton } from './shared'
               ? React.createElement("div", { className: "empty" },
                   React.createElement("div", { style: { fontFamily: "var(--disp)", fontWeight: 800, fontSize: 28, marginBottom: 8 } }, "Nothing pinned here yet"),
                   React.createElement("div", { className: "mono" }, "// try another category or clear your search"))
-              : React.createElement("div", { className: "feeds" }, React.createElement(FeedRow, { key: single.id + ":" + q + ":" + cat, feed: single, saved, joined, requested, onOpen, onSave })))
+              : React.createElement("div", { className: "feeds" }, React.createElement(FeedRow, { key: single.id + ":" + q + ":" + cat, feed: single, saved, joined, requested, profile, onOpen, onSave, onEdit })))
           : React.createElement("div", { className: "feeds" },
-              feeds.map((f, i) => React.createElement(FeedRow, { key: f.id, feedIndex: i, feed: f, saved, joined, requested, onOpen, onSave })))
+              feeds.map((f, i) => React.createElement(FeedRow, { key: f.id, feedIndex: i, feed: f, saved, joined, requested, profile, onOpen, onSave, onEdit })))
       )
     );
   }
