@@ -8,8 +8,6 @@
 import React from 'react'
 import OrgProfile from './orgProfile'
 import { orgService } from '../services/orgService'
-import { isSupabaseConfigured } from '../lib/supabase'
-import { NestedData } from './data'
 import { formatEventDate } from './shared'
 
   const { useState, useEffect } = React;
@@ -40,17 +38,6 @@ import { formatEventDate } from './shared'
       let cancelled = false;
       setLoading(true);
       setMissing(false);
-
-      // Offline / unconfigured: try the seed orgs by id matching slug.
-      if (!isSupabaseConfigured()) {
-        const seed = NestedData.ORGANIZATIONS.find((o) => o.id === slug);
-        if (cancelled) return;
-        if (!seed) { setMissing(true); setLoading(false); return; }
-        setOrg(seed);
-        setEvents(NestedData.orgEventsOf(NestedData.EVENTS, seed.id));
-        setLoading(false);
-        return;
-      }
 
       (async () => {
         const { data: orgRow, error: orgErr } = await orgService.getBySlug(slug);

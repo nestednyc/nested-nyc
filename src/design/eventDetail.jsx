@@ -7,15 +7,14 @@
    · bottom half = the ticket stub that "detaches" when you RSVP
 
    Loads via eventService.getEventWithRegistration + getAttendees
-   (Supabase) or falls back to NestedData.EVENTS (offline). Handles
-   anon / going / full / past / self-host / not-found / loading.
+   (Supabase). Handles anon / going / full / past / self-host /
+   not-found / loading. Shows real database rows only.
    ============================================================ */
 import React from 'react'
 import Icon from './icons'
-import { NestedData, ETYPE, UNI } from './data'
+import { ETYPE, UNI } from './data'
 import { Av, Facepile, Pin, formatEventDate } from './shared'
 import { OrgCard } from './orgProfile'
-import { isSupabaseConfigured } from '../lib/supabase'
 import { eventService } from '../services/eventService'
 
   const { useState, useEffect, useRef } = React;
@@ -55,51 +54,41 @@ import { eventService } from '../services/eventService'
   }
 
   // ──────────────────────────────────────────────────────────────────────
-  // Normalize a DB row OR a seed event into one shape the rest of this
-  // component reads. The two sources have similar but not identical fields:
-  // seed has `orgId`/`type`/`isPast`/`goingNames`; DB has `organization`
-  // joined / `event_type` / `is_past` / no facepile names (those come from
-  // getAttendees separately).
+  // Normalize a DB event row into the shape the rest of this component reads.
+  // The organization is joined on the row; facepile names come from
+  // getAttendees separately.
   // ──────────────────────────────────────────────────────────────────────
   function normalize(raw, attendees) {
     if (!raw) return null;
-    const isSeed = !raw.event_type && raw.type; // seed events use `type`
-    const seedOrg = isSeed ? NestedData.ORG[raw.orgId] : null;
-    const live = !isSeed;
 
-    const type = isSeed ? raw.type : (raw.event_type || 'talk');
-    const date = isSeed ? null : raw.date; // seed has no ISO date; uses mon/day strings directly
-    const d = isSeed
-      ? { mon: raw.mon || '—', day: raw.day || '—', weekday: raw.weekday || '', dateLabel: raw.dateLabel || '' }
-      : formatEventDate(date);
-
-    const org = live ? raw.organization : seedOrg;
+    const org = raw.organization || null;
     const orgName = (org && org.name) || raw.organizer_name || 'Nested';
-    const orgSlug = (org && org.slug) || (seedOrg && seedOrg.id) || null;
+    const orgSlug = (org && org.slug) || null;
     const orgLogo = (org && org.logo) || null;
     const orgVerified = !!(org && org.verified);
     const orgId = (org && org.id) || null;
+    const d = formatEventDate(raw.date);
 
     return {
       id: raw.id,
-      type,
+      type: raw.event_type || 'talk',
       title: raw.title,
-      description: isSeed ? (raw.about || raw.blurb || '') : (raw.description || ''),
-      blurb: isSeed ? raw.blurb : null,
+      description: raw.description || '',
+      blurb: null,
       d, dateLabel: d.dateLabel,
       time: raw.time || '',
       duration: raw.duration || '',
-      location: isSeed ? (raw.place || '') : (raw.location || ''),
+      location: raw.location || '',
       address: raw.address || '',
       highlights: raw.highlights || [],
       tags: raw.tags || [],
       attendees: typeof raw.attendees === 'number' ? raw.attendees : (raw.going || 0),
       maxAttendees: raw.max_attendees || raw.capacity || null,
-      isPast: !!(isSeed ? raw.isPast : raw.is_past),
+      isPast: !!raw.is_past,
       isRegistered: !!raw.isRegistered,
       attendeeNames: attendees && attendees.length
         ? attendees.map((a) => [a.first_name, a.last_name].filter(Boolean).join(' ').trim() || '?')
-        : (raw.goingNames || []),
+        : [],
       org: { id: orgId, slug: orgSlug, name: orgName, logo: orgLogo, verified: orgVerified },
     };
   }
@@ -247,16 +236,6 @@ import { eventService } from '../services/eventService'
       setLoading(true);
       setMissing(false);
 
-      // Offline / unconfigured — look up in the seed.
-      if (!isSupabaseConfigured()) {
-        const seed = NestedData.EVENTS.find((e) => e.id === eventId);
-        if (cancelled) return;
-        if (!seed) { setMissing(true); setLoading(false); return; }
-        setRaw(seed);
-        setLoading(false);
-        return;
-      }
-
       (async () => {
         // Two fetches in parallel — the event itself and a snapshot of who's
         // going. We don't block on the attendee list; if it 404s we still show
@@ -268,8 +247,7 @@ import { eventService } from '../services/eventService'
         if (cancelled) return;
 
         if (eventRes.error || !eventRes.data) {
-          // Configured + not in the DB → it genuinely doesn't exist. Show the
-          // missing state rather than a seed stand-in.
+          // Not in the DB → it genuinely doesn't exist. Show the missing state.
           setMissing(true);
           setLoading(false);
           return;

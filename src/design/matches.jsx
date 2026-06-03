@@ -21,15 +21,15 @@ import { ProjectCard } from './discover'
     );
   }
 
-  function Matches({ projects = [], profile, saved, joined, requested, onOpen, onSave, onStart, onBrowse, onEdit, loading = false, error = null, onRetry }) {
+  function Matches({ projects = [], profile, saved, joined, requested, rejected = new Set(), onOpen, onSave, onStart, onBrowse, onEdit, loading = false, error = null, onRetry }) {
     const [tab, setTab] = useState("saved");
     const savedList = projects.filter((p) => saved.has(p.id));
-    // "Requests" tracks everything you've asked to join — both still-pending
-    // requests AND approved memberships. Each row shows its real status below,
-    // so an approved member never reads as "awaiting reply".
-    const reqList = projects.filter((p) => joined.has(p.id) || requested.has(p.id));
-    // "Your projects" = anything you can administer (own or co-admin).
-    const mineList = profile ? projects.filter((p) => isProjectAdmin(p, profile)) : [];
+    // "Requests" = only still-pending join requests. The moment one is approved
+    // it leaves this tab and graduates into "My projects" below.
+    const reqList = projects.filter((p) => (requested.has(p.id) && !joined.has(p.id)) || rejected.has(p.id));
+    // "My projects" = anything you lead (own / co-admin) OR have been accepted
+    // into as a team member. A project matches once, so no dedup needed.
+    const mineList = projects.filter((p) => (profile && isProjectAdmin(p, profile)) || joined.has(p.id));
 
     const TABS = [
       { id: "saved", label: "Saved", icon: "bookmark", n: savedList.length },
@@ -52,16 +52,16 @@ import { ProjectCard } from './discover'
         ? React.createElement("div", { className: "req-list" },
             reqList.map((p) => {
               const cat = CAT[p.cat];
-              const inTeam = joined.has(p.id); // approved member vs pending request
+              const isRejected = rejected.has(p.id);
               return React.createElement("div", { className: "req-card", key: p.id, onClick: () => onOpen(p.id) },
                 React.createElement("div", { className: "stripe", style: { background: p.flyerColor || cat.color } }),
                 React.createElement("div", { className: "req-body" },
                   React.createElement("h3", null, p.title.split(" — ")[0]),
-                  React.createElement("div", { className: "req-sub" }, "led by " + p.lead.name + (inTeam ? " · you're on the team" : " · awaiting reply"))
+                  React.createElement("div", { className: "req-sub" }, "led by " + p.lead.name + (isRejected ? " · request declined" : " · awaiting reply"))
                 ),
                 React.createElement("div", { className: "req-status" },
-                  inTeam
-                    ? React.createElement("span", { className: "pending acc" }, React.createElement(Icon, { name: "check", size: 14, stroke: "currentColor" }), "On the team")
+                  isRejected
+                    ? React.createElement("span", { className: "pending rej" }, React.createElement(Icon, { name: "x", size: 14, stroke: "currentColor" }), "Declined")
                     : React.createElement("span", { className: "pending" }, React.createElement(Icon, { name: "clock", size: 14, stroke: "currentColor" }), "Awaiting reply"))
               );
             }))
@@ -69,7 +69,12 @@ import { ProjectCard } from './discover'
     } else {
       body = mineList.length
         ? React.createElement("div", { className: "board" },
-            mineList.map((p) => React.createElement(ProjectCard, { key: p.id, p, saved: saved.has(p.id), joined: joined.has(p.id), requested: requested.has(p.id), onOpen, onSave, onEdit })))
+            mineList.map((p) => React.createElement(ProjectCard, {
+              key: p.id, p, saved: saved.has(p.id), joined: joined.has(p.id), requested: requested.has(p.id), onOpen, onSave,
+              // Only projects you administer get the Edit button; ones you
+              // joined render the green "Joined" state instead.
+              onEdit: (profile && isProjectAdmin(p, profile)) ? onEdit : undefined,
+            })))
         : React.createElement(EmptyState, { icon: "plus", pin: true, title: "Pin your first project", body: "Recruiting for a startup, class team, or hackathon crew? Post it and we'll match you with students across NYC.", cta: "Start a project", onCta: onStart });
     }
 

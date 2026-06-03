@@ -5,7 +5,7 @@
    ============================================================ */
 import React from 'react'
 import Icon from './icons'
-import { PEOPLE, ROLE, UNI, LINK_ICON, avColor, initials } from './data'
+import { ROLE, UNI, LINK_ICON, avColor, initials } from './data'
 import { Av, Skeleton } from './shared'
 
   const { useState } = React;
@@ -142,8 +142,8 @@ import { Av, Skeleton } from './shared'
     );
   }
 
-  function People({ connected = [], onConnect, onDisconnect, onToast, incoming = [], initialTab, people = PEOPLE, loading = false, error = null, onRetry }) {
-    const [mode, setMode] = useState(initialTab || "browse");
+  function People({ connected = [], onConnect, onDisconnect, onToast, people = [], loading = false, error = null, onRetry }) {
+    const [mode, setMode] = useState("browse");
     const [modalPerson, setModalPerson] = useState(null);
     // Controlled: NestedApp owns the connection set (optimistic + revert, like
     // toggleSave). We read it and call the handlers; no local connection state.
@@ -163,7 +163,6 @@ import { Av, Skeleton } from './shared'
     const TABS = [
       { id: "browse", label: "Browse", icon: "grid" },
       { id: "connected", label: "Connected", icon: "users", n: connected.length },
-      { id: "incoming", label: "Incoming", icon: "bell", n: incoming.length },
     ];
 
     const connectedPeople = people.filter((p) => connSet.has(p.id));
@@ -205,34 +204,6 @@ import { Av, Skeleton } from './shared'
             React.createElement("div", { className: "ill" }, React.createElement(Icon, { name: "users", size: 42, stroke: "var(--accent)" })),
             React.createElement("h3", null, "No connections yet"),
             React.createElement("p", null, "Hit Connect on someone's profile and they'll show up here with their links so you can reach out."),
-            React.createElement("button", { className: "btn btn-primary", style: { marginTop: 22 }, onClick: () => setMode("browse") },
-              React.createElement(Icon, { name: "grid", size: 16, stroke: "var(--paper)" }), "Browse people"));
-    } else if (mode === "incoming") {
-      body = incoming.length
-        ? React.createElement("div", { className: "conn-grid" },
-            incoming.map((p) => {
-              const mutual = connSet.has(p.id);
-              return React.createElement("div", { className: "conn-card", key: p.id },
-                React.createElement("div", { className: "conn-head" },
-                  React.createElement(Av, { name: p.name, color: ROLE[p.role].color, img: p.avatar }),
-                  React.createElement("div", { className: "who" },
-                    React.createElement("b", null, p.name),
-                    React.createElement("small", null, "@" + p.handle + " · " + UNI[p.uni].name)),
-                  React.createElement("button", {
-                    className: "btn " + (mutual ? "btn-primary done" : "btn-primary"),
-                    style: { marginLeft: "auto", padding: "7px 13px", fontSize: 13 },
-                    onClick: () => { if (!mutual) addConn(p.id); },
-                  }, mutual
-                    ? [React.createElement(Icon, { name: "check", size: 15, stroke: "var(--paper)", key: "i" }), "Mutual"]
-                    : [React.createElement(Icon, { name: "heart", size: 15, stroke: "var(--paper)", key: "i" }), "Connect back"])
-                ),
-                React.createElement(ContactLinks, { person: p, onContact: contact })
-              );
-            }))
-        : React.createElement("div", { className: "match-empty fade-up" },
-            React.createElement("div", { className: "ill" }, React.createElement(Icon, { name: "bell", size: 42, stroke: "var(--accent)" })),
-            React.createElement("h3", null, "No incoming connections yet"),
-            React.createElement("p", null, "When another student connects with you, they show up here with their links — connect back, or reach out directly."),
             React.createElement("button", { className: "btn btn-primary", style: { marginTop: 22 }, onClick: () => setMode("browse") },
               React.createElement(Icon, { name: "grid", size: 16, stroke: "var(--paper)" }), "Browse people"));
     }

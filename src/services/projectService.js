@@ -316,7 +316,11 @@ export const projectService = {
       .single()
 
     if (existing) {
-      return { data: existing, error: null } // Already joined
+      // A declined request is final — don't silently re-create it.
+      if (existing.status === 'rejected') {
+        return { data: null, error: { message: 'Your request to join was declined.' } }
+      }
+      return { data: existing, error: null } // already pending or approved
     }
 
     // Add as team member with 'pending' status (requires owner approval)
@@ -458,12 +462,39 @@ export const projectService = {
       return { error: { message: 'Supabase not configured' } }
     }
 
+    // Soft-decline: keep the row as 'rejected' (don't delete) so the requester
+    // can see they were declined. Owner-side lists filter status='pending', so it
+    // disappears from the owner's inbox; crew/facepile filter 'approved', so it
+    // never shows as a member.
     const { error } = await supabase
       .from('team_members')
-      .delete()
+      .update({ status: 'rejected' })
       .eq('id', memberId)
 
     return { error }
+  },
+
+  /**
+   * Pending join requests across ALL projects the current user owns — the
+   * owner-side inbox that powers the Notifications page. Each row carries its
+   * project ({id, title}) for context. (getPendingRequests above is per-project.)
+   * @returns {Promise<{data: array, error: object|null}>}
+   */
+  async getMyPendingRequests() {
+    if (!isSupabaseConfigured() || !supabase) {
+      return { data: [], error: null }
+    }
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      return { data: [], error: null }
+    }
+    const { data, error } = await supabase
+      .from('team_members')
+      .select('*, project:projects!inner(id, title, owner_id)')
+      .eq('status', 'pending')
+      .eq('project.owner_id', user.id)
+      .order('joined_at', { ascending: false })
+    return { data: data || [], error }
   },
 
   /**
@@ -561,6 +592,29 @@ export const projectService = {
     }
 
     return { data: data || [], error }
+  },
+
+  /**
+   * Projects the current user was DECLINED from (their team_members row is
+   * 'rejected'). Powers the requester-side "Declined" rows in Matches. Only the
+   * ids are needed by the caller, so this stays light (no project join).
+   * @returns {Promise<{data: array, error: object|null}>}
+   */
+  async getRejectedProjects() {
+    if (!isSupabaseConfigured() || !supabase) {
+      return { data: [], error: null }
+    }
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      return { data: [], error: null }
+    }
+    const { data, error } = await supabase
+      .from('team_members')
+      .select('project_id')
+      .eq('user_id', user.id)
+      .eq('status', 'rejected')
+    if (error) return { data: [], error }
+    return { data: (data || []).map((m) => ({ id: m.project_id })), error: null }
   },
 
   // ============================================

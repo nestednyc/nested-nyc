@@ -1,15 +1,13 @@
 /* ============================================================
    NESTED NYC — Events (agenda across NYC campuses)
    Pulls live event rows from Supabase via eventService.getAllEvents.
-   When Supabase isn't configured (or returns empty during dev), falls
-   back to the seed EVENTS in data.jsx so the cork-board feed never
-   renders an empty page in offline/local mode.
+   The feed reflects exactly what's in the database — an empty database
+   renders the empty state, never fabricated content.
    ============================================================ */
 import React from 'react'
 import Icon from './icons'
-import { EVENTS as SEED_EVENTS, EVENT_TYPES, ETYPE, UNI } from './data'
+import { EVENT_TYPES, ETYPE, UNI } from './data'
 import { Facepile, CatTag, formatEventDate } from './shared'
-import { isSupabaseConfigured } from '../lib/supabase'
 import { eventService } from '../services/eventService'
 
   const { useState, useEffect } = React;
@@ -103,10 +101,6 @@ import { eventService } from '../services/eventService'
 
     useEffect(() => {
       let cancelled = false;
-      if (!isSupabaseConfigured()) {
-        setEvents(SEED_EVENTS);
-        return;
-      }
       (async () => {
         const { data, error: fetchErr } = await eventService.getAllEvents();
         if (cancelled) return;

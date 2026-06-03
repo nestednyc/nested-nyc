@@ -3,7 +3,7 @@
    ============================================================ */
 import React from 'react'
 import Icon from './icons'
-import { PROJECTS, NestedData, PEOPLE, CAT, isProjectAdmin, isProjectOwner } from './data'
+import { NestedData, CAT, isProjectAdmin, isProjectOwner } from './data'
 import { Av, Toasts, Stamp } from './shared'
 import { useTweaks, TweaksPanel, TweakSection, TweakColor, TweakRadio, TweakToggle } from './tweaks-panel'
 import Onboarding from './onboarding'
@@ -12,6 +12,7 @@ import Discover, { ProjectCard } from './discover'
 import Events from './events'
 import Matches from './matches'
 import People, { ContactLinks, ProfileModal } from './people'
+import Notifications from './notifications'
 import ProjectDetail from './detail'
 import Profile from './profile'
 import Create from './create'
@@ -25,7 +26,7 @@ import OrgView from './orgView'
 import EventForm from './eventForm'
 import EventDetail from './eventDetail'
 import { SHOW_TWEAKS } from '../config/features'
-import { isSupabaseConfigured, authService } from '../lib/supabase'
+import { isSupabaseConfigured, authService, supabase } from '../lib/supabase'
 import { profileService } from '../services/profileService'
 import { orgService } from '../services/orgService'
 import { eventService } from '../services/eventService'
@@ -82,12 +83,13 @@ import { connectionService } from '../services/connectionService'
     // ("Request sent"). Two distinct states — never conflate them.
     const [joined, setJoined] = useState(new Set());
     const [requested, setRequested] = useState(new Set());
+    const [rejected, setRejected] = useState(new Set());
     const [rsvped, setRsvped] = useState(new Set());
     const [connected, setConnected] = useState([]);
     const [projects, setProjects] = useState([]);
     const [people, setPeople] = useState([]);
     const [incoming, setIncoming] = useState([]);
-    const [peopleInitialTab, setPeopleInitialTab] = useState(null);
+    const [projectRequests, setProjectRequests] = useState([]);
     const [pendingRequests, setPendingRequests] = useState([]);
     // A student profile being viewed in a modal (opened from a project's crew
     // list / lead). Resolved from `people` by user id. Null = closed.
@@ -173,21 +175,24 @@ import { connectionService } from '../services/connectionService'
       setLoadErrors(null);
       (async () => {
         try {
-          const [disc, savedRes, joinedRes, requestedRes, rsvpRes, peopleRes, connRes, incomingRes] = await Promise.all([
+          const [disc, savedRes, joinedRes, requestedRes, rejRes, rsvpRes, peopleRes, connRes, incomingRes, reqInboxRes] = await Promise.all([
             projectService.getDiscoverProjects(),
             projectService.getSavedProjects(),
             projectService.getJoinedProjects(),
             projectService.getRequestedProjects(),
+            projectService.getRejectedProjects(),
             eventService.getMyRegisteredEvents(),
             profileService.getAllProfiles(),
             connectionService.getMyConnections(),
             connectionService.getIncomingConnections(),
+            projectService.getMyPendingRequests(),
           ]);
           if (cancelled) return;
           setProjects(((disc && disc.data) || []).map(fromDbProject));
           setSaved(new Set(((savedRes && savedRes.data) || []).map((p) => p.id)));
           setJoined(new Set(((joinedRes && joinedRes.data) || []).map((p) => p.id)));
           setRequested(new Set(((requestedRes && requestedRes.data) || []).map((p) => p.id)));
+          setRejected(new Set(((rejRes && rejRes.data) || []).map((p) => p.id)));
           setRsvped(new Set(((rsvpRes && rsvpRes.data) || []).map((e) => e.id)));
           setPeople(((peopleRes && peopleRes.data) || [])
             .filter((r) => r.id !== profile.id && r.account_type !== "org_admin")
@@ -196,18 +201,20 @@ import { connectionService } from '../services/connectionService'
           setIncoming(((incomingRes && incomingRes.data) || [])
             .filter((r) => r.account_type !== "org_admin")
             .map(toPerson));
+          setProjectRequests((reqInboxRes && reqInboxRes.data) || []);
           // Surface per-page load errors so each page can show its own retry.
           setLoadErrors({
             discover: disc && disc.error,
             people: (peopleRes && peopleRes.error) || (incomingRes && incomingRes.error),
-            saved: (savedRes && savedRes.error) || (joinedRes && joinedRes.error) || (requestedRes && requestedRes.error),
+            saved: (savedRes && savedRes.error) || (joinedRes && joinedRes.error) || (requestedRes && requestedRes.error) || (rejRes && rejRes.error),
+            notifications: (incomingRes && incomingRes.error) || (reqInboxRes && reqInboxRes.error),
           });
         } catch (err) {
           // A thrown (rejected) service strands no state: log it and mark every
           // surface errored so the user gets a retry instead of a blank page.
           if (!cancelled) {
             console.error('Project surface hydration failed:', err);
-            setLoadErrors({ discover: err, people: err, saved: err });
+            setLoadErrors({ discover: err, people: err, saved: err, notifications: err });
           }
         } finally {
           if (!cancelled) setProjectsLoading(false);
@@ -215,6 +222,59 @@ import { connectionService } from '../services/connectionService'
       })();
       return () => { cancelled = true; };
     }, [profile && profile.id, reloadNonce]);
+
+    // Latest projects list, for realtime handlers below: they subscribe once per
+    // session and must read the current projects without re-binding the channel.
+    const projectsRef = useRef([]);
+    useEffect(() => { projectsRef.current = projects; }, [projects]);
+
+    // ─── REALTIME: requester side ───────────────────────────────────────────
+    // When a project owner approves (or declines / I withdraw) my join request,
+    // my team_members row changes server-side. We subscribe to just MY rows and
+    // patch the two Sets in place — so an approved project slides out of
+    // "Requests" and into "My projects" live, with no refetch (hence no skeleton
+    // flash). Approved projects are already published, so they're in `projects`
+    // and render immediately. RLS hides every row unless the socket carries the
+    // user's JWT, so we set it before subscribing. No-op in mock mode.
+    useEffect(() => {
+      if (!profile || !profile.id || !isSupabaseConfigured() || !supabase) return;
+      let channel;
+      let cancelled = false;
+      (async () => {
+        const { data } = await authService.getSession();
+        if (cancelled) return;
+        const token = data && data.session && data.session.access_token;
+        if (token) await supabase.realtime.setAuth(token);
+        if (cancelled) return;
+        channel = supabase
+          .channel("tm-self-" + profile.id)
+          .on("postgres_changes", {
+            event: "*", schema: "public", table: "team_members",
+            filter: "user_id=eq." + profile.id,
+          }, (payload) => {
+            // DELETE carries only the old row; UPDATE/INSERT the new one.
+            const row = (payload.new && payload.new.project_id) ? payload.new : payload.old;
+            const pid = row && row.project_id;
+            if (!pid) return;
+            const status = payload.new && payload.new.status;
+            if (payload.eventType === "DELETE" || status === "rejected") {
+              // Request withdrawn or declined — drop it from both buckets.
+              setRequested((r) => { if (!r.has(pid)) return r; const n = new Set(r); n.delete(pid); return n; });
+              setJoined((j) => { if (!j.has(pid)) return j; const n = new Set(j); n.delete(pid); return n; });
+            } else if (status === "approved") {
+              setRequested((r) => { const n = new Set(r); n.delete(pid); return n; });
+              setJoined((j) => new Set(j).add(pid));
+              const proj = projectsRef.current.find((p) => p.id === pid);
+              toast((proj ? "“" + proj.title.split(" — ")[0] + "”" : "A project") + " accepted you — it's in My projects", "check");
+            } else if (status === "pending") {
+              // Request created on another device — keep this tab in sync.
+              setRequested((r) => new Set(r).add(pid));
+            }
+          })
+          .subscribe();
+      })();
+      return () => { cancelled = true; if (channel) supabase.removeChannel(channel); };
+    }, [profile && profile.id]);
 
     // Owner-only: load pending join requests for the project being viewed, so
     // the owner can approve/decline from the project page.
@@ -440,13 +500,20 @@ import { connectionService } from '../services/connectionService'
       }
     }
     // Owner-only: approve/decline a pending join request (team_members status).
+    // Requests can be acted on from the project detail page (pendingRequests, one
+    // project) OR the Notifications inbox (projectRequests, all projects). Update
+    // whichever list(s) held the row so both surfaces stay in sync.
     async function approveRequest(memberId) {
-      const req = pendingRequests.find((r) => r.id === memberId);
-      setPendingRequests((arr) => arr.filter((r) => r.id !== memberId));
+      const inPending = pendingRequests.find((r) => r.id === memberId);
+      const inInbox = projectRequests.find((r) => r.id === memberId);
+      const req = inPending || inInbox;
+      if (inPending) setPendingRequests((arr) => arr.filter((r) => r.id !== memberId));
+      if (inInbox) setProjectRequests((arr) => arr.filter((r) => r.id !== memberId));
       const { error } = await projectService.approveRequest(memberId);
       if (error) {
         toast("Couldn't approve — " + (error.message || "try again"), "x");
-        if (req) setPendingRequests((arr) => [req, ...arr]);
+        if (inPending) setPendingRequests((arr) => [inPending, ...arr]);
+        if (inInbox) setProjectRequests((arr) => [inInbox, ...arr]);
         return;
       }
       // Reflect the new crew member on the flyer optimistically.
@@ -456,12 +523,15 @@ import { connectionService } from '../services/connectionService'
       toast("Added to the crew", "check");
     }
     async function rejectRequest(memberId) {
-      const req = pendingRequests.find((r) => r.id === memberId);
-      setPendingRequests((arr) => arr.filter((r) => r.id !== memberId));
+      const inPending = pendingRequests.find((r) => r.id === memberId);
+      const inInbox = projectRequests.find((r) => r.id === memberId);
+      if (inPending) setPendingRequests((arr) => arr.filter((r) => r.id !== memberId));
+      if (inInbox) setProjectRequests((arr) => arr.filter((r) => r.id !== memberId));
       const { error } = await projectService.rejectRequest(memberId);
       if (error) {
         toast("Couldn't decline — " + (error.message || "try again"), "x");
-        if (req) setPendingRequests((arr) => [req, ...arr]);
+        if (inPending) setPendingRequests((arr) => [inPending, ...arr]);
+        if (inInbox) setProjectRequests((arr) => [inInbox, ...arr]);
       } else {
         toast("Request declined", "x");
       }
@@ -506,7 +576,6 @@ import { connectionService } from '../services/connectionService'
       }
     }
     function goNav(id) {
-      if (id === "people") setPeopleInitialTab(null);
       if (id === "discover" || id === "events" || id === "people" || id === "saved") { setRoute(id); }
       else { setSoonLabel(NAV.find((n) => n.id === id).label); setRoute("soon"); }
       window.scrollTo({ top: 0 });
@@ -997,8 +1066,8 @@ import { connectionService } from '../services/connectionService'
           ),
           React.createElement("button", { className: "iconbtn", onClick: () => goNav("saved"), title: "Saved projects" },
             React.createElement(Icon, { name: "bookmark", size: 20 })),
-          React.createElement("button", { className: "iconbtn", onClick: () => { setPeopleInitialTab("incoming"); setRoute("people"); window.scrollTo({ top: 0 }); }, title: "Incoming connections" },
-            React.createElement(Icon, { name: "bell", size: 20 }), incomingPending.length > 0 && React.createElement("span", { className: "dot" })),
+          React.createElement("button", { className: "iconbtn", onClick: () => { setRoute("notifications"); window.scrollTo({ top: 0 }); }, title: "Notifications" },
+            React.createElement(Icon, { name: "bell", size: 20 }), (incomingPending.length + projectRequests.length) > 0 && React.createElement("span", { className: "dot" })),
           profile && justVerified && React.createElement("span", {
             className: "corner-stamp enter",
             title: "@" + profile.username + " · verified .edu student",
@@ -1054,11 +1123,8 @@ import { connectionService } from '../services/connectionService'
         }),
 
         route === "people" && React.createElement(People, {
-          key: peopleInitialTab || "browse",
           people,
-          incoming,
           connected,
-          initialTab: peopleInitialTab,
           onConnect,
           onDisconnect,
           onToast: toast,
@@ -1067,9 +1133,28 @@ import { connectionService } from '../services/connectionService'
           onRetry: retrySurface,
         }),
 
+        route === "notifications" && React.createElement(Notifications, {
+          incoming,
+          connected,
+          projectRequests,
+          onConnect,
+          onApprove: approveRequest,
+          onReject: rejectRequest,
+          onContact: (link) => {
+            if (link.kind === "discord") {
+              try { if (navigator.clipboard) navigator.clipboard.writeText(link.label); } catch (e) {}
+              toast("Copied " + link.label, "check");
+            }
+          },
+          onOpenProject: openProject,
+          loading: projectsLoading,
+          error: loadErrors && loadErrors.notifications,
+          onRetry: retrySurface,
+        }),
+
         route === "saved" && React.createElement(Matches, {
           projects: projectsList, profile,
-          saved, joined, requested, onOpen: openProject, onSave: toggleSave,
+          saved, joined, requested, rejected, onOpen: openProject, onSave: toggleSave,
           onStart: () => setRoute("create"),
           onBrowse: () => goNav("discover"),
           onEdit: (p) => openEdit(p.id),
@@ -1217,7 +1302,6 @@ import { connectionService } from '../services/connectionService'
       Events: ["Events across NYC campuses", "Hackathons, demo days, mixers and workshops from every school on Nested — in one feed."],
       Matches: ["Your matches & saved", "Projects you've saved, your own projects, and requests to join will live here."],
       Profile: ["Your profile", "Your major, school, interests, photos, and the links teammates use to reach you."],
-      Notifications: ["Notifications", "Replies to your join requests, new connections, and events you RSVP'd to will surface here."],
       "Create a project": ["Pin a new project", "Post what you're building and the roles you need. Recruit teammates from every NYC campus."],
     }[label] || [label, "Coming soon."];
     return (

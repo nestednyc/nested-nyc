@@ -1,5 +1,5 @@
 /* ============================================================
-   NESTED NYC — Mock data + shared bits
+   NESTED NYC — Taxonomy + shared bits
    ============================================================ */
   const CATEGORIES = [
     { id: "startup",  label: "Startup",       icon: "startup",  color: "var(--c-startup)",  wash: "oklch(0.62 0.17 33 / .16)",  ink: "oklch(0.42 0.13 33)" },
@@ -71,10 +71,6 @@
   const avColor = (name) => AV_COLORS[(name.charCodeAt(0) + (name.charCodeAt(1) || 0)) % AV_COLORS.length];
   const initials = (name) => name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase();
 
-  const P = (id, o) => ({ id, saved: false, ...o });
-
-  const PROJECTS = [];
-
   const EVENT_TYPES = [
     { id: "hack",       label: "Hackathon",  icon: "hack",    color: "var(--c-hack)",     wash: "oklch(0.66 0.13 78 / .20)",  ink: "oklch(0.42 0.1 78)" },
     { id: "demo",       label: "Demo Day",   icon: "sparkle", color: "var(--c-side)",     wash: "oklch(0.56 0.12 152 / .16)", ink: "oklch(0.40 0.1 152)" },
@@ -96,152 +92,8 @@
   ];
   const ORG_TYPE = Object.fromEntries(ORG_TYPES.map((o) => [o.id, o]));
 
-  // Seed orgs back the mock event feed until Phase E wires events to Supabase.
-  // Ownership is now a DB concern (organizations.owner_user_id), not a flag here.
-  const ORGANIZATIONS = [
-    {
-      id: "nyu-ai-collective", name: "NYU AI Collective", type: "club", uni: "nyu",
-      logo: null, banner: null, verified: true,
-      bio: "A student-run collective at NYU building and shipping AI projects — from research demos to weekend hacks. Open to every major.",
-      website: "https://nyuai.club", instagram: "nyu.ai", location: "NYU Tandon, Brooklyn",
-      members: [
-        { name: "Maya Chen", role: "admin" },
-        { name: "Arjun Patel", role: "admin" },
-      ],
-      rot: "-1.5deg", createdAt: "2026-01-12T00:00:00.000Z",
-    },
-    {
-      id: "columbia-build", name: "Columbia Build", type: "club", uni: "columbia",
-      logo: null, banner: null, verified: true,
-      bio: "Columbia's home for builders. We host demo nights, hackathons, and founder office hours every week of term.",
-      website: "https://columbiabuild.org", instagram: "columbia.build", location: "Columbia SEAS, Morningside Heights",
-      members: [{ name: "Sofia Ramirez", role: "admin" }],
-      rot: "2deg", createdAt: "2026-02-02T00:00:00.000Z",
-    },
-    {
-      id: "nyc-founders", name: "NYC Student Founders", type: "other", uni: "nyu",
-      logo: null, banner: null, verified: true,
-      bio: "A cross-campus community for student founders across NYC. Monthly mixers, pitch nights, and a Slack of 600+ builders.",
-      website: "https://nycstudentfounders.com", instagram: "nyc.founders", location: "Across NYC campuses",
-      members: [{ name: "Liam O'Brien", role: "admin" }],
-      rot: "-2.5deg", createdAt: "2026-01-20T00:00:00.000Z",
-    },
-  ];
-  const ORG = Object.fromEntries(ORGANIZATIONS.map((o) => [o.id, o]));
-
-  const E = (id, o) => ({ id, ...o });
-  // Seed events span upcoming + past, across the seed orgs. `going`/`goingNames`
-  // drive the facepile; `capacity` drives the "spots left" + capacity bar.
-  const EVENTS = [
-    E("ai-spring-kickoff", {
-      type: "talk", orgId: "nyu-ai-collective", uni: "nyu",
-      title: "Spring AI Kickoff Night",
-      blurb: "Lightning talks from students shipping AI projects this semester.",
-      about: "Kick off the term with five-minute lightning talks from NYU students building with AI — agents, vision, fine-tuning, the works. Stick around for Q&A and meet potential teammates over pizza.",
-      mon: "JUN", day: "04", weekday: "Thursday", dateLabel: "June 4, 2026",
-      time: "6:00 PM", duration: "2 hours",
-      place: "NYU Tandon — Rogers Hall", address: "6 MetroTech Center, Brooklyn, NY",
-      tags: ["AI / ML", "Consumer apps"],
-      highlights: ["Five 5-minute student lightning talks", "Q&A with NYU AI faculty", "Pizza + open networking after"],
-      going: 52, goingNames: ["Maya Chen", "Arjun Patel", "Sofia Ramirez", "Devin Park"],
-      capacity: 120, group: "This week", isPast: false, rot: "-2deg", pinType: "tape",
-    }),
-    E("columbia-demo-night", {
-      type: "demo", orgId: "columbia-build", uni: "columbia",
-      title: "Columbia Demo Night",
-      blurb: "Ten student teams demo what they shipped this term.",
-      about: "Our biggest night of the semester. Ten teams get the stage for a live demo and 90 seconds of Q&A. Judges from NYC startups award the room's favorite build.",
-      mon: "JUN", day: "06", weekday: "Saturday", dateLabel: "June 6, 2026",
-      time: "7:00 PM", duration: "3 hours",
-      place: "Columbia SEAS — Davis Auditorium", address: "530 W 120th St, New York, NY",
-      tags: ["Startup", "Consumer apps"],
-      highlights: ["10 live student demos", "Judges from NYC startups", "Afterparty + networking"],
-      going: 88, goingNames: ["Sofia Ramirez", "Jordan Kim", "Wei Zhang", "Tomas Vidal"],
-      capacity: 150, group: "This week", isPast: false, rot: "-1deg", pinType: "tape",
-    }),
-    E("ai-agents-workshop", {
-      type: "workshop", orgId: "nyu-ai-collective", uni: "nyu",
-      title: "Build Your First AI Agent",
-      blurb: "Hands-on workshop: ship a working agent in 90 minutes.",
-      about: "Bring a laptop. We'll go from zero to a working tool-using agent in 90 minutes, then turn you loose to build your own. Beginners welcome — we pair every newcomer with a mentor.",
-      mon: "JUN", day: "11", weekday: "Thursday", dateLabel: "June 11, 2026",
-      time: "5:30 PM", duration: "2 hours",
-      place: "NYU Tandon — Makerspace", address: "6 MetroTech Center, Brooklyn, NY",
-      tags: ["AI / ML", "Open source"],
-      highlights: ["Starter repo + API keys provided", "A mentor for every 3 attendees", "Demo your agent at the end"],
-      going: 34, goingNames: ["Priya Nair", "Marcus Lee", "Ana Gomez"],
-      capacity: 60, group: "Next week", isPast: false, rot: "1.5deg", pinType: "pin",
-    }),
-    E("founders-mixer-june", {
-      type: "mixer", orgId: "nyc-founders", uni: "nyu",
-      title: "Cross-Campus Founders Mixer",
-      blurb: "Student founders from every NYC campus, one rooftop.",
-      about: "No pitches, no slides — just builders. Meet student founders from NYU, Columbia, Cooper, Parsons, CUNY and Fordham over drinks and a skyline.",
-      mon: "JUN", day: "13", weekday: "Friday", dateLabel: "June 13, 2026",
-      time: "8:00 PM", duration: "3 hours",
-      place: "Williamsburg Rooftop", address: "Wythe Ave, Brooklyn, NY",
-      tags: ["Startup", "Social impact"],
-      highlights: ["600+ founder community", "Drinks + skyline views", "Bring a co-founder, find a co-founder"],
-      going: 140, goingNames: ["Liam O'Brien", "Hana Suzuki", "Raj Mehta", "Bella Cruz"],
-      capacity: 200, group: "Next week", isPast: false, rot: "2.5deg", pinType: "tape",
-    }),
-    E("hack-the-summer", {
-      type: "hack", orgId: "nyu-ai-collective", uni: "nyu",
-      title: "Hack the Summer",
-      blurb: "A 24-hour build sprint to kick off summer projects.",
-      about: "Form a team, pick a problem, and ship something in 24 hours. Tracks for AI, civic tech, and consumer apps. Hardware welcome.",
-      mon: "JUN", day: "20", weekday: "Saturday", dateLabel: "June 20, 2026",
-      time: "10:00 AM", duration: "All day",
-      place: "NYU Tandon — Event Hall", address: "6 MetroTech Center, Brooklyn, NY",
-      tags: ["AI / ML", "Civic / NYC", "Hardware"],
-      highlights: ["24-hour build sprint", "$2k in prizes", "Meals + cold brew all weekend"],
-      going: 71, goingNames: ["Maya Chen", "Devin Park", "Ana Gomez", "Marcus Lee"],
-      capacity: 100, group: "Later", isPast: false, rot: "-1.5deg", pinType: "pin",
-    }),
-    // ---- past ----
-    E("intro-to-figma", {
-      type: "design", orgId: "columbia-build", uni: "columbia",
-      title: "Intro to Figma for Builders",
-      blurb: "Engineers, learn to prototype your own MVPs fast.",
-      about: "A beginner-friendly run through Figma — components, auto-layout, and clickable prototypes — aimed at engineers who want to design their own MVPs.",
-      mon: "MAY", day: "21", weekday: "Wednesday", dateLabel: "May 21, 2026",
-      time: "6:00 PM", duration: "1.5 hours",
-      place: "Columbia SEAS — Mudd 233", address: "500 W 120th St, New York, NY",
-      tags: ["Creative tools", "Consumer apps"],
-      highlights: ["A starter Figma file to keep", "Live prototype demo", "Open Q&A"],
-      going: 40, goingNames: ["Jordan Kim", "Wei Zhang"],
-      capacity: 45, group: "Past", isPast: true, rot: "1deg", pinType: "tape",
-    }),
-    E("ai-welcome-social", {
-      type: "social", orgId: "nyu-ai-collective", uni: "nyu",
-      title: "AI Collective Welcome Social",
-      blurb: "Our first social of the term — 90 new members joined.",
-      about: "Welcome social to kick off the semester. We met new members, formed project pods, and set the calendar for the term.",
-      mon: "MAY", day: "08", weekday: "Thursday", dateLabel: "May 8, 2026",
-      time: "7:00 PM", duration: "2 hours",
-      place: "NYU Tandon — Lounge", address: "6 MetroTech Center, Brooklyn, NY",
-      tags: ["Social impact"],
-      highlights: ["90+ new members", "Project pod sign-ups", "Snacks + music"],
-      going: 90, goingNames: ["Maya Chen", "Arjun Patel", "Priya Nair", "Devin Park"],
-      capacity: 100, group: "Past", isPast: true, rot: "2deg", pinType: "pin",
-    }),
-    E("founders-pitch-night", {
-      type: "demo", orgId: "nyc-founders", uni: "nyu",
-      title: "Spring Pitch Night",
-      blurb: "Eight student startups pitched for a $5k grant.",
-      about: "Our spring pitch night brought eight student startups to the stage for a shot at a $5k grant and intros to NYC angels.",
-      mon: "APR", day: "30", weekday: "Wednesday", dateLabel: "April 30, 2026",
-      time: "7:00 PM", duration: "2.5 hours",
-      place: "Cornell Tech — Verizon Hall", address: "2 W Loop Rd, New York, NY",
-      tags: ["Startup", "Fintech"],
-      highlights: ["8 startup pitches", "$5k grant awarded", "Angel investor panel"],
-      going: 96, goingNames: ["Liam O'Brien", "Bella Cruz", "Raj Mehta"],
-      capacity: 120, group: "Past", isPast: true, rot: "-2deg", pinType: "tape",
-    }),
-  ];
-
-  // Lookup + filtering helpers (operate on caller-supplied lists so created
-  // orgs/events from NestedApp are included alongside the seeds above).
+  // Lookup + filtering helpers (operate on caller-supplied lists from the
+  // live services so created orgs/events are handled uniformly).
   const findById = (list, id) => (list || []).find((x) => x.id === id) || null;
   const orgEventsOf = (events, orgId) => (events || []).filter((e) => e.orgId === orgId);
   const sortByDay = (events) => [...(events || [])].sort((a, b) => (a.isPast === b.isPast) ? 0 : (a.isPast ? 1 : -1));
@@ -275,9 +127,6 @@
     instagram: "camera", email: "mail", calendly: "calendar", twitter: "external",
     dribbble: "palette", figma: "palette", substack: "mail", read: "globe",
   };
-
-  const PR = (id, o) => ({ id, ...o });
-  const PEOPLE = [];
 
   /* ── Project status ───────────────────────────────────────────────
      The live, owner-updatable pulse of a project. Distinct from `stage`
@@ -334,8 +183,8 @@
 
   export {
     CATEGORIES, CAT, UNIVERSITIES, UNI, MAJORS, INTERESTS, FIELDS, SKILLS,
-    PROJECTS, EVENT_TYPES, ETYPE, EVENTS, PEOPLE, ROLES, ROLE, STAGES, COMMITMENTS,
-    ORG_TYPES, ORG_TYPE, ORGANIZATIONS, ORG,
+    EVENT_TYPES, ETYPE, ROLES, ROLE, STAGES, COMMITMENTS,
+    ORG_TYPES, ORG_TYPE,
     LINK_ICON, avColor, initials, findById, orgEventsOf, sortByDay,
     ownerToken, isProjectAdmin, isProjectOwner,
     STATUSES, STATUS, statusMeta, DEFAULT_STATUS,
@@ -343,8 +192,8 @@
 
   export const NestedData = {
     CATEGORIES, CAT, UNIVERSITIES, UNI, MAJORS, INTERESTS, FIELDS, SKILLS,
-    PROJECTS, EVENT_TYPES, ETYPE, EVENTS, PEOPLE, ROLES, ROLE, STAGES, COMMITMENTS,
-    ORG_TYPES, ORG_TYPE, ORGANIZATIONS, ORG,
+    EVENT_TYPES, ETYPE, ROLES, ROLE, STAGES, COMMITMENTS,
+    ORG_TYPES, ORG_TYPE,
     LINK_ICON, avColor, initials, findById, orgEventsOf, sortByDay,
     ownerToken, isProjectAdmin, isProjectOwner,
     STATUSES, STATUS, statusMeta, DEFAULT_STATUS,

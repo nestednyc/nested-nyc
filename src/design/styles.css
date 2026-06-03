@@ -726,6 +726,7 @@ input, textarea, select { font-family: inherit; }
 .req-card .req-status { display: flex; align-items: center; padding: 0 24px; }
 .pending { display: inline-flex; align-items: center; gap: 8px; font-family: var(--mono); font-size: 12px; padding: 7px 13px; border-radius: 999px; background: oklch(0.66 0.13 78 / .2); color: oklch(0.42 0.1 78); }
 .pending.acc { background: oklch(0.56 0.12 152 / .18); color: oklch(0.40 0.1 152); }
+.pending.rej { background: oklch(0.62 0.17 33 / .15); color: oklch(0.47 0.16 33); }
 .pending svg { width: 14px; height: 14px; }
 
 .match-empty { text-align: center; padding: 70px 24px; }
@@ -1318,6 +1319,9 @@ input, textarea, select { font-family: inherit; }
 /* Loading card grid — People / Discover / Saved surfaces */
 .skel-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 22px; margin-top: 6px; }
 .skel-card { height: 230px; border-radius: 8px; }
+/* Notifications inbox — spacing between the stacked sections */
+.notif-sec { margin-top: 26px; }
+.notif-sec:first-child { margin-top: 0; }
 
 /* Empty (not-found) */
 .ev-missing { text-align: center; padding: 80px 24px; }
