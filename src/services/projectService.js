@@ -17,7 +17,7 @@ export const projectService = {
 
     const { data, error } = await supabase
       .from('projects')
-      .select('*, team_members(*)')
+      .select('*, team_members(*, profiles(avatar, photos))')
       .eq('publish_to_discover', true)
       .order('created_at', { ascending: false })
 
@@ -45,7 +45,7 @@ export const projectService = {
 
     const { data, error } = await supabase
       .from('projects')
-      .select('*, team_members(*)')
+      .select('*, team_members(*, profiles(avatar, photos))')
       .eq('id', projectId)
       .single()
 
@@ -73,7 +73,7 @@ export const projectService = {
 
     const { data, error } = await supabase
       .from('projects')
-      .select('*, team_members(*)')
+      .select('*, team_members(*, profiles(avatar, photos))')
       .eq('owner_id', user.id)
       .order('created_at', { ascending: false })
 
@@ -229,7 +229,7 @@ export const projectService = {
 
     const { data, error } = await supabase
       .from('projects')
-      .select('*, team_members(*)')
+      .select('*, team_members(*, profiles(avatar, photos))')
       .eq('category', category)
       .eq('publish_to_discover', true)
       .order('created_at', { ascending: false })
@@ -258,7 +258,7 @@ export const projectService = {
 
     const { data, error } = await supabase
       .from('projects')
-      .select('*, team_members(*)')
+      .select('*, team_members(*, profiles(avatar, photos))')
       .eq('publish_to_discover', true)
       .or(`name.ilike.%${query}%,description.ilike.%${query}%,tagline.ilike.%${query}%`)
       .order('created_at', { ascending: false })
@@ -493,13 +493,16 @@ export const projectService = {
     // pending requests. Same RLS path as getPendingRequests(projectId).
     const { data: owned, error: ownErr } = await supabase
       .from('projects')
-      .select('id, title')
+      .select('id, name')
       .eq('owner_id', user.id)
     if (ownErr) return { data: [], error: ownErr }
     if (!owned || !owned.length) return { data: [], error: null }
 
+    // projects' display column is `name` (mapped to UI `title` by projectAdapter);
+    // there is no projects.title column. Keep the output key `title` — that's the
+    // shape the Notifications UI reads as req.project.title.
     const titleById = {}
-    owned.forEach((p) => { titleById[p.id] = p.title })
+    owned.forEach((p) => { titleById[p.id] = p.name })
 
     const { data, error } = await supabase
       .from('team_members')
@@ -547,7 +550,7 @@ export const projectService = {
     // Get those projects (excluding ones user owns)
     const { data, error } = await supabase
       .from('projects')
-      .select('*, team_members(*)')
+      .select('*, team_members(*, profiles(avatar, photos))')
       .in('id', projectIds)
       .neq('owner_id', user.id)
       .order('created_at', { ascending: false })
@@ -597,7 +600,7 @@ export const projectService = {
     // Get those projects (excluding ones user owns — you can't request your own)
     const { data, error } = await supabase
       .from('projects')
-      .select('*, team_members(*)')
+      .select('*, team_members(*, profiles(avatar, photos))')
       .in('id', projectIds)
       .neq('owner_id', user.id)
       .order('created_at', { ascending: false })

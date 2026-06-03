@@ -209,7 +209,7 @@ import { CatTag, formatEventDate } from './shared'
             dateMissing && date !== '' && React.createElement("div", { className: "hint" }, "// today: " + todayIso)
           ),
 
-          React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18, marginTop: 22 } },
+          React.createElement("div", { className: "form-2col", style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18, marginTop: 22 } },
             React.createElement("div", { className: "field" },
               React.createElement("label", null, "Start time"),
               React.createElement("div", { className: "input-wrap" + (time.trim() ? " good" : "") },

@@ -5,6 +5,7 @@ import React from 'react'
 import Icon from './icons'
 import { UNI, CAT, FIELDS, SKILLS, LINK_ICON } from './data'
 import { ContactLinks } from './people'
+import { ShareStoryButton } from './storyCard'
 
   const { useState, useRef } = React;
 
@@ -263,6 +264,21 @@ import { ContactLinks } from './people'
       : [
           React.createElement("button", { key: "e", className: "btn btn-primary", onClick: startEdit },
             React.createElement(Icon, { name: "pin", size: 18, stroke: "var(--paper)" }), "Edit profile"),
+          React.createElement(ShareStoryButton, {
+            key: "share",
+            displayName,
+            username: view.username,
+            school: uniObj.name,
+            major: view.major,
+            bio: view.bio,
+            building:
+              (view.building ? "building " + view.building : "") +
+              (view.building && buildAvail ? " · " : "") +
+              (buildAvail || ""),
+            photos: photoSlots,
+            fields,
+            skills,
+          }),
         ];
 
     return (
@@ -297,11 +313,13 @@ import { ContactLinks } from './people'
             editing
               ? React.createElement("div", { style: { display: "flex", gap: 18, flexWrap: "wrap" } },
                   React.createElement("input", {
+                    className: "fluid-name",
                     style: Object.assign({}, heroInputStyle, { flex: 1, minWidth: 160 }),
                     placeholder: "First", value: firstName,
                     onChange: (e) => updateDraft({ firstName: e.target.value }),
                   }),
                   React.createElement("input", {
+                    className: "fluid-name",
                     style: Object.assign({}, heroInputStyle, { flex: 1, minWidth: 160 }),
                     placeholder: "Last", value: lastName,
                     onChange: (e) => updateDraft({ lastName: e.target.value }),
@@ -357,6 +375,7 @@ import { ContactLinks } from './people'
                 },
                   React.createElement("span", null, "// building "),
                   React.createElement("input", {
+                    className: "fluid-sm",
                     style: Object.assign({}, monoInputStyle, { width: 200 }),
                     placeholder: "what you're shipping",
                     value: view.building || "",
@@ -364,6 +383,7 @@ import { ContactLinks } from './people'
                   }),
                   React.createElement("span", null, " · "),
                   React.createElement("input", {
+                    className: "fluid-sm",
                     style: Object.assign({}, monoInputStyle, { width: 150 }),
                     placeholder: "10 hrs / week",
                     value: buildAvail,

@@ -48,6 +48,18 @@ export function fromDbProject(row) {
   const ownerMember = members.find((m) => m.user_id === row.owner_id) || null;
   const crew = members.filter((m) => m.user_id !== row.owner_id);
   const leadName = row.author_name || (ownerMember && ownerMember.name) || "Lead";
+  // Avatar for a team_members row. Prefer the member's first live profile photo
+  // (via the embedded `profiles` join); fall back to the denormalised
+  // team_members.image snapshot taken at request/create time.
+  const memberPhoto = (m) => {
+    if (!m) return null;
+    const pr = m.profiles;
+    if (pr) {
+      if (Array.isArray(pr.photos) && pr.photos[0]) return pr.photos[0];
+      if (pr.avatar) return pr.avatar;
+    }
+    return m.image || null;
+  };
   return {
     id: row.id,
     cat: row.category || "side",
@@ -68,8 +80,8 @@ export function fromDbProject(row) {
     admins: Array.isArray(row.admins) && row.admins.length
       ? row.admins
       : (row.owner_id ? [row.owner_id] : []),
-    lead: { name: leadName, role: "Project lead", bio: "", userId: row.owner_id || null },
-    team: crew.map((m) => ({ name: m.name, role: m.role || "Member", userId: m.user_id || null })),
+    lead: { name: leadName, role: "Project lead", bio: "", userId: row.owner_id || null, image: memberPhoto(ownerMember) },
+    team: crew.map((m) => ({ name: m.name, role: m.role || "Member", userId: m.user_id || null, image: memberPhoto(m) })),
     event: row.timeline || "",
     place: row.place || "",
     stage: row.stage || "",
@@ -86,11 +98,16 @@ export function fromDbProject(row) {
 // joinedCount derivation include the lead. Owner adds self as 'approved'
 // (allowed by the team_members RLS "project owner can add members" branch).
 export function creatorTeamMember(profile, ownerId) {
+  // Snapshot the lead's first photo so the optimistic post-create render — and any
+  // consumer reading this row without the embedded profiles join — shows their pfp.
+  const firstPhoto = profile && profile.photos && profile.photos[0];
+  const photoUrl = (firstPhoto && (firstPhoto.src || firstPhoto)) || null;
   return {
     user_id: ownerId,
     name: (profile && profile.username) || "you",
     school: (profile && profile.uni) || null,
     role: "Project lead",
+    image: photoUrl,
     status: "approved",
   };
 }

@@ -38,7 +38,7 @@ import { ContactLinks } from './people'
     const proj = req.project || {};
     return (
       React.createElement("div", { className: "team-row", style: { alignItems: "flex-start" } },
-        React.createElement(Av, { name: req.name }),
+        React.createElement(Av, { name: req.name, img: req.image }),
         React.createElement("span", { className: "t-who", style: { flex: 1 } },
           React.createElement("b", null, req.name),
           React.createElement("small", null,

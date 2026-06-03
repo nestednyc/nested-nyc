@@ -174,6 +174,7 @@ import { authService, isSupabaseConfigured, getErrorMessage } from '../lib/supab
           React.createElement("span", { className: "onb-kicker" }, "Reset · Step 2"),
           React.createElement("h1", null, "Enter the code."),
           React.createElement("p", { className: "desc" }, "We sent a 6-digit code to ", React.createElement("b", null, email), ". Check your inbox (and spam, just in case)."),
+          React.createElement("p", { style: { fontFamily: "var(--mono)", fontSize: 11, color: "var(--ink-faint)", margin: "-4px 0 14px", letterSpacing: "0.02em" } }, "// psst — it loves to hide in spam. peek there."),
           React.createElement("div", { className: "field" },
             React.createElement("label", null, "6-digit code"),
             React.createElement("div", { style: { display: "flex", gap: 10 }, onPaste: onCodePaste },

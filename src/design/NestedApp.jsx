@@ -39,6 +39,19 @@ import { connectionService } from '../services/connectionService'
 
   const { useState, useEffect, useRef } = React;
 
+  // A profile's "pfp" is just its first uploaded photo. Photos arrive as either
+  // bare URL strings or { src } objects (see profileAdapter); return the first
+  // non-empty one — the same rule peopleAdapter uses to derive everyone else's
+  // avatar. null → Av falls back to initials.
+  function firstPhotoUrl(photos) {
+    if (!Array.isArray(photos)) return null;
+    for (const p of photos) {
+      const url = typeof p === "string" ? p : (p && p.src);
+      if (url) return url;
+    }
+    return null;
+  }
+
   const ACCENTS = [
     { v: "oklch(0.60 0.185 30)",  ink: "oklch(0.42 0.16 32)",  wash: "oklch(0.60 0.185 30 / 0.12)" },
     { v: "oklch(0.55 0.13 255)",  ink: "oklch(0.40 0.11 255)", wash: "oklch(0.55 0.13 255 / 0.12)" },
@@ -208,6 +221,17 @@ import { connectionService } from '../services/connectionService'
             .filter((r) => r.account_type !== "org_admin")
             .map(toPerson));
           setProjectRequests((reqInboxRes && reqInboxRes.data) || []);
+          // TEMP DIAGNOSTIC — log the exact per-query errors so we can see which
+          // service call is failing (and its Postgres code/message). Remove once
+          // the notifications load error is resolved.
+          {
+            const _byCall = { discover: disc, saved: savedRes, joined: joinedRes, requested: requestedRes, rejected: rejRes, rsvp: rsvpRes, people: peopleRes, connections: connRes, incoming: incomingRes, reqInbox: reqInboxRes };
+            const _hits = Object.entries(_byCall)
+              .filter(([, r]) => r && r.error)
+              .map(([k, r]) => ({ call: k, code: r.error.code, message: r.error.message, details: r.error.details, hint: r.error.hint }));
+            if (_hits.length) console.error('[notif-debug] failing queries:', _hits);
+            else console.log('[notif-debug] all hydration queries returned without error');
+          }
           // Surface per-page load errors so each page can show its own retry.
           setLoadErrors({
             discover: disc && disc.error,
@@ -1082,7 +1106,7 @@ import { connectionService } from '../services/connectionService'
               title: "@" + profile.username + " · verified .edu student",
             }, React.createElement(Stamp, { size: 44 })),
             profile && React.createElement("button", { className: "me-chip", onClick: () => { setRoute("profile"); window.scrollTo({ top: 0 }); } },
-              React.createElement(Av, { name: profile.username }),
+              React.createElement(Av, { name: profile.username, img: firstPhotoUrl(profile.photos) }),
               React.createElement("span", { className: "who" },
                 React.createElement("b", null, "@" + profile.username),
                 React.createElement("small", null, (NestedData.UNI[profile.uni] || {}).name)
@@ -1094,7 +1118,7 @@ import { connectionService } from '../services/connectionService'
             React.createElement("button", { className: "iconbtn", onClick: () => setMSearchOpen((v) => !v), title: "Search", "aria-expanded": mSearchOpen ? "true" : "false" },
               React.createElement(Icon, { name: mSearchOpen ? "x" : "search", size: 20 })),
             profile && React.createElement("button", { className: "mob-avatar", onClick: () => setSheetOpen(true), title: "Account" },
-              React.createElement(Av, { name: profile.username }),
+              React.createElement(Av, { name: profile.username, img: firstPhotoUrl(profile.photos) }),
               (incomingPending.length + projectRequests.length) > 0 && React.createElement("span", { className: "dot" })
             )
           )
@@ -1246,7 +1270,7 @@ import { connectionService } from '../services/connectionService'
         sheetOpen && profile && React.createElement("div", { className: "sheet-scrim", onClick: () => setSheetOpen(false) },
           React.createElement("div", { className: "acct-sheet", onClick: (e) => e.stopPropagation() },
             React.createElement("div", { className: "acct-head" },
-              React.createElement(Av, { name: profile.username }),
+              React.createElement(Av, { name: profile.username, img: firstPhotoUrl(profile.photos) }),
               React.createElement("div", { className: "acct-id" },
                 React.createElement("b", null, "@" + profile.username),
                 React.createElement("small", null, (NestedData.UNI[profile.uni] || {}).name)
