@@ -228,7 +228,10 @@ input, textarea, select { font-family: inherit; }
 }
 .repin-btn:hover { transform: translateY(-2px); border-color: var(--accent); color: var(--accent-ink); }
 .repin-btn svg { width: 18px; height: 18px; }
-.board { columns: 3 300px; column-gap: 26px; }
+/* Grid, not CSS multi-column: multicol double-paints the flyer's `transform:
+   rotate(...)` children, ghosting a card's tape/pin ("appears and reappears"). */
+.board { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 26px; align-items: start; }
+.board .flyer { margin: 0; }
 
 /* ---- feeds (category shelves) ---- */
 .feeds { display: flex; flex-direction: column; gap: 46px; padding-top: 4px; }
@@ -285,8 +288,8 @@ input, textarea, select { font-family: inherit; }
 }
 
 .feed-empty { grid-column: 1 / -1; padding: 30px; text-align: center; font-family: var(--mono); font-size: 13px; color: var(--ink-soft); border: 1.5px dashed var(--paper-edge); border-radius: var(--radius); background: oklch(1 0 0 / .25); }
-@media (max-width: 1080px) { .board { columns: 2 300px; } }
-@media (max-width: 720px) { .board { columns: 1; } }
+@media (max-width: 1080px) { .board { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 720px) { .board { grid-template-columns: 1fr; } }
 
 .flyer {
   break-inside: avoid; margin: 0 0 26px; background: var(--paper);
