@@ -278,17 +278,22 @@ import { Facepile, CatTag, Pin, Skeleton } from './shared'
     // curated discovery feed, like rows on a storefront), but each shelf is a
     // distinct, meaningful cut so the board never piles everything into one.
     const feeds = useMemo(() => {
-      const openRoles = (p) => (p.roles || []).filter((r) => r.open).length;
-      const ts = (p) => new Date(p.createdAt || p.updatedAt || 0).getTime();
+      // Popular = the first 4 (most-joined; with a fresh launch dataset where
+      // joins are still 0 that's simply the first four pinned).
+      const popular = [...projects].sort((a, b) => b.joinedCount - a.joinedCount).slice(0, 4);
 
-      const popular = [...projects].sort((a, b) => b.joinedCount - a.joinedCount).slice(0, 8);
-      const newest = [...projects].sort((a, b) => ts(b) - ts(a)).slice(0, 8);
-      // Featured = building momentum: startups / research / hackathons, or anything
-      // actively recruiting — ranked by how many open roles they're hiring for.
-      const featured = [...projects]
-        .filter((p) => ["startup", "research", "hack"].includes(p.cat) || ["looking", "need-help"].includes(p.status))
-        .sort((a, b) => openRoles(b) - openRoles(a))
-        .slice(0, 8);
+      // Featured + New: deal the catalog randomly across the two shelves so both
+      // stay populated even with a small launch dataset. Fisher-Yates shuffle,
+      // recomputed only when the project set itself changes (not every render).
+      const shuffled = [...projects];
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
+      const mid = Math.ceil(shuffled.length / 2);
+      const featured = shuffled.slice(0, mid).slice(0, 8);
+      const newest = shuffled.slice(mid).slice(0, 8);
+
       // Beginner-friendly = low-commitment or just-getting-started projects to jump into.
       const beginner = projects
         .filter((p) => ["hackathon", "side-project"].includes(p.commitment) || ["idea", "looking"].includes(p.status))
