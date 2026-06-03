@@ -221,17 +221,6 @@ import { connectionService } from '../services/connectionService'
             .filter((r) => r.account_type !== "org_admin")
             .map(toPerson));
           setProjectRequests((reqInboxRes && reqInboxRes.data) || []);
-          // TEMP DIAGNOSTIC — log the exact per-query errors so we can see which
-          // service call is failing (and its Postgres code/message). Remove once
-          // the notifications load error is resolved.
-          {
-            const _byCall = { discover: disc, saved: savedRes, joined: joinedRes, requested: requestedRes, rejected: rejRes, rsvp: rsvpRes, people: peopleRes, connections: connRes, incoming: incomingRes, reqInbox: reqInboxRes };
-            const _hits = Object.entries(_byCall)
-              .filter(([, r]) => r && r.error)
-              .map(([k, r]) => ({ call: k, code: r.error.code, message: r.error.message, details: r.error.details, hint: r.error.hint }));
-            if (_hits.length) console.error('[notif-debug] failing queries:', _hits);
-            else console.log('[notif-debug] all hydration queries returned without error');
-          }
           // Surface per-page load errors so each page can show its own retry.
           setLoadErrors({
             discover: disc && disc.error,
