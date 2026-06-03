@@ -42,12 +42,12 @@ import { Av, Skeleton } from './shared'
     const href = isEmail ? "mailto:" + link.label : isCopy ? "#" : url;
     return (
       React.createElement("a", {
-        className: "linkpill", href,
+        className: "linkpill", href, title: link.label,
         target: isEmail || isCopy ? undefined : "_blank", rel: "noreferrer",
         onClick: (e) => { if (isCopy) e.preventDefault(); if (onContact) onContact(link); },
       },
         React.createElement(Icon, { name: LINK_ICON[link.kind] || "external", size: 15 }),
-        link.label,
+        React.createElement("span", { className: "linkpill-label" }, link.label),
         !isEmail && !isCopy && React.createElement(Icon, { name: "external", size: 13, stroke: "var(--ink-faint)" })
       )
     );
