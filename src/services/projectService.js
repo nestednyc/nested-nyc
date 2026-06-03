@@ -488,13 +488,33 @@ export const projectService = {
     if (!user) {
       return { data: [], error: null }
     }
+    // Two-step (no embedded filter — PostgREST's `projects!inner` + a filter on the
+    // embedded column proved unreliable): fetch my owned projects, then their
+    // pending requests. Same RLS path as getPendingRequests(projectId).
+    const { data: owned, error: ownErr } = await supabase
+      .from('projects')
+      .select('id, title')
+      .eq('owner_id', user.id)
+    if (ownErr) return { data: [], error: ownErr }
+    if (!owned || !owned.length) return { data: [], error: null }
+
+    const titleById = {}
+    owned.forEach((p) => { titleById[p.id] = p.title })
+
     const { data, error } = await supabase
       .from('team_members')
-      .select('*, project:projects!inner(id, title, owner_id)')
+      .select('*')
+      .in('project_id', owned.map((p) => p.id))
       .eq('status', 'pending')
-      .eq('project.owner_id', user.id)
       .order('joined_at', { ascending: false })
-    return { data: data || [], error }
+    if (error) return { data: [], error }
+
+    // Attach the project context the Notifications UI reads as req.project.
+    const rows = (data || []).map((m) => ({
+      ...m,
+      project: { id: m.project_id, title: titleById[m.project_id] || '' },
+    }))
+    return { data: rows, error: null }
   },
 
   /**
