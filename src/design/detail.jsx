@@ -88,8 +88,10 @@ import { CatTag, Av, Facepile } from './shared'
   function ProjectDetail({ p, profile, saved, joined, requested, onBack, onSave, onRequest, onMessage, onEdit, onUpdateStatus, pendingRequests = [], onApprove, onReject, onOpenProfile }) {
     const cat = CAT[p.cat];
     const uni = UNI[p.uni];
+    // teamNames = lead + joiners (for the "crew" facepile); extra counts faces
+    // beyond the 3 shown. joinedCount itself is joiners-only (excludes the lead).
     const teamNames = [p.lead.name, ...p.team.map((t) => t.name)];
-    const extra = Math.max(0, p.joinedCount - Math.min(3, teamNames.length));
+    const extra = Math.max(0, teamNames.length - 3);
     // Admin (owner or co-admin) edits status/alert inline and sees the edit CTA.
     const isAdmin = isProjectAdmin(p, profile);
     const isOwner = !!(onEdit && isAdmin);
@@ -226,7 +228,7 @@ import { CatTag, Av, Facepile } from './shared'
                   ),
                   React.createElement("div", { className: "kv" },
                     React.createElement("span", { className: "ic" }, React.createElement(Icon, { name: "users", size: 17 })),
-                    React.createElement("span", { className: "kv-t" }, React.createElement("small", null, "Team"), React.createElement("b", null, p.joinedCount + " joined · " + p.roles.filter((r) => r.open).length + " roles open"))
+                    React.createElement("span", { className: "kv-t" }, React.createElement("small", null, "Team"), React.createElement("b", null, (p.joinedCount === 0 ? "Just the lead" : p.joinedCount + " joined") + " · " + p.roles.filter((r) => r.open).length + " roles open"))
                   )
                 ),
                 React.createElement("div", { className: "rail-card" },

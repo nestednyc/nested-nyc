@@ -60,7 +60,9 @@ export function fromDbProject(row) {
     flyerColor: row.flyer_color || "",
     tags: Array.isArray(row.tags) ? row.tags : [],
     roles: Array.isArray(row.roles) ? row.roles : [],
-    joinedCount: members.length || 1,
+    // People who actually JOINED — excludes the owner, who LEADS the project
+    // rather than joining it. So a solo, freshly-pinned project is 0 joined.
+    joinedCount: crew.length,
     ownerId: row.owner_id || null,
     ownerName: row.author_name || leadName,
     admins: Array.isArray(row.admins) && row.admins.length

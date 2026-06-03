@@ -51,10 +51,16 @@ import { Facepile, CatTag, Pin, Skeleton } from './shared'
   function ProjectCard({ p, saved, joined, requested = false, onOpen, onSave, onEdit, hint, fasteners, onPeel, sticking }) {
     const cat = CAT[p.cat];
     const openRoles = p.roles.filter((r) => r.open);
-    const teamNames = [p.lead.name, ...p.team.map((t) => t.name)];
-    const shown = teamNames.slice(0, 3);
-    const extra = Math.max(0, p.joinedCount - shown.length);
-    const joinedTxt = "Joined by " + teamNames.slice(0, 2).map((n) => n.split(" ")[0]).join(", ") + (extra > 0 ? " +" + extra : "");
+    // The creator LEADS the project — they didn't "join" it. The facepile shows
+    // the lead plus anyone who actually joined; the label only reads "Joined by"
+    // once there are real joiners, otherwise "Led by {lead}".
+    const joiners = p.team.map((t) => t.name);
+    const faceNames = [p.lead.name, ...joiners];
+    const shown = faceNames.slice(0, 3);
+    const extra = Math.max(0, faceNames.length - shown.length);
+    const joinedTxt = p.joinedCount === 0
+      ? "Led by " + p.lead.name.split(" ")[0]
+      : "Joined by " + joiners.slice(0, 2).map((n) => n.split(" ")[0]).join(", ") + (p.joinedCount > 2 ? " +" + (p.joinedCount - 2) : "");
 
     const isTape = p.pinType === "tape";
     // Controlled if parent passes onPeel; otherwise the card owns its own fasteners.

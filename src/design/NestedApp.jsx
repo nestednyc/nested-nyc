@@ -134,6 +134,12 @@ import { connectionService } from '../services/connectionService'
     // Email seed for the forgot-password screen, populated when the user
     // clicks "Forgot password?" from the signin step so they don't retype it.
     const [forgotEmailSeed, setForgotEmailSeed] = useState("");
+    // Mobile-only chrome state (≤860px): the account sheet behind the avatar, and
+    // the collapsible top-bar search. Both are inert on desktop — their only
+    // triggers live in the mobile-only top-bar cluster, which is display:none above
+    // the breakpoint — so this state never changes the desktop view.
+    const [sheetOpen, setSheetOpen] = useState(false);
+    const [mSearchOpen, setMSearchOpen] = useState(false);
 
     // persist
     useEffect(() => {
@@ -518,7 +524,7 @@ import { connectionService } from '../services/connectionService'
       }
       // Reflect the new crew member on the flyer optimistically.
       if (req) setProjects((arr) => arr.map((p) => p.id === req.project_id
-        ? { ...p, joinedCount: (p.joinedCount || 1) + 1, team: [...(p.team || []), { name: req.name, role: req.role || "Member" }] }
+        ? { ...p, joinedCount: (p.joinedCount || 0) + 1, team: [...(p.team || []), { name: req.name, role: req.role || "Member" }] }
         : p));
       toast("Added to the crew", "check");
     }
@@ -1057,27 +1063,50 @@ import { connectionService } from '../services/connectionService'
               }, React.createElement(Icon, { name: n.icon, size: 18 }), n.label)
             ))
           ),
-          React.createElement("div", { className: "search" },
+          // Desktop utilities — display:contents on desktop so the topbar flex layout
+          // (and .search's margin-left:auto) is byte-identical; display:none ≤860px.
+          React.createElement("div", { className: "topbar-desk" },
+            React.createElement("div", { className: "search" },
+              React.createElement(Icon, { name: "search", size: 18 }),
+              React.createElement("input", {
+                placeholder: "Search projects, skills, schools…", value: query,
+                onChange: (e) => { setQuery(e.target.value); if (route !== "discover") setRoute("discover"); },
+              })
+            ),
+            React.createElement("button", { className: "iconbtn", onClick: () => goNav("saved"), title: "Saved projects" },
+              React.createElement(Icon, { name: "bookmark", size: 20 })),
+            React.createElement("button", { className: "iconbtn", onClick: () => { setRoute("notifications"); window.scrollTo({ top: 0 }); }, title: "Notifications" },
+              React.createElement(Icon, { name: "bell", size: 20 }), (incomingPending.length + projectRequests.length) > 0 && React.createElement("span", { className: "dot" })),
+            profile && justVerified && React.createElement("span", {
+              className: "corner-stamp enter",
+              title: "@" + profile.username + " · verified .edu student",
+            }, React.createElement(Stamp, { size: 44 })),
+            profile && React.createElement("button", { className: "me-chip", onClick: () => { setRoute("profile"); window.scrollTo({ top: 0 }); } },
+              React.createElement(Av, { name: profile.username }),
+              React.createElement("span", { className: "who" },
+                React.createElement("b", null, "@" + profile.username),
+                React.createElement("small", null, (NestedData.UNI[profile.uni] || {}).name)
+              )
+            )
+          ),
+          // Mobile-only cluster (≤860px): search toggle + avatar that opens the account sheet.
+          React.createElement("div", { className: "topbar-mob" },
+            React.createElement("button", { className: "iconbtn", onClick: () => setMSearchOpen((v) => !v), title: "Search", "aria-expanded": mSearchOpen ? "true" : "false" },
+              React.createElement(Icon, { name: mSearchOpen ? "x" : "search", size: 20 })),
+            profile && React.createElement("button", { className: "mob-avatar", onClick: () => setSheetOpen(true), title: "Account" },
+              React.createElement(Av, { name: profile.username }),
+              (incomingPending.length + projectRequests.length) > 0 && React.createElement("span", { className: "dot" })
+            )
+          )
+        ),
+        // Mobile search field — drops in under the bar when toggled (≤860px only).
+        mSearchOpen && React.createElement("div", { className: "topbar-search-drop" },
+          React.createElement("div", { className: "search-field" },
             React.createElement(Icon, { name: "search", size: 18 }),
             React.createElement("input", {
-              placeholder: "Search projects, skills, schools…", value: query,
+              autoFocus: true, placeholder: "Search projects, skills, schools…", value: query,
               onChange: (e) => { setQuery(e.target.value); if (route !== "discover") setRoute("discover"); },
             })
-          ),
-          React.createElement("button", { className: "iconbtn", onClick: () => goNav("saved"), title: "Saved projects" },
-            React.createElement(Icon, { name: "bookmark", size: 20 })),
-          React.createElement("button", { className: "iconbtn", onClick: () => { setRoute("notifications"); window.scrollTo({ top: 0 }); }, title: "Notifications" },
-            React.createElement(Icon, { name: "bell", size: 20 }), (incomingPending.length + projectRequests.length) > 0 && React.createElement("span", { className: "dot" })),
-          profile && justVerified && React.createElement("span", {
-            className: "corner-stamp enter",
-            title: "@" + profile.username + " · verified .edu student",
-          }, React.createElement(Stamp, { size: 44 })),
-          profile && React.createElement("button", { className: "me-chip", onClick: () => { setRoute("profile"); window.scrollTo({ top: 0 }); } },
-            React.createElement(Av, { name: profile.username }),
-            React.createElement("span", { className: "who" },
-              React.createElement("b", null, "@" + profile.username),
-              React.createElement("small", null, (NestedData.UNI[profile.uni] || {}).name)
-            )
           )
         ),
 
@@ -1211,6 +1240,28 @@ import { connectionService } from '../services/connectionService'
             }
           },
         }),
+        // Mobile account sheet (≤860px) — opened by the top-bar avatar; nests
+        // Profile / Saved / Notifications / Sign out so the mobile bar stays minimal.
+        sheetOpen && profile && React.createElement("div", { className: "sheet-scrim", onClick: () => setSheetOpen(false) },
+          React.createElement("div", { className: "acct-sheet", onClick: (e) => e.stopPropagation() },
+            React.createElement("div", { className: "acct-head" },
+              React.createElement(Av, { name: profile.username }),
+              React.createElement("div", { className: "acct-id" },
+                React.createElement("b", null, "@" + profile.username),
+                React.createElement("small", null, (NestedData.UNI[profile.uni] || {}).name)
+              )
+            ),
+            React.createElement("button", { className: "acct-item", onClick: () => { setSheetOpen(false); setRoute("profile"); window.scrollTo({ top: 0 }); } },
+              React.createElement(Icon, { name: "user", size: 19 }), "Profile"),
+            React.createElement("button", { className: "acct-item", onClick: () => { setSheetOpen(false); goNav("saved"); } },
+              React.createElement(Icon, { name: "bookmark", size: 19 }), "Saved"),
+            React.createElement("button", { className: "acct-item", onClick: () => { setSheetOpen(false); setRoute("notifications"); window.scrollTo({ top: 0 }); } },
+              React.createElement(Icon, { name: "bell", size: 19 }), "Notifications",
+              (incomingPending.length + projectRequests.length) > 0 && React.createElement("span", { className: "acct-badge" }, incomingPending.length + projectRequests.length)),
+            React.createElement("button", { className: "acct-item danger", onClick: () => { setSheetOpen(false); signOut(); } },
+              React.createElement(Icon, { name: "external", size: 19 }), "Sign out")
+          )
+        ),
         React.createElement(Toasts, { items: toasts }),
         React.createElement(StyleTweaks, { t, setTweak })
       )

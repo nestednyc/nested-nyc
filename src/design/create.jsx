@@ -83,7 +83,7 @@ import ProjectForm from './projectForm'
         flyerColor: values.flyerColor,
         tags: values.tags,
         roles: values.roles,
-        joinedCount: 1,
+        joinedCount: 0,
         // Who pinned it (super-admin) and who may edit it. Co-admins get
         // appended to `admins` later when the owner promotes a member.
         ownerId: owner,
