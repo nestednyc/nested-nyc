@@ -1174,7 +1174,6 @@ import { connectionService } from '../services/connectionService'
           connected,
           onConnect,
           onDisconnect,
-          onToast: toast,
           loading: projectsLoading,
           error: loadErrors && loadErrors.people,
           onRetry: retrySurface,
@@ -1187,12 +1186,6 @@ import { connectionService } from '../services/connectionService'
           onConnect,
           onApprove: approveRequest,
           onReject: rejectRequest,
-          onContact: (link) => {
-            if (link.kind === "discord") {
-              try { if (navigator.clipboard) navigator.clipboard.writeText(link.label); } catch (e) {}
-              toast("Copied " + link.label, "check");
-            }
-          },
           onOpenProject: openProject,
           // Incoming connections are full toPerson objects — open them straight
           // in the shared ProfileModal (skills, what they're building, all links).
@@ -1255,13 +1248,6 @@ import { connectionService } from '../services/connectionService'
           connected: connected.includes(viewPerson.id),
           onClose: () => setViewPerson(null),
           onConnect: (id) => { connected.includes(id) ? onDisconnect(id) : onConnect(id); },
-          onContact: (link) => {
-            // discord → copy the handle; URL/email links open via the anchor.
-            if (link.kind === "discord") {
-              try { if (navigator.clipboard) navigator.clipboard.writeText(link.label); } catch (e) {}
-              toast("Copied " + link.label, "check");
-            }
-          },
         }),
         // Mobile account sheet (≤860px) — opened by the top-bar avatar; nests
         // Profile / Saved / Notifications / Sign out so the mobile bar stays minimal.

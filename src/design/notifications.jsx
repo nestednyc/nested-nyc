@@ -15,7 +15,7 @@ import { ContactLinks } from './people'
   // The identity block (avatar + name) opens the person's full ProfileModal so
   // you can see their skills, what they're building, and ALL their links — not
   // just whatever fit on the card.
-  function ConnRow({ p, mutual, onConnect, onContact, onOpenProfile }) {
+  function ConnRow({ p, mutual, onConnect, onOpenProfile }) {
     const open = onOpenProfile ? () => onOpenProfile(p) : undefined;
     return (
       React.createElement("div", { className: "conn-card" },
@@ -37,7 +37,7 @@ import { ContactLinks } from './people'
             ? [React.createElement(Icon, { name: "check", size: 15, stroke: "var(--paper)", key: "i" }), "Mutual"]
             : [React.createElement(Icon, { name: "heart", size: 15, stroke: "var(--paper)", key: "i" }), "Connect back"])
         ),
-        React.createElement(ContactLinks, { person: p, onContact })
+        React.createElement(ContactLinks, { person: p })
       )
     );
   }
@@ -70,7 +70,7 @@ import { ContactLinks } from './people'
     );
   }
 
-  function Notifications({ incoming = [], connected = [], projectRequests = [], onConnect, onApprove, onReject, onContact, onOpenProject, onOpenProfile, loading = false, error = null, onRetry }) {
+  function Notifications({ incoming = [], connected = [], projectRequests = [], onConnect, onApprove, onReject, onOpenProject, onOpenProfile, loading = false, error = null, onRetry }) {
     const connSet = new Set(connected);
 
     let body;
@@ -93,7 +93,7 @@ import { ContactLinks } from './people'
         incoming.length > 0 && React.createElement("div", { className: "notif-sec" },
           React.createElement("div", { className: "sec-h" }, "Connection requests · " + incoming.length),
           React.createElement("div", { className: "conn-grid" },
-            incoming.map((p) => React.createElement(ConnRow, { key: p.id, p, mutual: connSet.has(p.id), onConnect, onContact, onOpenProfile })))
+            incoming.map((p) => React.createElement(ConnRow, { key: p.id, p, mutual: connSet.has(p.id), onConnect, onOpenProfile })))
         ),
         projectRequests.length > 0 && React.createElement("div", { className: "notif-sec" },
           React.createElement("div", { className: "sec-h" }, "Requests to join · " + projectRequests.length),

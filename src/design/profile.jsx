@@ -533,7 +533,7 @@ import { ContactLinks } from './people'
                         )
                       )
                     : (contactArr.length
-                      ? React.createElement(ContactLinks, { person: { links: contactArr }, onContact: () => {} })
+                      ? React.createElement(ContactLinks, { person: { links: contactArr } })
                       : React.createElement(HintLine, { text: "// no contact links yet" }))
                 ),
 

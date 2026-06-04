@@ -32,41 +32,37 @@ import { Av, Skeleton } from './shared'
       React.createElement("span", { style: { width: 6, height: 6, borderRadius: "50%", background: r.color } }), r.label);
   }
 
-  function LinkPill({ link, onContact }) {
-    // discord is a handle (no canonical profile URL) → copy to clipboard; email
-    // → mailto; everything else is a URL (profiles store full https URLs) → open
-    // in a new tab. The old blanket preventDefault is gone so links navigate.
+  function LinkPill({ link }) {
+    // email → mailto; instagram → canonical profile URL from the bare handle;
+    // everything else is a full https URL → open in a new tab.
     const isEmail = link.kind === "email";
-    const isCopy = link.kind === "discord"; // retired field; kept graceful for any pre-migration data
-    // Instagram stores a bare handle — build the canonical profile URL (tolerating a leading @).
     const url = link.kind === "instagram"
       ? "https://instagram.com/" + String(link.label).replace(/^@+/, "").trim()
       : (/^https?:\/\//i.test(link.label) ? link.label : "https://" + link.label);
-    const href = isEmail ? "mailto:" + link.label : isCopy ? "#" : url;
+    const href = isEmail ? "mailto:" + link.label : url;
     return (
       React.createElement("a", {
         className: "linkpill", href, title: link.label,
-        target: isEmail || isCopy ? undefined : "_blank", rel: "noreferrer",
-        onClick: (e) => { if (isCopy) e.preventDefault(); if (onContact) onContact(link); },
+        target: isEmail ? undefined : "_blank", rel: "noreferrer",
       },
         React.createElement(Icon, { name: LINK_ICON[link.kind] || "external", size: 15 }),
         React.createElement("span", { className: "linkpill-label" }, link.label),
-        !isEmail && !isCopy && React.createElement(Icon, { name: "external", size: 13, stroke: "var(--ink-faint)" })
+        !isEmail && React.createElement(Icon, { name: "external", size: 13, stroke: "var(--ink-faint)" })
       )
     );
   }
 
-  function ContactLinks({ person, onContact }) {
+  function ContactLinks({ person }) {
     const raw = person.links || [];
     // Accept either the legacy [{kind, label}] array OR the JSONB object shape
-    // ({github, portfolio, linkedin, discord}). Render uniformly downstream.
+    // ({github, portfolio, linkedin, instagram}). Render uniformly downstream.
     const links = Array.isArray(raw)
       ? raw
       : Object.entries(raw).filter(([, v]) => v).map(([kind, label]) => ({ kind, label }));
     return (
       React.createElement("div", null,
         React.createElement("div", { className: "contact-note" }, React.createElement(Icon, { name: "link", size: 14 }), "Reach out through their links \u2014 Nested has no DMs"),
-        React.createElement("div", { className: "links" }, links.map((l, i) => React.createElement(LinkPill, { key: i, link: l, onContact })))
+        React.createElement("div", { className: "links" }, links.map((l, i) => React.createElement(LinkPill, { key: i, link: l })))
       )
     );
   }
@@ -98,7 +94,7 @@ import { Av, Skeleton } from './shared'
   }
 
   // ---- full profile modal ----
-  function ProfileModal({ person, connected, onClose, onConnect, onContact }) {
+  function ProfileModal({ person, connected, onClose, onConnect }) {
     const r = ROLE[person.role];
     return (
       React.createElement("div", { className: "scrim", onClick: onClose },
@@ -132,7 +128,7 @@ import { Av, Skeleton } from './shared'
             ),
             React.createElement("div", { className: "pm-section" },
               React.createElement("div", { className: "sec-h" }, "Get in touch"),
-              React.createElement(ContactLinks, { person, onContact })
+              React.createElement(ContactLinks, { person })
             ),
             React.createElement("div", { className: "modal-actions", style: { marginTop: 22 } },
               React.createElement("button", { className: "btn " + (connected ? "btn-primary done" : "btn-primary"), style: { flex: 1, padding: 13 }, onClick: () => onConnect(person.id) },
@@ -146,7 +142,7 @@ import { Av, Skeleton } from './shared'
     );
   }
 
-  function People({ connected = [], onConnect, onDisconnect, onToast, people = [], loading = false, error = null, onRetry }) {
+  function People({ connected = [], onConnect, onDisconnect, people = [], loading = false, error = null, onRetry }) {
     const [mode, setMode] = useState("browse");
     const [modalPerson, setModalPerson] = useState(null);
     // Controlled: NestedApp owns the connection set (optimistic + revert, like
@@ -155,14 +151,6 @@ import { Av, Skeleton } from './shared'
     function addConn(id) { if (connSet.has(id)) return; onConnect && onConnect(id); }
     function removeConn(id) { if (!connSet.has(id)) return; onDisconnect && onDisconnect(id); }
     function toggleConn(id) { connSet.has(id) ? removeConn(id) : addConn(id); }
-    function contact(link) {
-      // URL + email links open via the anchor itself. Discord is just a handle,
-      // so copy it and confirm with a toast.
-      if (link.kind === "discord") {
-        try { if (navigator.clipboard) navigator.clipboard.writeText(link.label); } catch (e) {}
-        onToast && onToast("Copied " + link.label, "check");
-      }
-    }
 
     const TABS = [
       { id: "browse", label: "Browse", icon: "grid" },
@@ -201,7 +189,7 @@ import { Av, Skeleton } from './shared'
                     React.createElement("small", null, "@" + p.handle + " \u00b7 " + UNI[p.uni].name)),
                   React.createElement("button", { className: "btn btn-ghost", style: { marginLeft: "auto", padding: "7px 12px", fontSize: 13 }, onClick: () => setModalPerson(p) }, "Profile")
                 ),
-                React.createElement(ContactLinks, { person: p, onContact: contact })
+                React.createElement(ContactLinks, { person: p })
               )
             )))
         : React.createElement("div", { className: "match-empty fade-up" },
@@ -230,7 +218,7 @@ import { Av, Skeleton } from './shared'
         body,
         modalPerson && React.createElement(ProfileModal, {
           person: modalPerson, connected: connSet.has(modalPerson.id),
-          onClose: () => setModalPerson(null), onConnect: toggleConn, onContact: contact,
+          onClose: () => setModalPerson(null), onConnect: toggleConn,
         })
       )
     );
