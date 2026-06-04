@@ -6,7 +6,7 @@
 import React from 'react'
 import Icon from './icons'
 import { UNIVERSITIES, UNI, MAJORS, INTERESTS } from './data'
-import { Stamp, Av } from './shared'
+import { Stamp, Av, Pin } from './shared'
 import { authService, isSupabaseConfigured, getErrorMessage } from '../lib/supabase'
 import { lookupService } from '../services/lookupService'
 import { profileService } from '../services/profileService'
@@ -590,7 +590,7 @@ import { toDbProfile, fromDbProfile } from './profileAdapter'
     // needs the .edu inbox confirmed. Mirrors the password-reset code UX.
     if (awaitingCode) {
       return (
-        React.createElement("div", { className: "onb" },
+        React.createElement("div", { className: "onb onb-signup" },
           React.createElement("div", { className: "onb-aside corkbg grain" },
             React.createElement("div", { className: "a-top" },
               React.createElement("div", { className: "brand" },
@@ -603,7 +603,15 @@ import { toDbProfile, fromDbProfile } from './profileAdapter'
             )
           ),
           React.createElement("div", { className: "onb-main grain" },
+            React.createElement("div", { className: "onb-mobhead" },
+              React.createElement("div", { className: "brand" },
+                React.createElement("span", { className: "mark" }, React.createElement(Icon, { name: "pin", size: 21, stroke: "var(--paper)" })),
+                React.createElement("span", { className: "name" }, "Nested", React.createElement("span", null, "."))
+              ),
+              React.createElement("p", { className: "onb-mobpitch" }, "Find your people for the thing you're building.")
+            ),
             React.createElement("div", { className: "onb-card" },
+              React.createElement(Pin, { className: "onb-card-pin" }),
               React.createElement("div", { className: "fade-up" },
                 React.createElement("span", { className: "onb-kicker" }, "Last step · Confirm your .edu"),
                 React.createElement("h1", null, "Enter the code."),
@@ -653,7 +661,7 @@ import { toDbProfile, fromDbProfile } from './profileAdapter'
     }
 
     return (
-      React.createElement("div", { className: "onb" },
+      React.createElement("div", { className: "onb onb-signup" },
         React.createElement("div", { className: "onb-aside corkbg grain" },
           React.createElement("div", { className: "a-top" },
             React.createElement("div", { className: "brand" },
@@ -683,7 +691,22 @@ import { toDbProfile, fromDbProfile } from './profileAdapter'
           )
         ),
         React.createElement("div", { className: "onb-main grain" },
+          React.createElement("div", { className: "onb-mobhead" },
+            React.createElement("div", { className: "brand" },
+              React.createElement("span", { className: "mark" }, React.createElement(Icon, { name: "pin", size: 21, stroke: "var(--paper)" })),
+              React.createElement("span", { className: "name" }, "Nested", React.createElement("span", null, "."))
+            ),
+            React.createElement("p", { className: "onb-mobpitch" }, "Find your people for the thing you're building.")
+          ),
+          React.createElement("div", { className: "onb-peek", "aria-hidden": true },
+            React.createElement("div", { className: "mini-flyer" },
+              React.createElement("div", { className: "cat-bar", style: { background: "var(--c-hack)" } }),
+              React.createElement("b", null, "Subway Pulse"),
+              React.createElement("small", null, "Cooper · hackathon")
+            )
+          ),
           React.createElement("div", { className: "onb-card" },
+            React.createElement(Pin, { className: "onb-card-pin" }),
             React.createElement("div", { className: "onb-steps" },
               Array.from({ length: totalSteps }).map((_, i) => (
                 React.createElement("span", { key: i, className: "dot" + (i < step ? " done" : i === step ? " cur" : "") })

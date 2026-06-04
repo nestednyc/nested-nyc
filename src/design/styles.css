@@ -797,6 +797,8 @@ input, textarea, select { font-family: inherit; }
 .conn-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 18px; margin-top: 6px; }
 .conn-card { background: var(--paper); border-radius: 10px; box-shadow: var(--shadow-card); padding: 18px 20px; border: 1.5px solid var(--paper-edge); }
 .conn-head { display: flex; align-items: center; gap: 13px; margin-bottom: 14px; }
+.conn-id { display: flex; align-items: center; gap: 13px; min-width: 0; transition: color .12s ease; }
+.conn-id[style*="pointer"]:hover .who b { color: var(--accent-ink); }
 .conn-head .who b { font-family: var(--disp); font-weight: 700; font-size: 17px; display: block; line-height: 1.1; }
 .conn-head .who small { font-family: var(--mono); font-size: 11px; color: var(--ink-faint); }
 .conn-head .av { width: 46px; height: 46px; font-size: 16px; }
@@ -1310,6 +1312,10 @@ input, textarea, select { font-family: inherit; }
   .poststamp { width: 124px; margin: 0 auto 8px; transform: rotate(-3deg); }
   .ev-poster h1 { font-size: clamp(28px, 7vw, 38px); }
   .ev-rail { gap: 12px; }
+  /* The event-detail RSVP bar is fixed at bottom:14 (z-30); the global toast stack
+     sits at bottom:26 (z-90) and lands right on top of it. Lift the toasts clear of
+     the bar (and the iOS home indicator) for the widths where that bar exists. */
+  .toast-wrap { bottom: calc(84px + env(safe-area-inset-bottom, 0px)); }
 }
 @media (min-width: 961px) { .ev-mobile-rsvp { display: none; } }
 
@@ -1512,6 +1518,37 @@ input, textarea, select { font-family: inherit; }
   .acct-item.danger { color: oklch(0.55 0.19 28); }
   .acct-item.danger svg { color: currentColor; }
   .acct-badge { margin-left: auto; font-family: var(--mono); font-size: 12px; font-weight: 700; background: var(--accent); color: var(--paper); min-width: 22px; height: 22px; padding: 0 7px; border-radius: 999px; display: inline-grid; place-items: center; }
+
+  /* ---- Discover board: flatten the cork-board tilt on narrow screens ----
+     The desktop "pinned at an angle" look (transform: rotate(--rot * --tilt))
+     reads as charming physics in a 3–4-up grid, but once cards collapse to
+     1–2 columns the rotation swings each full-width card's corners past the
+     gutter — clipping headings and visually colliding with the card above/
+     below. Flatten to 0 here so the column reads clean and aligned.
+     NOTE: plain rule, NO !important — the peel / fall / dangle / swap keyframe
+     animations still override `transform` while they run, so the interactive
+     board physics survive untouched. */
+  .flyer { transform: rotate(0deg); }
+  /* A bit more vertical air so each card's pin/tape (which juts top:-12px above
+     the card) clears the card stacked above it instead of floating over it. */
+  .feed-grid { gap: 30px 20px; }
+
+  /* ---- Overlay hygiene ---- */
+  /* The scrim centers its child via `display:grid; place-items:center`, but its
+     single implicit track is `auto` — so it grows to the modal's max-width (460/540px)
+     and OVERFLOWS the right edge once the viewport is narrower than that. Pin the
+     column to the viewport so every scrim child (.modal, .profile-modal, .att-sheet)
+     stays within the screen and simply uses the width it has. */
+  .scrim { grid-template-columns: minmax(0, 1fr); }
+  /* A tall join/contact modal centered in a fixed scrim has no scroll of its own,
+     so on a short screen its top/bottom can fall off-screen unreachably. Cap it to
+     the viewport and let the modal itself scroll. (profile-modal / att-sheet already
+     cap their own height — these target the plain .modal.) */
+  .modal { max-height: calc(100vh - 28px); max-height: calc(100dvh - 28px); overflow-y: auto; }
+  /* The dev-only Tweaks panel is a 280px-wide fixed box at z-index:max. It's gated to
+     dev + an "edit mode" host so it normally never shows — but if it does, it would
+     blanket a phone screen. Guarantee it can't, on mobile, regardless of host. */
+  .twk-panel { display: none !important; }
 }
 
 /* ---- phone tightening (≤540px): stack grids that are too narrow at 2-up ---- */
@@ -1530,4 +1567,131 @@ input, textarea, select { font-family: inherit; }
   .form-2col { grid-template-columns: 1fr !important; }
   .fluid-sm { width: 100% !important; }
   .fluid-name { min-width: 100% !important; }
+
+  /* ---- Discover: phone-width chrome polish ---- */
+  /* The hero greeting's clamp() floor is 32px; that's a lot of a 390px screen and
+     forces a 3-line wrap. Bring it down a step and tighten the top padding so the
+     board itself is closer to the fold. */
+  .disco-head { padding: 22px 0 6px; gap: 16px; }
+  .disco-head h1 { font-size: 27px; margin-bottom: 8px; }
+  .disco-head .sub { font-size: 14.5px; }
+  .board-actions { width: 100%; }
+  .start-btn { width: 100%; justify-content: center; }
+
+  /* Tighter scrim gutters so a modal gets more of a 390px screen's width. */
+  .scrim { padding: 14px; }
+  /* iOS zooms the page when focusing an input under 16px; the join/contact
+     textarea is 15px. Nudge it to 16px on phones to kill the zoom-jump. */
+  .modal textarea { font-size: 16px; }
+}
+
+/* ============================================================
+   LANDING / ONBOARDING — mobile ("Pinned Paper")
+   ------------------------------------------------------------
+   The split-screen .onb shell is shared by ~10 screens (create,
+   forgot, org*, *Form, edit). Everything here is scoped to
+   .onb-signup — a class carried ONLY by the two student-
+   onboarding roots — and floored by the media query, so desktop
+   (>=881px) and every other .onb screen are byte-identical.
+   Below 880px the base CSS hides .onb-aside, deleting the brand
+   identity; this restores it (cork board + a pinned paper form)
+   and fixes the form's mobile usability.
+   ============================================================ */
+
+/* New mobile-only elements: inert on desktop, revealed in the block below. */
+.onb-mobhead, .onb-card-pin, .onb-peek { display: none; }
+
+@media (max-width: 880px) {
+  /* Re-hide the desktop pitch/preview aside on mobile for EVERY .onb screen
+     (onboarding, forgot-password, org signup/onboard, and the create/edit/event
+     forms). The base sheet TRIES to at line 491 (`@media (max-width:880px){
+     .onb-aside{display:none} }`), but line 493's later, equal-specificity
+     `.onb-aside{display:flex}` wins on source order (media queries add no
+     priority) — so the aside otherwise stays visible and stacks above the form.
+     This rule lives AFTER line 493, so it reclaims the hide on source order
+     alone — no !important. Onboarding rebuilds its own mobile UI INSIDE .onb-main
+     (.onb-mobhead / .onb-card), so dropping the aside is safe everywhere; the
+     form-bearing .onb-main is never touched. Desktop (>=881px) is byte-identical. */
+  .onb-aside { display: none; }
+
+  /* The right pane becomes the cork board itself (replicates .corkbg so the
+     desktop pane, which is var(--paper), is untouched). overflow-x:clip (NOT
+     hidden) clips the peeking flyer WITHOUT turning this into a scroll
+     container — that keeps the sticky CTA resolving against the viewport. */
+  .onb-signup .onb-main {
+    justify-content: flex-start;
+    overflow-x: clip;
+    min-height: 100vh;
+    min-height: 100dvh;
+    padding: calc(env(safe-area-inset-top, 0px) + 22px) 16px 0;
+    background-color: var(--cork);
+    background-image:
+      radial-gradient(oklch(0.62 0.05 65 / 0.5) 0.6px, transparent 0.7px),
+      radial-gradient(oklch(0.82 0.04 75 / 0.4) 0.6px, transparent 0.7px);
+    background-size: 7px 7px, 11px 11px;
+    background-position: 0 0, 3px 4px;
+  }
+  .no-texture .onb-signup .onb-main { background-image: none; }
+
+  /* Compact branded zone — distilled stand-in for the deleted aside. */
+  .onb-signup .onb-mobhead {
+    display: flex; flex-direction: column; align-items: center; gap: 10px;
+    text-align: center; margin-bottom: 18px;
+  }
+  .onb-signup .onb-mobpitch {
+    font-family: var(--mono); font-size: 12.5px; line-height: 1.4;
+    letter-spacing: .01em; color: var(--ink-soft); max-width: 30ch; margin: 0;
+  }
+
+  /* The form: a sheet of paper pinned to the board. */
+  .onb-signup .onb-card {
+    position: relative; z-index: 1;
+    background: var(--paper); border: 1px solid var(--paper-edge);
+    border-radius: var(--radius); box-shadow: var(--shadow-card);
+    padding: 24px 20px 20px;
+  }
+  .onb-signup .onb-card-pin {
+    display: block; position: absolute; z-index: 3;
+    top: -13px; left: 50%; transform: translateX(-50%);
+    width: 26px; height: 26px;
+    filter: drop-shadow(0 3px 3px oklch(0.2 0.02 60 / 0.4));
+  }
+
+  /* One flyer peeking from behind the card — decorative, clipped by the pane. */
+  .onb-signup .onb-peek {
+    display: block; position: absolute; z-index: 0;
+    top: 160px; right: -10px; transform: rotate(7deg);
+    opacity: .92; pointer-events: none;
+  }
+
+  /* Sticky Continue — always above the keyboard / home indicator. Bleeds to the
+     card edges with a paper fade so content scrolls cleanly underneath; z-index
+     beats .grain::after (z-index:1). */
+  .onb-signup .onb-actions {
+    position: sticky; bottom: 0; z-index: 2;
+    margin: 24px -20px 0;
+    padding: 14px 20px calc(14px + env(safe-area-inset-bottom, 0px));
+    background: linear-gradient(to top, var(--paper) 72%, transparent);
+  }
+  .onb-signup .onb-actions .spacer { display: none; }
+  .onb-signup .onb-actions .btn { flex: 1; justify-content: center; }
+
+  /* 6-digit code row: fluid boxes that can't overflow 390px. !important beats
+     the inline CODE_BOX_STYLE width:46/height:56; scoped so forgot.jsx is safe. */
+  .onb-signup .code-box {
+    flex: 1 1 0 !important;
+    width: auto !important;
+    min-width: 0;
+    height: auto !important;
+    aspect-ratio: 1 / 1;
+  }
+
+  /* Comfortable tap targets + single-column pickers in the narrow card. */
+  .onb-signup .uni-list { grid-template-columns: 1fr; }
+  .onb-signup .uni-opt { padding: 15px; }
+  .onb-signup .pick { padding: 12px 16px; }
+
+  /* Phone-sized verification stamp (beats the inline 120px). */
+  .onb-signup .stamp-big { width: 100px !important; height: 100px !important; }
+  .onb-signup .stamp-stage { padding: 4px 0 10px; }
 }
