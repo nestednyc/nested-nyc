@@ -17,7 +17,7 @@ export const projectService = {
 
     const { data, error } = await supabase
       .from('projects')
-      .select('*, team_members(*, profiles(avatar, photos))')
+      .select('*, team_members(*, profiles(avatar, photos, first_name, last_name, username))')
       .eq('publish_to_discover', true)
       .order('created_at', { ascending: false })
 
@@ -45,7 +45,7 @@ export const projectService = {
 
     const { data, error } = await supabase
       .from('projects')
-      .select('*, team_members(*, profiles(avatar, photos))')
+      .select('*, team_members(*, profiles(avatar, photos, first_name, last_name, username))')
       .eq('id', projectId)
       .single()
 
@@ -73,7 +73,7 @@ export const projectService = {
 
     const { data, error } = await supabase
       .from('projects')
-      .select('*, team_members(*, profiles(avatar, photos))')
+      .select('*, team_members(*, profiles(avatar, photos, first_name, last_name, username))')
       .eq('owner_id', user.id)
       .order('created_at', { ascending: false })
 
@@ -229,7 +229,7 @@ export const projectService = {
 
     const { data, error } = await supabase
       .from('projects')
-      .select('*, team_members(*, profiles(avatar, photos))')
+      .select('*, team_members(*, profiles(avatar, photos, first_name, last_name, username))')
       .eq('category', category)
       .eq('publish_to_discover', true)
       .order('created_at', { ascending: false })
@@ -258,7 +258,7 @@ export const projectService = {
 
     const { data, error } = await supabase
       .from('projects')
-      .select('*, team_members(*, profiles(avatar, photos))')
+      .select('*, team_members(*, profiles(avatar, photos, first_name, last_name, username))')
       .eq('publish_to_discover', true)
       .or(`name.ilike.%${query}%,description.ilike.%${query}%,tagline.ilike.%${query}%`)
       .order('created_at', { ascending: false })
@@ -550,7 +550,7 @@ export const projectService = {
     // Get those projects (excluding ones user owns)
     const { data, error } = await supabase
       .from('projects')
-      .select('*, team_members(*, profiles(avatar, photos))')
+      .select('*, team_members(*, profiles(avatar, photos, first_name, last_name, username))')
       .in('id', projectIds)
       .neq('owner_id', user.id)
       .order('created_at', { ascending: false })
@@ -600,7 +600,7 @@ export const projectService = {
     // Get those projects (excluding ones user owns — you can't request your own)
     const { data, error } = await supabase
       .from('projects')
-      .select('*, team_members(*, profiles(avatar, photos))')
+      .select('*, team_members(*, profiles(avatar, photos, first_name, last_name, username))')
       .in('id', projectIds)
       .neq('owner_id', user.id)
       .order('created_at', { ascending: false })

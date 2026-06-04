@@ -47,7 +47,20 @@ export function fromDbProject(row) {
   const members = Array.isArray(row.team_members) ? row.team_members : [];
   const ownerMember = members.find((m) => m.user_id === row.owner_id) || null;
   const crew = members.filter((m) => m.user_id !== row.owner_id);
-  const leadName = row.author_name || (ownerMember && ownerMember.name) || "Lead";
+  // A live name from the embedded profiles join (preferred — always current),
+  // collapsing the trailing/double whitespace some first/last fields carry.
+  const liveName = (m) => {
+    const pr = m && m.profiles;
+    if (!pr) return "";
+    const full = ((pr.first_name || "") + " " + (pr.last_name || "")).replace(/\s+/g, " ").trim();
+    return full || pr.username || "";
+  };
+  // Older creates persisted the literal placeholder "you" as a name (when the
+  // creator had no username yet). Never show it — treat it as empty.
+  const notYou = (s) => (s && s.trim().toLowerCase() === "you" ? "" : (s || ""));
+  // Prefer the live profile name; fall back to the denormalised snapshots
+  // (author_name, then the team_members row), then a neutral "Lead".
+  const leadName = liveName(ownerMember) || notYou(row.author_name) || notYou(ownerMember && ownerMember.name) || "Lead";
   // Avatar for a team_members row. Prefer the member's first live profile photo
   // (via the embedded `profiles` join); fall back to the denormalised
   // team_members.image snapshot taken at request/create time.
@@ -76,12 +89,12 @@ export function fromDbProject(row) {
     // rather than joining it. So a solo, freshly-pinned project is 0 joined.
     joinedCount: crew.length,
     ownerId: row.owner_id || null,
-    ownerName: row.author_name || leadName,
+    ownerName: leadName,
     admins: Array.isArray(row.admins) && row.admins.length
       ? row.admins
       : (row.owner_id ? [row.owner_id] : []),
     lead: { name: leadName, role: "Project lead", bio: "", userId: row.owner_id || null, image: memberPhoto(ownerMember) },
-    team: crew.map((m) => ({ name: m.name, role: m.role || "Member", userId: m.user_id || null, image: memberPhoto(m) })),
+    team: crew.map((m) => ({ name: liveName(m) || notYou(m.name) || "Member", role: m.role || "Member", userId: m.user_id || null, image: memberPhoto(m) })),
     event: row.timeline || "",
     place: row.place || "",
     stage: row.stage || "",
@@ -102,9 +115,12 @@ export function creatorTeamMember(profile, ownerId) {
   // consumer reading this row without the embedded profiles join — shows their pfp.
   const firstPhoto = profile && profile.photos && profile.photos[0];
   const photoUrl = (firstPhoto && (firstPhoto.src || firstPhoto)) || null;
+  // Build a real display name; NEVER persist the old "you" placeholder, which
+  // leaked into the DB and showed every viewer "led by you".
+  const fullName = profile ? ((profile.firstName || "") + " " + (profile.lastName || "")).replace(/\s+/g, " ").trim() : "";
   return {
     user_id: ownerId,
-    name: (profile && profile.username) || "you",
+    name: (profile && profile.username) || fullName || "Lead",
     school: (profile && profile.uni) || null,
     role: "Project lead",
     image: photoUrl,
