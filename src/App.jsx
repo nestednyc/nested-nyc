@@ -1,6 +1,7 @@
 import NestedApp from './design/NestedApp'
 import ErrorBoundary from './design/ErrorBoundary'
 import { isSupabaseConfigured, getConfigurationError } from './lib/supabase'
+import { Analytics } from '@vercel/analytics/react'
 
 function App() {
   // Fail loud if a production build shipped without Supabase env vars, rather
@@ -40,9 +41,14 @@ function App() {
   }
 
   return (
-    <ErrorBoundary>
-      <NestedApp />
-    </ErrorBoundary>
+    <>
+      <ErrorBoundary>
+        <NestedApp />
+      </ErrorBoundary>
+      {/* Vercel Web Analytics — page views + visitors. Sibling of the app so it
+          loads on every route and stays mounted even if the boundary catches. */}
+      <Analytics />
+    </>
   )
 }
 
