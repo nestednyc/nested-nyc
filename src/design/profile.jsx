@@ -5,7 +5,6 @@ import React from 'react'
 import Icon from './icons'
 import { UNI, CAT, FIELDS, SKILLS, LINK_ICON } from './data'
 import { ContactLinks } from './people'
-import { ShareStoryButton } from './storyCard'
 
   const { useState, useRef, useEffect } = React;
 
@@ -277,21 +276,6 @@ import { ShareStoryButton } from './storyCard'
       : [
           React.createElement("button", { key: "e", className: "btn btn-primary", onClick: startEdit },
             React.createElement(Icon, { name: "pin", size: 18, stroke: "var(--paper)" }), "Edit profile"),
-          React.createElement(ShareStoryButton, {
-            key: "share",
-            displayName,
-            username: view.username,
-            school: uniObj.name,
-            major: view.major,
-            bio: view.bio,
-            building:
-              (view.building ? "building " + view.building : "") +
-              (view.building && buildAvail ? " · " : "") +
-              (buildAvail || ""),
-            photos: photoSlots,
-            fields,
-            skills,
-          }),
         ];
 
     return (
