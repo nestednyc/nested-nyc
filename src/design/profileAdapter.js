@@ -6,19 +6,24 @@
    stores. No service calls in this file.
    ============================================================ */
 
-// Normalise links into the {github, portfolio, linkedin, discord} object shape.
+// Normalise links into the {github, portfolio, linkedin, instagram} object shape.
 // Cork-board profile.jsx already prefers the object shape; this helper covers
 // legacy localStorage entries that still use the [{kind, label}] array shape.
+// Discord was retired in favour of Instagram, so any lingering discord handle is
+// dropped here (covers both read and write) — it never reaches the UI or gets
+// persisted again; the DB migration clears it at rest.
 export function linksToObject(maybeLinks) {
   if (!maybeLinks) return {};
+  const obj = {};
   if (Array.isArray(maybeLinks)) {
-    const obj = {};
     maybeLinks.forEach((l) => {
       if (l && l.kind && l.kind !== "email" && l.label) obj[l.kind] = l.label;
     });
-    return obj;
+  } else {
+    Object.assign(obj, maybeLinks);
   }
-  return maybeLinks;
+  delete obj.discord;
+  return obj;
 }
 
 // Cork-board profile → Supabase profiles row payload (snake_case).

@@ -14,7 +14,7 @@ import { ContactLinks } from './people'
     { key: "github",    label: "GitHub URL",    placeholder: "https://github.com/yourhandle" },
     { key: "portfolio", label: "Portfolio URL", placeholder: "https://yoursite.com" },
     { key: "linkedin",  label: "LinkedIn URL",  placeholder: "https://linkedin.com/in/you" },
-    { key: "discord",   label: "Discord",       placeholder: "yourhandle" },
+    { key: "instagram", label: "Instagram",     placeholder: "@yourhandle" },
   ];
 
   async function resizePhoto(file, maxWidth = 800) {
@@ -40,12 +40,16 @@ import { ContactLinks } from './people'
   function readLinks(profile) {
     const raw = profile && profile.links;
     if (!raw) return {};
+    const obj = {};
     if (Array.isArray(raw)) {
-      const obj = {};
       raw.forEach(({ kind, label }) => { if (kind && kind !== "email" && label) obj[kind] = label; });
-      return obj;
+    } else {
+      Object.assign(obj, raw);
     }
-    return raw;
+    // Discord was retired in favour of Instagram — drop any lingering handle so it
+    // never renders or gets re-saved (the DB migration clears it at rest).
+    delete obj.discord;
+    return obj;
   }
 
   function Polaroid({ label, src, cap, editable, onPick, onClear }) {

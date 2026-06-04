@@ -37,8 +37,11 @@ import { Av, Skeleton } from './shared'
     // → mailto; everything else is a URL (profiles store full https URLs) → open
     // in a new tab. The old blanket preventDefault is gone so links navigate.
     const isEmail = link.kind === "email";
-    const isCopy = link.kind === "discord";
-    const url = /^https?:\/\//i.test(link.label) ? link.label : "https://" + link.label;
+    const isCopy = link.kind === "discord"; // retired field; kept graceful for any pre-migration data
+    // Instagram stores a bare handle — build the canonical profile URL (tolerating a leading @).
+    const url = link.kind === "instagram"
+      ? "https://instagram.com/" + String(link.label).replace(/^@+/, "").trim()
+      : (/^https?:\/\//i.test(link.label) ? link.label : "https://" + link.label);
     const href = isEmail ? "mailto:" + link.label : isCopy ? "#" : url;
     return (
       React.createElement("a", {

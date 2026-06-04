@@ -18,7 +18,7 @@ CREATE TABLE public.profiles (
   looking_for TEXT[] DEFAULT '{}',
   skills TEXT[] DEFAULT '{}',
   avatar TEXT,
-  links JSONB DEFAULT '{"github": "", "portfolio": "", "linkedin": "", "discord": ""}',
+  links JSONB DEFAULT '{"github": "", "portfolio": "", "linkedin": "", "instagram": ""}',
   projects JSONB DEFAULT '[]',
   onboarding_completed BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMPTZ DEFAULT NOW(),
