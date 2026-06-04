@@ -12,14 +12,23 @@ import { Av, Skeleton } from './shared'
 import { ContactLinks } from './people'
 
   // One incoming connection — moved verbatim from People's old "incoming" tab.
-  function ConnRow({ p, mutual, onConnect, onContact }) {
+  // The identity block (avatar + name) opens the person's full ProfileModal so
+  // you can see their skills, what they're building, and ALL their links — not
+  // just whatever fit on the card.
+  function ConnRow({ p, mutual, onConnect, onContact, onOpenProfile }) {
+    const open = onOpenProfile ? () => onOpenProfile(p) : undefined;
     return (
       React.createElement("div", { className: "conn-card" },
         React.createElement("div", { className: "conn-head" },
-          React.createElement(Av, { name: p.name, color: (ROLE[p.role] || {}).color, img: p.avatar }),
-          React.createElement("div", { className: "who" },
-            React.createElement("b", null, p.name),
-            React.createElement("small", null, "@" + p.handle + " · " + ((UNI[p.uni] || {}).name || ""))),
+          React.createElement("div", {
+            className: "conn-id", onClick: open,
+            style: open ? { cursor: "pointer" } : undefined,
+            title: open ? "View full profile" : undefined,
+          },
+            React.createElement(Av, { name: p.name, color: (ROLE[p.role] || {}).color, img: p.avatar }),
+            React.createElement("div", { className: "who" },
+              React.createElement("b", null, p.name),
+              React.createElement("small", null, "@" + p.handle + " · " + ((UNI[p.uni] || {}).name || "")))),
           React.createElement("button", {
             className: "btn " + (mutual ? "btn-primary done" : "btn-primary"),
             style: { marginLeft: "auto", padding: "7px 13px", fontSize: 13 },
@@ -61,7 +70,7 @@ import { ContactLinks } from './people'
     );
   }
 
-  function Notifications({ incoming = [], connected = [], projectRequests = [], onConnect, onApprove, onReject, onContact, onOpenProject, loading = false, error = null, onRetry }) {
+  function Notifications({ incoming = [], connected = [], projectRequests = [], onConnect, onApprove, onReject, onContact, onOpenProject, onOpenProfile, loading = false, error = null, onRetry }) {
     const connSet = new Set(connected);
 
     let body;
@@ -84,7 +93,7 @@ import { ContactLinks } from './people'
         incoming.length > 0 && React.createElement("div", { className: "notif-sec" },
           React.createElement("div", { className: "sec-h" }, "Connection requests · " + incoming.length),
           React.createElement("div", { className: "conn-grid" },
-            incoming.map((p) => React.createElement(ConnRow, { key: p.id, p, mutual: connSet.has(p.id), onConnect, onContact })))
+            incoming.map((p) => React.createElement(ConnRow, { key: p.id, p, mutual: connSet.has(p.id), onConnect, onContact, onOpenProfile })))
         ),
         projectRequests.length > 0 && React.createElement("div", { className: "notif-sec" },
           React.createElement("div", { className: "sec-h" }, "Requests to join · " + projectRequests.length),

@@ -1194,6 +1194,9 @@ import { connectionService } from '../services/connectionService'
             }
           },
           onOpenProject: openProject,
+          // Incoming connections are full toPerson objects — open them straight
+          // in the shared ProfileModal (skills, what they're building, all links).
+          onOpenProfile: (person) => setViewPerson(person),
           loading: projectsLoading,
           error: loadErrors && loadErrors.notifications,
           onRetry: retrySurface,
