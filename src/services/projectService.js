@@ -5,6 +5,53 @@
 
 import { supabase, isSupabaseConfigured } from '../lib/supabase'
 
+/**
+ * Backfill team-member public profiles the embed couldn't return.
+ *
+ * Discover/detail embed `team_members(*, profiles(...))`, but `profiles` is
+ * authenticated-only at the RLS layer (002_rls_policies.sql) — so for a
+ * logged-out (anon) viewer the embed comes back `profiles: null` and avatars
+ * fall back to initials. This hydrates those null rows from the
+ * column-restricted `public_profiles` view (readable by anon) in ONE batched
+ * query, attaching the result as `m.profiles` — the exact shape projectAdapter's
+ * liveName()/memberPhoto() already consume.
+ *
+ * For authenticated viewers the embed already filled every member, so `missing`
+ * is empty and this short-circuits with no extra query — the auth path is
+ * unchanged. Mutates the passed rows in place. Best-effort: a failed backfill
+ * just leaves initials, never throws into the fetch path.
+ *
+ * Selects `avatar` only — the live public_profiles view doesn't expose `photos`.
+ * avatar is kept in sync with photos[1] by a DB trigger, and the adapter reads
+ * photos[0] -> avatar -> image, so avatar alone restores the facepile.
+ *
+ * @param {Array<object>} projects - project rows, each with team_members[]
+ */
+async function hydratePublicProfiles(projects) {
+  if (!isSupabaseConfigured() || !supabase || !Array.isArray(projects)) return
+
+  const missing = new Set()
+  for (const p of projects) {
+    for (const m of (p?.team_members || [])) {
+      if (m.user_id && !m.profiles) missing.add(m.user_id)
+    }
+  }
+  if (missing.size === 0) return // auth path: embed already filled — no-op
+
+  const { data, error } = await supabase
+    .from('public_profiles')
+    .select('id, first_name, last_name, username, avatar')
+    .in('id', [...missing])
+  if (error || !data) return // best-effort — keep initials rather than break the feed
+
+  const byId = new Map(data.map(pr => [pr.id, pr]))
+  for (const p of projects) {
+    for (const m of (p?.team_members || [])) {
+      if (m.user_id && !m.profiles && byId.has(m.user_id)) m.profiles = byId.get(m.user_id)
+    }
+  }
+}
+
 export const projectService = {
   /**
    * Get all published projects for the Discover feed
@@ -28,6 +75,9 @@ export const projectService = {
           project.team_members = project.team_members.filter(m => m.status === 'approved')
         }
       })
+      // Guests can't read the embedded `profiles` (auth-only RLS) → it returns
+      // null and avatars fall back to initials. Backfill from public_profiles.
+      await hydratePublicProfiles(data)
     }
 
     return { data, error }
@@ -53,6 +103,9 @@ export const projectService = {
     if (data?.team_members) {
       data.team_members = data.team_members.filter(m => m.status === 'approved')
     }
+    // Guests get profiles:null from the embed (auth-only RLS) — backfill avatars
+    // from public_profiles so the lead/crew facepile isn't all initials.
+    if (data) await hydratePublicProfiles([data])
 
     return { data, error }
   },
