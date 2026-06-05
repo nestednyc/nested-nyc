@@ -78,12 +78,25 @@ import { connectionService } from '../services/connectionService'
     { id: "people",   label: "People",   icon: "users" },
   ];
 
+  // Routes a logged-out guest is allowed to occupy. The backend already exposes
+  // published projects, events, orgs and their team rosters to the `anon` role
+  // (see migration 20260526000002_public_browse.sql), so these surfaces render
+  // without a session. Only these three RESTORE from localStorage on load —
+  // each renders from state that's actually persisted (detailId at most);
+  // eventDetail/orgView ids aren't persisted, so they'd reload blank. People,
+  // Saved, Notifications, own Profile, create/edit and the auth screens all
+  // require an account, so a guest who lands on one falls back to Discover.
+  const GUEST_ROUTES = new Set(["discover", "events", "detail"]);
+  const asGuestRoute = (r) => (GUEST_ROUTES.has(r) ? r : "discover");
+
   function App() {
     const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
     const persisted = useRef(loadState());
     if (!persisted.current.joinedAt) persisted.current.joinedAt = Date.now();
 
-    const [route, setRoute] = useState(persisted.current.profile ? (persisted.current.route || "discover") : "onboarding");
+    // No persisted profile → guest: open the cork-board (Discover) rather than
+    // the sign-up wall. A returning guest restores their last PUBLIC route.
+    const [route, setRoute] = useState(persisted.current.profile ? (persisted.current.route || "discover") : asGuestRoute(persisted.current.route));
     const [profile, setProfile] = useState(persisted.current.profile || null);
     const [detailId, setDetailId] = useState(persisted.current.detailId || null);
     const [editId, setEditId] = useState(persisted.current.editId || null);
@@ -114,7 +127,10 @@ import { connectionService } from '../services/connectionService'
     // Start true when a Supabase hydration is actually coming (returning user with
     // a persisted profile) so the first paint is a skeleton, not a flash of the
     // empty state. The early-return below resolves it to false otherwise.
-    const [projectsLoading, setProjectsLoading] = useState(() => !!(persisted.current.profile && persisted.current.profile.id && isSupabaseConfigured()));
+    // Skeleton-first whenever Supabase is configured: both a returning user and a
+    // guest fetch on mount (the guest gets the public Discover feed), so paint a
+    // skeleton, not an empty-state flash. Mock mode (unconfigured) loads nothing.
+    const [projectsLoading, setProjectsLoading] = useState(() => isSupabaseConfigured());
     // Surface hydration error + retry. loadErrors is { discover, people, saved }
     // (each a Supabase error or undefined) so each page shows its own error
     // state; retrySurface bumps reloadNonce, which the loader effect depends on.
@@ -157,6 +173,12 @@ import { connectionService } from '../services/connectionService'
     // the breakpoint — so this state never changes the desktop view.
     const [sheetOpen, setSheetOpen] = useState(false);
     const [mSearchOpen, setMSearchOpen] = useState(false);
+    // Which form the auth screen opens on. "Sign up" / gated actions → signup;
+    // the guest "Log in" button → signin (a returning user shouldn't see signup).
+    const [authMode, setAuthMode] = useState("signup");
+    // Send a guest to the auth screen in a given mode. Used by the top-bar
+    // Log in / Sign up buttons; gated actions go through requireAuth (signup).
+    const goAuth = (mode) => { setAuthMode(mode); setRoute("onboarding"); window.scrollTo({ top: 0 }); };
 
     // persist
     useEffect(() => {
@@ -170,6 +192,16 @@ import { connectionService } from '../services/connectionService'
       const id = Math.random().toString(36).slice(2);
       setToasts((arr) => [...arr, { id, text, icon }]);
       setTimeout(() => setToasts((arr) => arr.filter((x) => x.id !== id)), 2800);
+    }
+
+    // Guests browse freely but can't act. Every write/identity action funnels
+    // through here: a one-line nudge + the sign-up screen. (EventDetail's RSVP
+    // already used this onSignIn pattern; this generalizes it to every gate.)
+    function requireAuth(msg) {
+      toast(msg || "Sign up to continue", "sparkle");
+      setAuthMode("signup");
+      setRoute("onboarding");
+      window.scrollTo({ top: 0 });
     }
 
     // Load the org's events once when an orgAccount becomes active. Cheap
@@ -192,7 +224,30 @@ import { connectionService } from '../services/connectionService'
     // Mirrors the orgEvents loader above. Keyed on the user id so it runs once
     // per session, not on every profile field edit.
     useEffect(() => {
-      if (!profile || !profile.id || !isSupabaseConfigured()) { setProjectsLoading(false); return; }
+      if (!isSupabaseConfigured()) { setProjectsLoading(false); return; }
+
+      // Guest (no profile): hydrate ONLY the public Discover feed. Every other
+      // read below is user-scoped (saved/joined/requested/people/connections/…)
+      // and needs a session, so we skip them. Signing in flips profile.id and
+      // re-runs this effect down the authenticated path.
+      if (!profile || !profile.id) {
+        let cancelled = false;
+        setProjectsLoading(true);
+        setLoadErrors(null);
+        projectService.getDiscoverProjects().then(({ data, error }) => {
+          if (cancelled) return;
+          setProjects(((data) || []).map(fromDbProject));
+          setLoadErrors({ discover: error });
+          setProjectsLoading(false);
+        }).catch((err) => {
+          if (cancelled) return;
+          console.error('Guest discover hydration failed:', err);
+          setLoadErrors({ discover: err });
+          setProjectsLoading(false);
+        });
+        return () => { cancelled = true; };
+      }
+
       let cancelled = false;
       setProjectsLoading(true);
       setLoadErrors(null);
@@ -328,12 +383,13 @@ import { connectionService } from '../services/connectionService'
       const session = sessRes && sessRes.data && sessRes.data.session;
 
       if (!session) {
-        // No live session — wipe any stale cached profile and go to onboarding
+        // No live session — guest mode. Wipe any stale cached profile, but don't
+        // slam the auth wall: keep the current public route, else drop to Discover.
         if (persisted.current.profile) {
           setProfile(null);
           try { localStorage.removeItem(LS); } catch (e) {}
         }
-        setRoute("onboarding");
+        setRoute((r) => asGuestRoute(r));
         return;
       }
 
@@ -381,7 +437,7 @@ import { connectionService } from '../services/connectionService'
         if (event === "SIGNED_OUT") {
           setProfile(null);
           try { localStorage.removeItem(LS); } catch (e) {}
-          setRoute("onboarding");
+          setRoute("discover"); // back to guest browsing, not the auth wall
         }
       });
 
@@ -487,7 +543,7 @@ import { connectionService } from '../services/connectionService'
       setEventDraftId(null);
       setDetailId(null);
       setEditId(null);
-      setRoute("onboarding");
+      setRoute("discover"); // land on guest browsing, not the sign-up wall
       try { localStorage.removeItem(LS); } catch (e) {}
       toast("Signed out", "check");
     }
@@ -560,6 +616,7 @@ import { connectionService } from '../services/connectionService'
       }
     }
     async function toggleSave(id) {
+      if (!profile) return requireAuth("Sign up to save projects");
       const wasSaved = saved.has(id);
       setSaved((s) => { const n = new Set(s); wasSaved ? n.delete(id) : n.add(id); return n; });
       toast(wasSaved ? "Removed from saved" : "Saved to your board", "bookmark");
@@ -577,6 +634,7 @@ import { connectionService } from '../services/connectionService'
     // connect() treats a duplicate (23505) as success and a 0-row delete is a
     // no-op, so redundant calls are harmless.
     async function onConnect(id) {
+      if (!profile) return requireAuth("Sign in to connect with students");
       if (connected.includes(id)) return;
       setConnected((arr) => [...arr, id]);
       const p = people.find((x) => x.id === id);
@@ -599,11 +657,16 @@ import { connectionService } from '../services/connectionService'
       }
     }
     function goNav(id) {
+      // People & Saved need an account — nudge guests to sign in instead.
+      if (!profile && (id === "people" || id === "saved")) {
+        return requireAuth(id === "people" ? "Sign in to meet other students" : "Sign in to save projects");
+      }
       if (id === "discover" || id === "events" || id === "people" || id === "saved") { setRoute(id); }
       else { setSoonLabel(NAV.find((n) => n.id === id).label); setRoute("soon"); }
       window.scrollTo({ top: 0 });
     }
     async function toggleRsvp(id) {
+      if (!profile) return requireAuth("Sign in to RSVP");
       const wasOn = rsvped.has(id);
       // Optimistic toggle first so the button reacts instantly. If the
       // service call fails we revert below \u2014 the user sees a clear toast.
@@ -640,7 +703,8 @@ import { connectionService } from '../services/connectionService'
     // already-loaded `people` list by user id.
     async function openProfile(userId) {
       if (!userId) return;
-      if (profile && userId === profile.id) { setRoute("profile"); window.scrollTo({ top: 0 }); return; }
+      if (!profile) return requireAuth("Sign in to view student profiles");
+      if (userId === profile.id) { setRoute("profile"); window.scrollTo({ top: 0 }); return; }
       const person = people.find((pp) => pp.id === userId);
       if (person) { setViewPerson(person); return; }
       // Not in the loaded People list (e.g. an event attendee who hasn't surfaced
@@ -697,6 +761,7 @@ import { connectionService } from '../services/connectionService'
       return (
         React.createElement("div", { className: rootClass, style: rootStyle },
           React.createElement(Onboarding, {
+            initialMode: authMode,
             onComplete: (p) => {
               setProfile(p); setProfileEditOnArrive(true); setRoute("profile"); window.scrollTo({ top: 0 });
               toast("Welcome to Nested, @" + p.username + " — finish your profile so people can find you", "sparkle");
@@ -1090,9 +1155,9 @@ import { connectionService } from '../services/connectionService'
                 onChange: (e) => { setQuery(e.target.value); if (route !== "discover") setRoute("discover"); },
               })
             ),
-            React.createElement("button", { className: "iconbtn", onClick: () => goNav("saved"), title: "Saved projects" },
+            profile && React.createElement("button", { className: "iconbtn", onClick: () => goNav("saved"), title: "Saved projects" },
               React.createElement(Icon, { name: "bookmark", size: 20 })),
-            React.createElement("button", { className: "iconbtn", onClick: () => { setRoute("notifications"); window.scrollTo({ top: 0 }); }, title: "Notifications" },
+            profile && React.createElement("button", { className: "iconbtn", onClick: () => { setRoute("notifications"); window.scrollTo({ top: 0 }); }, title: "Notifications" },
               React.createElement(Icon, { name: "bell", size: 20 }), (incomingPending.length + projectRequests.length) > 0 && React.createElement("span", { className: "dot" })),
             profile && justVerified && React.createElement("span", {
               className: "corner-stamp enter",
@@ -1104,7 +1169,11 @@ import { connectionService } from '../services/connectionService'
                 React.createElement("b", null, "@" + profile.username),
                 React.createElement("small", null, (NestedData.UNI[profile.uni] || {}).name)
               )
-            )
+            ),
+            // Guest: no account chip — offer Log in (signin) / Sign up (signup).
+            !profile && React.createElement("button", { className: "btn btn-ghost", onClick: () => goAuth("signin"), title: "Log in" }, "Log in"),
+            !profile && React.createElement("button", { className: "btn btn-primary", onClick: () => goAuth("signup"), title: "Create your account" },
+              React.createElement(Icon, { name: "pin", size: 16, stroke: "var(--paper)" }), "Sign up")
           ),
           // Mobile-only cluster (≤860px): search toggle + avatar that opens the account sheet.
           React.createElement("div", { className: "topbar-mob" },
@@ -1113,7 +1182,8 @@ import { connectionService } from '../services/connectionService'
             profile && React.createElement("button", { className: "mob-avatar", onClick: () => setSheetOpen(true), title: "Account" },
               React.createElement(Av, { name: profile.username, img: firstPhotoUrl(profile.photos) }),
               (incomingPending.length + projectRequests.length) > 0 && React.createElement("span", { className: "dot" })
-            )
+            ),
+            !profile && React.createElement("button", { className: "btn btn-primary", onClick: () => goAuth("signup"), title: "Create your account" }, "Sign up")
           )
         ),
         // Mobile search field — drops in under the bar when toggled (≤860px only).
@@ -1131,7 +1201,7 @@ import { connectionService } from '../services/connectionService'
           projects: projectsList, profile, saved, joined, requested, query,
           onOpen: openProject, onSave: toggleSave,
           onEdit: (p) => openEdit(p.id),
-          onStart: () => setRoute("create"),
+          onStart: () => { if (!profile) return requireAuth("Sign up to pin a project"); setRoute("create"); },
           loading: projectsLoading, error: loadErrors && loadErrors.discover, onRetry: retrySurface,
         }),
 
@@ -1198,7 +1268,7 @@ import { connectionService } from '../services/connectionService'
         route === "saved" && React.createElement(Matches, {
           projects: projectsList, profile,
           saved, joined, requested, rejected, onOpen: openProject, onSave: toggleSave,
-          onStart: () => setRoute("create"),
+          onStart: () => { if (!profile) return requireAuth("Sign up to pin a project"); setRoute("create"); },
           onBrowse: () => goNav("discover"),
           onEdit: (p) => openEdit(p.id),
           loading: projectsLoading,
@@ -1216,6 +1286,7 @@ import { connectionService } from '../services/connectionService'
           onBack: () => setRoute("discover"),
           onSave: toggleSave,
           onRequest: (p) => {
+            if (!profile) { requireAuth("Sign in to request to join"); return; }
             if (joined.has(p.id)) { toast("You're already on this team", "check"); }
             else if (requested.has(p.id)) { toast("You've already requested to join", "check"); }
             else { setModal({ type: "join", project: p }); }

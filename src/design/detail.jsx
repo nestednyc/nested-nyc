@@ -147,7 +147,9 @@ import { CatTag, Av, Facepile } from './shared'
                     ? [React.createElement(Icon, { name: "check", size: 18, stroke: "var(--paper)", key: "i" }), "You're in"]
                     : requested
                       ? [React.createElement(Icon, { name: "clock", size: 18, stroke: "var(--paper)", key: "i" }), "Request sent"]
-                      : [React.createElement(Icon, { name: "plus", size: 18, stroke: "var(--paper)", key: "i" }), "Request to join"])
+                      : !profile
+                        ? [React.createElement(Icon, { name: "arrowRight", size: 18, stroke: "var(--paper)", key: "i" }), "Sign in to join"]
+                        : [React.createElement(Icon, { name: "plus", size: 18, stroke: "var(--paper)", key: "i" }), "Request to join"])
             ),
 
             React.createElement("div", { className: "detail-grid" },

@@ -51,8 +51,8 @@ import { toDbProfile, fromDbProfile } from './profileAdapter'
     }, u.name[0]);
   }
 
-  function Onboarding({ onComplete, onOrgPath, onForgot }) {
-    const [mode, setMode] = useState("signup"); // 'signup' | 'signin'
+  function Onboarding({ onComplete, onOrgPath, onForgot, initialMode }) {
+    const [mode, setMode] = useState(initialMode === "signin" ? "signin" : "signup"); // 'signup' | 'signin'
     const [step, setStep] = useState(0);
     const [email, setEmail] = useState("");
     const [emailTouched, setEmailTouched] = useState(false);

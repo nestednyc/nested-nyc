@@ -321,7 +321,7 @@ import { Facepile, CatTag, Pin, Skeleton } from './shared'
       return true;
     });
 
-    const firstName = (profile.username || "there").split(/[._]/)[0];
+    const firstName = ((profile && profile.username) || "there").split(/[._]/)[0];
 
     // when searching or filtering by category, collapse to a single feed
     const single = q
