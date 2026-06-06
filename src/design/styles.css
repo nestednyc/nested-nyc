@@ -1568,6 +1568,23 @@ input, textarea, select { font-family: inherit; }
   .fluid-sm { width: 100% !important; }
   .fluid-name { min-width: 100% !important; }
 
+  /* ---- top bar: make the GUEST cluster fit a phone (hotfix) ----
+     Logged-out, the mobile bar ends in a full "Sign up" TEXT button instead of
+     the compact avatar, so brand(34) + the three label tabs(215) + search + that
+     button = a fixed 421px of content. Every phone under ~420px then scrolls
+     sideways — 31px at 390, 61px on a 360px Android — which is what shredded the
+     Discover screen the moment guest browsing went live. Reclaim the width from
+     the bar's OWN gaps / tabs / CTA only; the 18px side gutter is shared with the
+     board below (.discover), so it's left untouched to keep brand + cards aligned.
+     "Sign up" stays TEXT on purpose — it's the primary guest signup entry; an
+     icon-only pill would read as a mystery and cost conversions. Also de-clips
+     the logged-in bar, which was a few px over at 390 as well. */
+  .topbar { gap: 7px; }
+  .topbar .nav { margin-left: 0; gap: 1px; }
+  .topbar .nav button { padding: 8px 8px; font-size: 13px; }
+  .topbar-mob { gap: 6px; }
+  .topbar-mob .btn { padding: 8px 11px; font-size: 12.5px; }
+
   /* ---- Discover: phone-width chrome polish ---- */
   /* The hero greeting's clamp() floor is 32px; that's a lot of a 390px screen and
      forces a 3-line wrap. Bring it down a step and tighten the top padding so the
