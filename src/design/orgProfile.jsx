@@ -12,6 +12,13 @@ import { Av, Facepile, CatTag, Stamp } from './shared'
 
   const { useState } = React;
 
+  // Force user-supplied org links into an http(s) context so a javascript:/data:
+  // URL can't execute when clicked. Mirrors the LinkPill guard in people.jsx.
+  const safeUrl = (u) => {
+    const s = (u || "").trim();
+    return s ? (/^https?:\/\//i.test(s) ? s : "https://" + s) : null;
+  };
+
   function orgSub(org) {
     const typeLabel = (ORG_TYPES.find((t) => t.id === org.type) || {}).label || "Organization";
     const uniName = org.uni && UNI[org.uni] ? UNI[org.uni].name : null;
@@ -132,7 +139,7 @@ import { Av, Facepile, CatTag, Stamp } from './shared'
             org.bio && React.createElement("p", { className: "org-bio" }, org.bio),
 
             (org.website || org.instagram) && React.createElement("div", { className: "org-links" },
-              org.website && React.createElement("a", { className: "linkpill", href: org.website, target: "_blank", rel: "noreferrer", onClick: (e) => e.stopPropagation() },
+              org.website && React.createElement("a", { className: "linkpill", href: safeUrl(org.website), target: "_blank", rel: "noreferrer", onClick: (e) => e.stopPropagation() },
                 React.createElement(Icon, { name: "globe", size: 14 }), org.website.replace(/^https?:\/\//, "")),
               org.instagram && React.createElement("a", { className: "linkpill", href: "https://instagram.com/" + org.instagram, target: "_blank", rel: "noreferrer", onClick: (e) => e.stopPropagation() },
                 React.createElement(Icon, { name: "camera", size: 14 }), "@" + org.instagram)
@@ -151,7 +158,7 @@ import { Av, Facepile, CatTag, Stamp } from './shared'
                       following
                         ? [React.createElement(Icon, { name: "check", size: 17, stroke: "var(--paper)", key: "i" }), "Following"]
                         : [React.createElement(Icon, { name: "plus", size: 17, stroke: "var(--paper)", key: "i" }), "Follow"]),
-                    org.website && React.createElement("a", { key: "w", className: "btn btn-ghost", href: org.website, target: "_blank", rel: "noreferrer" },
+                    org.website && React.createElement("a", { key: "w", className: "btn btn-ghost", href: safeUrl(org.website), target: "_blank", rel: "noreferrer" },
                       React.createElement(Icon, { name: "external", size: 16 }), "Visit site"),
                   ]
             ),
