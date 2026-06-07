@@ -37,6 +37,7 @@ import { EventRow, orgSub } from './orgProfile'
     const totalRsvps = events.reduce((acc, e) => acc + (e.attendees || 0), 0);
     const [tab, setTab] = useState('upcoming');
     const list = tab === 'upcoming' ? upcoming : past;
+    const canPost = !!(org && org.verified); // unverified orgs can't post until approved
 
     if (!org) {
       return (
@@ -59,7 +60,7 @@ import { EventRow, orgSub } from './orgProfile'
             React.createElement("p", { className: "sub" }, "Run your org, post events to the shared NYC calendar, edit your page.")
           ),
           React.createElement("div", { className: "board-actions" },
-            React.createElement("button", { className: "start-btn", onClick: onCreateEvent },
+            canPost && React.createElement("button", { className: "start-btn", onClick: onCreateEvent },
               React.createElement(Icon, { name: "plus", size: 19, stroke: "var(--paper)" }), "Pin an event")
           )
         ),
@@ -87,8 +88,8 @@ import { EventRow, orgSub } from './orgProfile'
             !org.verified && React.createElement("div", { className: "verify-note", style: { marginTop: 14 } },
               React.createElement(Icon, { name: "clock", size: 22, stroke: "var(--accent)" }),
               React.createElement("div", null,
-                React.createElement("b", null, "You're live — verification in progress"),
-                React.createElement("p", null, "Your org page is up and you can already post events. The .edu stamp lands once we verify you, usually within a day.")
+                React.createElement("b", null, "Pending review — your page isn't public yet"),
+                React.createElement("p", null, "Your org page and events stay private until we verify you, usually within a day. Once approved, your page goes live and you can start posting events.")
               )
             ),
 
@@ -99,7 +100,7 @@ import { EventRow, orgSub } from './orgProfile'
             ),
 
             React.createElement("div", { className: "org-cta", style: { marginTop: 18 } },
-              React.createElement("button", { className: "btn btn-primary", onClick: onCreateEvent },
+              canPost && React.createElement("button", { className: "btn btn-primary", onClick: onCreateEvent },
                 React.createElement(Icon, { name: "plus", size: 17, stroke: "var(--paper)" }), "Pin an event"),
               React.createElement("button", { className: "btn btn-ghost", onClick: onEditOrg },
                 React.createElement(Icon, { name: "edit", size: 16 }), "Edit org"),
@@ -132,7 +133,7 @@ import { EventRow, orgSub } from './orgProfile'
                   : React.createElement("div", { className: "org-empty" },
                       React.createElement(Icon, { name: "calendar", size: 34, stroke: "var(--accent)" }),
                       React.createElement("p", null, tab === 'upcoming' ? "No upcoming events yet — pin your first one." : "No past events."),
-                      tab === 'upcoming' && React.createElement("button", { className: "btn btn-primary", style: { marginTop: 14 }, onClick: onCreateEvent },
+                      tab === 'upcoming' && canPost && React.createElement("button", { className: "btn btn-primary", style: { marginTop: 14 }, onClick: onCreateEvent },
                         React.createElement(Icon, { name: "plus", size: 16, stroke: "var(--paper)" }), "Pin an event"))
             )
           )

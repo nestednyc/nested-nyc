@@ -53,9 +53,12 @@ export const profileService = {
       return { data: null, error: { message: 'Supabase not configured' } }
     }
 
+    // account_type is server-controlled (pinned by the profile_lock_account_type
+    // DB trigger). Never write it from the client.
+    const { account_type, ...safe } = updates || {}
     const { data, error } = await supabase
       .from('profiles')
-      .update(updates)
+      .update(safe)
       .eq('id', userId)
       .select()
       .single()

@@ -155,9 +155,12 @@ export const orgService = {
       const formatError = validateSlug(updates.slug)
       if (formatError) return { data: null, error: { message: formatError } }
     }
+    // verified + ownership are server-controlled (RLS + the org_lock_verified
+    // trigger). Never send them from the client, even by accident.
+    const { verified, owner_user_id, id, ...safe } = updates || {}
     const { data, error } = await supabase
       .from('organizations')
-      .update(updates)
+      .update(safe)
       .eq('id', orgId)
       .select()
       .single()

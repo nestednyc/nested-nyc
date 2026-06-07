@@ -150,7 +150,7 @@ import { Av, Facepile, CatTag, Stamp } from './shared'
                 ? [
                     React.createElement("span", { key: "y", className: "owner-chip" },
                       React.createElement(Icon, { name: "check", size: 13, stroke: "var(--accent)", width: 2.4 }), "You manage this org"),
-                    React.createElement("button", { key: "c", className: "btn btn-primary", onClick: onCreateEvent },
+                    org.verified && React.createElement("button", { key: "c", className: "btn btn-primary", onClick: onCreateEvent },
                       React.createElement(Icon, { name: "plus", size: 17, stroke: "var(--paper)" }), "Pin an event"),
                   ]
                 : [
