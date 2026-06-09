@@ -88,6 +88,9 @@ export function fromDbProject(row) {
     // People who actually JOINED — excludes the owner, who LEADS the project
     // rather than joining it. So a solo, freshly-pinned project is 0 joined.
     joinedCount: crew.length,
+    // Trigger-maintained total from projects.view_count (see migration
+    // 20260609000000). Server-computed — deliberately absent from toDbProject.
+    views: row.view_count || 0,
     ownerId: row.owner_id || null,
     ownerName: leadName,
     admins: Array.isArray(row.admins) && row.admins.length

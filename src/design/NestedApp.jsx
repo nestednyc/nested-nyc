@@ -71,6 +71,10 @@ import { connectionService } from '../services/connectionService'
   function loadState() {
     try { return JSON.parse(localStorage.getItem(LS)) || {}; } catch (e) { return {}; }
   }
+  // Project ids whose view was already recorded this browser session (per-tab,
+  // survives reloads). Applies to guests AND signed-in users — for the
+  // signed-in the server still dedupes per day; this just skips pointless RPCs.
+  const VIEWED_SS = "nested.nyc.viewed.v1";
 
   const NAV = [
     { id: "discover", label: "Discover", icon: "grid" },
@@ -93,6 +97,7 @@ import { connectionService } from '../services/connectionService'
     const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
     const persisted = useRef(loadState());
     if (!persisted.current.joinedAt) persisted.current.joinedAt = Date.now();
+    const viewedThisSession = useRef(null); // lazy Set, hydrated from sessionStorage
 
     // No persisted profile → guest: open the cork-board (Discover) rather than
     // the sign-up wall. A returning guest restores their last PUBLIC route.
@@ -548,7 +553,36 @@ import { connectionService } from '../services/connectionService'
       toast("Signed out", "check");
     }
 
-    function openProject(id) { setDetailId(id); setRoute("detail"); window.scrollTo({ top: 0 }); }
+    function sessionViewed() {
+      if (!viewedThisSession.current) {
+        let ids = [];
+        try { ids = JSON.parse(sessionStorage.getItem(VIEWED_SS)) || []; } catch (e) {}
+        viewedThisSession.current = new Set(Array.isArray(ids) ? ids : []);
+      }
+      return viewedThisSession.current;
+    }
+    // Background telemetry — fire-and-forget and SILENT on failure (the one
+    // deliberate exception to the "every service failure toasts" rule: a lost
+    // view isn't worth interrupting anyone over). The server is the authority
+    // on every rule here (owner never counts, signed-in once/day); the checks
+    // below just skip RPCs whose answer we already know.
+    function recordProjectView(id) {
+      if (!isSupabaseConfigured()) return;
+      const proj = projectsList.find((p) => p.id === id);
+      if (profile && proj && proj.ownerId === profile.id) return; // own opens never count
+      const seen = sessionViewed();
+      if (seen.has(id)) return; // once per browser session
+      seen.add(id);
+      try { sessionStorage.setItem(VIEWED_SS, JSON.stringify([...seen])); } catch (e) {}
+      projectService.recordView(id).then(({ data }) => {
+        // The RPC returns the fresh total — sync it so the visitor watches
+        // their own hit land on the detail page's counter.
+        if (typeof data === "number") {
+          setProjects((arr) => arr.map((p) => (p.id === id ? { ...p, views: data } : p)));
+        }
+      }).catch(() => {});
+    }
+    function openProject(id) { recordProjectView(id); setDetailId(id); setRoute("detail"); window.scrollTo({ top: 0 }); }
     function openEdit(id) {
       // Only an admin (owner or promoted co-admin) may open the editor.
       const proj = projectsList.find((p) => p.id === id);

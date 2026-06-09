@@ -84,6 +84,28 @@ import { CatTag, Av, Facepile } from './shared'
     );
   }
 
+  /* Retro 90s hit counter — "YOU ARE VISITOR No. 0042" — at the foot of the
+     flyer's left column. Ambient flavor, not a CTA. Each cell holds a 0–9
+     reel translated to its digit: hitRoll rolls it up from 0 once on mount
+     (staggered per cell) and the transform transition ticks it live when the
+     fresh total lands from record_project_view. Cells are keyed from the
+     RIGHT (ones digit = key 1) so reels keep identity when the number grows
+     a digit. Static under prefers-reduced-motion. */
+  function HitCounter({ count }) {
+    const n = Math.max(0, Math.floor(count || 0));
+    const digits = String(n).padStart(4, "0").split("");
+    return React.createElement("div", { className: "hit-counter", role: "img", "aria-label": n + " visits so far" },
+      React.createElement("span", { className: "hit-label" }, "you are visitor No."),
+      React.createElement("span", { className: "hit-digits", "aria-hidden": true },
+        digits.map((d, i) => React.createElement("span", { className: "hit-cell", key: digits.length - i },
+          React.createElement("span", { className: "hit-reel", style: { "--digit": d, animationDelay: (i * 70) + "ms" } },
+            "0123456789".split("").map((x) => React.createElement("span", { key: x }, x))
+          )
+        ))
+      )
+    );
+  }
+
 
   function ProjectDetail({ p, profile, saved, joined, requested, onBack, onSave, onRequest, onMessage, onEdit, onUpdateStatus, pendingRequests = [], onApprove, onReject, onOpenProfile }) {
     const cat = CAT[p.cat];
@@ -179,7 +201,8 @@ import { CatTag, Av, Facepile } from './shared'
                   React.createElement("div", { className: "tags" },
                     p.tags.map((t, i) => React.createElement("span", { className: "tag2", key: i }, t))
                   )
-                )
+                ),
+                React.createElement(HitCounter, { count: p.views })
               ),
 
               // side rail

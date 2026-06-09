@@ -751,6 +751,24 @@ export const projectService = {
   },
 
   /**
+   * Record a view of a project (background telemetry — callers stay SILENT on
+   * failure; the one deliberate exception to the "every failure toasts" rule).
+   * Server rules: owner never counted; signed-in once per UTC day; anon per
+   * call (the client dedupes guests per browser session via sessionStorage).
+   * @param {string} projectId - The project UUID
+   * @returns {Promise<{data: number|null, error: object|null}>} post-op total,
+   *   or null when the project is unpublished/missing
+   */
+  async recordView(projectId) {
+    if (!isSupabaseConfigured() || !supabase) {
+      return { data: null, error: { message: 'Supabase not configured' } }
+    }
+
+    const { data, error } = await supabase.rpc('record_project_view', { p_project_id: projectId })
+    return { data: typeof data === 'number' ? data : null, error }
+  },
+
+  /**
    * Check whether the current user has saved a project
    * @param {string} projectId - The project UUID
    * @returns {Promise<{saved: boolean, error: object|null}>}
