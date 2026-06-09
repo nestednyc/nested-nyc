@@ -5,7 +5,7 @@ A student-only project network for NYC universities, live at **[nested.social](h
 ## Tech stack
 
 - **React 18 + Vite 5** — plain JSX, no TypeScript
-- **Hand-rolled CSS** — design tokens in `src/design/styles.css`; **no Tailwind** (`src/index.css` is a legacy leftover that never loads). Vendor prefixes come from esbuild during the Vite build — no autoprefixer.
+- **Hand-rolled CSS** — design tokens in `src/design/styles.css`; **no Tailwind**. Vendor prefixes come from esbuild during the Vite build — no autoprefixer.
 - **Supabase** — Postgres, Auth, Storage, RLS, Realtime
 - **Vercel** — hosting + Web Analytics (`<Analytics />` in `App.jsx`)
 
@@ -63,8 +63,8 @@ src/
 │   └── ErrorBoundary.jsx
 ├── services/            # Supabase data access — ALL return { data, error }, never throw
 ├── lib/supabase.js      # client + authService
-├── config/features.js   # only SHOW_TWEAKS (= import.meta.env.DEV) is live
-└── …everything else is legacy (see bottom)
+├── config/features.js   # SHOW_TWEAKS (= import.meta.env.DEV) — the only flag
+└── utils/migrateLocalStorage.js  # console-only migration helper (side-loaded by main.jsx)
 ```
 
 Services: `profileService` (own/public profiles, upsert), `projectService` (discover feed, CRUD, join requests, approve/reject), `eventService` (events + RSVPs), `orgService` (orgs by slug/id, members), `connectionService` (directed student→student connects), `storageService` (photo uploads), `lookupService` (username/email availability via RPCs). Import services directly from their files — `services/index.js` is itself unused (nothing imports it).
@@ -107,7 +107,7 @@ Physical pinboard vocabulary: paper flyers pinned/taped to cork, slight per-card
 
 - Style with the CSS variables above — never hardcoded colors.
 - Icons come from `design/icons.jsx` only.
-- **New screens take zero visual cues from `src/pages/`** — cork-board vocabulary only.
+- **New screens take zero visual cues from the deleted legacy UI** — cork-board vocabulary only.
 
 ### Adding a screen
 
@@ -137,8 +137,8 @@ npm run preview
 
 Vercel, auto-deploy from `main`. `vercel.json` provides the SPA fallback rewrite plus security headers (HSTS, `X-Frame-Options: DENY`, nosniff, Referrer-Policy, Permissions-Policy; CSP is currently **report-only**). Env vars are set in the Vercel dashboard.
 
-## Legacy code — do not build on it
+## Legacy code
 
-Verified unreachable from the `src/main.jsx` entry (import-graph trace + production-bundle check, 2026-06-09), kept only until deletion: `src/pages/` (~40 routed screens), `src/components/`, `src/context/`, `src/utils/` (everything except `migrateLocalStorage.js`), `src/services/index.js`, `src/assets/logo.svg`, `src/index.css`, `src/lib/supabaseDiagnostics.js`, and the `SHOW_NESTS`/`SHOW_FILTERS`/`SHOW_PEOPLE_SECTION` flags. (The unused `react-router-dom`/`lucide-react`/`tailwindcss` dependencies were already removed.) Don't import from it, extend it, or take design cues from it.
+The legacy routed frontend (`src/pages/`, `src/components/`, the React Router/Tailwind era) was **deleted 2026-06-09** after an import-graph trace + production-bundle check proved none of it was reachable; the bundle hash was identical before and after. It lives only in git history now — the repo contains live code only.
 
 Untracked local dirs (`social/`, `insta/`, `insta-reel/`) are content/marketing tooling, not app code.
