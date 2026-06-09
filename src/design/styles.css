@@ -1585,6 +1585,14 @@ input, textarea, select { font-family: inherit; }
   .topbar-mob { gap: 6px; }
   .topbar-mob .btn { padding: 8px 11px; font-size: 12.5px; }
 
+  /* Matches tab row (Saved · Requests · My projects) ran ~12px too wide for a
+     390px phone, so the third tab pushed the page past the viewport — which left
+     a strip of cork exposed to the right of the sticky top bar (the header looked
+     "cut off", but only on this screen). Tighten the tabs so all three fit. */
+  .match-tabs { gap: 4px; }
+  .match-tab { padding: 10px 12px; font-size: 14px; gap: 7px; }
+  .match-tab .b { padding: 2px 7px; }
+
   /* ---- Discover: phone-width chrome polish ---- */
   /* The hero greeting's clamp() floor is 32px; that's a lot of a 390px screen and
      forces a 3-line wrap. Bring it down a step and tighten the top padding so the
