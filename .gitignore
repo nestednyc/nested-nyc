@@ -31,9 +31,20 @@ coverage
 
 # Supabase CLI local temp state
 supabase/.temp/
+supabase/.branches/
 
 .cursor/plans/username_system_implementation_4128bb72.plan.md
 .vercel
 
 # Local Claude Code agent config
 .claude/
+
+# Local working notes — not part of the codebase
+HACKATHONS.md
+SOCIAL.md
+SECURITY_AUDIT.md
+
+# Local content tooling — lives on this machine only, not in the repo
+social/
+insta/
+insta-reel/

@@ -1,6 +1,8 @@
 # Nested NYC
 
-Student-only project network for NYC universities.
+Student-only project network for NYC universities — live at **[nested.social](https://nested.social)**.
+
+Students discover projects, post their own, find teammates, and browse campus events. Signing up requires a university `.edu` email.
 
 ## Development
 
@@ -9,20 +11,16 @@ npm install
 npm run dev
 ```
 
-The app will be available at `http://localhost:5173`
+The app runs at `http://localhost:5173`.
 
-## Authentication Setup
+### Supabase setup
 
-This app enforces **university-only authentication** using .edu email addresses.
-
-### Quick Setup
-
-1. **Create Supabase project** at [supabase.com](https://supabase.com)
-2. **Create `.env` file**:
+1. Create a project at [supabase.com](https://supabase.com)
+2. Copy the env template and add your project URL + anon key:
    ```bash
    cp .env.example .env
    ```
-3. **Add your Supabase credentials** to `.env`
+3. Apply the SQL in `supabase/migrations/` in order
 
 ## Build
 
@@ -30,12 +28,8 @@ This app enforces **university-only authentication** using .edu email addresses.
 npm run build
 ```
 
-## Tech Stack
+## Tech stack
 
-- React 18
-- React Router 6
-- Vite 5
-- Tailwind CSS 3
-- Supabase Auth (with .edu email enforcement)
-
-// demo commit
+- React 18 + Vite 5
+- Supabase (Postgres, Auth, Storage, RLS, Realtime)
+- Vercel
