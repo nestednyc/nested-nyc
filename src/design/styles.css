@@ -1581,6 +1581,15 @@ input, textarea, select { font-family: inherit; }
   .fluid-sm { width: 100% !important; }
   .fluid-name { min-width: 100% !important; }
 
+  /* iOS Safari auto-zooms any focused field whose font-size is under 16px,
+     then leaves the page zoomed after blur — the single most disorienting
+     mobile-form behavior. The big onboarding fields (.input-wrap, 17px), the
+     code boxes (30px) and the search drop (16px) are already safe; these are
+     the stragglers. (.modal textarea is bumped further down, same reason.) */
+  .ta { font-size: 16px; }
+  .role-builder .row input { font-size: 16px; }
+  .rail-card .input-wrap input { font-size: 16px !important; } /* profile "Reach me" links — 13.5px inline */
+
   /* ---- top bar: make the GUEST cluster fit a phone (hotfix) ----
      Logged-out, the mobile bar ends in a full "Sign up" TEXT button instead of
      the compact avatar, so brand(34) + the three label tabs(215) + search + that
