@@ -1532,6 +1532,19 @@ input, textarea, select { font-family: inherit; }
   /* A bit more vertical air so each card's pin/tape (which juts top:-12px above
      the card) clears the card stacked above it instead of floating over it. */
   .feed-grid { gap: 30px 20px; }
+  /* The six category chip-filters read as one tidy rail on a desktop board, but
+     under 860px they wrap into a 2–3-row pill wall — and the rail is sticky, so
+     it shadows a third of a phone screen while scrolling. Drop it: the shelves
+     ("Popular now", "Fresh this week"…) + search cover phone browsing, and the
+     `cat` state stays wired for desktop. .feeds takes over the rail's 26px of
+     bottom padding so the first shelf doesn't crowd the greeting. */
+  .filters { display: none; }
+  .feeds { padding-top: 26px; }
+  /* Events grows the same rail but worse — All + nine event types wrap into
+     FOUR rows on a phone before a single event shows. Same call as .filters.
+     (.events carries inline padding:0, so its breathing room comes as margin.) */
+  .ev-filters { display: none; }
+  .discover .events { margin-top: 26px; }
 
   /* ---- Overlay hygiene ---- */
   /* The scrim centers its child via `display:grid; place-items:center`, but its
