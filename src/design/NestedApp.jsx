@@ -71,6 +71,7 @@ import { connectionService } from '../services/connectionService'
   function loadState() {
     try { return JSON.parse(localStorage.getItem(LS)) || {}; } catch (e) { return {}; }
   }
+
   // Project ids whose view was already recorded this browser session (per-tab,
   // survives reloads). Applies to guests AND signed-in users — for the
   // signed-in the server still dedupes per day; this just skips pointless RPCs.
@@ -172,6 +173,9 @@ import { connectionService } from '../services/connectionService'
     // Email seed for the forgot-password screen, populated when the user
     // clicks "Forgot password?" from the signin step so they don't retype it.
     const [forgotEmailSeed, setForgotEmailSeed] = useState("");
+    // Which auth screen opened forgot-password ("onboarding" | "orgSignup"),
+    // so its Back button returns an org to the org door, not the student wall.
+    const [forgotFrom, setForgotFrom] = useState("onboarding");
     // Mobile-only chrome state (≤860px): the account sheet behind the avatar, and
     // the collapsible top-bar search. Both are inert on desktop — their only
     // triggers live in the mobile-only top-bar cluster, which is display:none above
@@ -612,6 +616,78 @@ import { connectionService } from '../services/connectionService'
         toast("Couldn't save — " + (error.message || "try again"), "x");
       }
     }
+    // Owner-only: promote a crew member into projects.admins (co-lead) or
+    // demote them. Co-leads can edit the flyer / post updates / run the join
+    // inbox, but only the OWNER may change the admins list itself — the DB
+    // enforces that with the projects_guard_ownership trigger; this check is
+    // the client-side mirror. Optimistic, reverts with a toast on failure.
+    async function setCoLead(projectId, userId, make) {
+      const prev = projectsList.find((p) => p.id === projectId);
+      if (!prev || !isProjectOwner(prev, profile)) {
+        toast("Only the owner can change co-leads", "x");
+        return;
+      }
+      if (!userId || userId === prev.ownerId) return;
+      const base = Array.isArray(prev.admins) ? prev.admins : [];
+      const admins = make
+        ? [...new Set([...base, userId])]
+        : base.filter((a) => a !== userId);
+      setProjects((arr) => arr.map((p) => (p.id === projectId ? { ...p, admins } : p)));
+      const member = (prev.team || []).find((t) => t.userId === userId);
+      const who = member ? member.name.split(" ")[0] : "They";
+      toast(make ? who + " now co-leads this project" : who + " is no longer a co-lead", make ? "sparkle" : "x");
+      if (!isSupabaseConfigured()) return;
+      const { error } = await projectService.updateProject(projectId, { admins });
+      if (error) {
+        setProjects((arr) => arr.map((p) => (p.id === projectId ? prev : p)));
+        toast("Couldn't update co-leads — " + (error.message || "try again"), "x");
+      }
+    }
+    // Owner-only: remove a crew member entirely — their team_members row and,
+    // if they were a co-lead, their grant in admins. Admins is revoked FIRST so
+    // a failed row-delete can never leave a kicked member still holding edit
+    // rights. Optimistic, reverts with a toast on failure.
+    async function kickMember(projectId, userId) {
+      const prev = projectsList.find((p) => p.id === projectId);
+      if (!prev || !isProjectOwner(prev, profile)) {
+        toast("Only the owner can remove crew", "x");
+        return;
+      }
+      if (!userId || userId === prev.ownerId) return;
+      const member = (prev.team || []).find((t) => t.userId === userId);
+      if (!member) return;
+      const team = (prev.team || []).filter((t) => t.userId !== userId);
+      const base = Array.isArray(prev.admins) ? prev.admins : [];
+      const admins = base.filter((a) => a !== userId);
+      const wasCoLead = base.includes(userId);
+      const revert = () => setProjects((arr) => arr.map((p) => (p.id === projectId ? prev : p)));
+      setProjects((arr) => arr.map((p) => (p.id === projectId
+        ? { ...p, team, admins, joinedCount: Math.max(0, (p.joinedCount || 0) - 1) }
+        : p)));
+      toast(member.name.split(" ")[0] + " was removed from the crew", "x");
+      if (!isSupabaseConfigured()) return;
+      if (!member.memberId) {
+        revert();
+        toast("Couldn't remove them — try again", "x");
+        return;
+      }
+      if (wasCoLead) {
+        const { error } = await projectService.updateProject(projectId, { admins });
+        if (error) {
+          revert();
+          toast("Couldn't remove them — " + (error.message || "try again"), "x");
+          return;
+        }
+      }
+      const { error } = await projectService.removeTeamMember(member.memberId);
+      if (error) {
+        // The co-lead grant (if any) is already revoked server-side, so don't
+        // revert wholesale — restore the member to the crew WITHOUT their
+        // co-lead status, keeping the UI in lockstep with the server.
+        setProjects((arr) => arr.map((p) => (p.id === projectId ? { ...prev, admins } : p)));
+        toast("Couldn't remove them — " + (error.message || "try again"), "x");
+      }
+    }
     // Owner-only: approve/decline a pending join request (team_members status).
     // Requests can be acted on from the project detail page (pendingRequests, one
     // project) OR the Notifications inbox (projectRequests, all projects). Update
@@ -771,9 +847,10 @@ import { connectionService } from '../services/connectionService'
     const projectsList = projects;
     // Incoming connections the user hasn't reciprocated yet — drives the bell dot.
     const incomingPending = incoming.filter((p) => !connected.includes(p.id));
-    // "My projects" = the ones I own, derived from the discover list (all my
-    // flyers publish to discover). Drives the profile's pinned-projects rail.
-    const myProjects = profile ? projectsList.filter((p) => isProjectOwner(p, profile)) : [];
+    // "My projects" = the ones I own OR co-lead (a promoted co-lead runs the
+    // flyer too), derived from the discover list (all my flyers publish to
+    // discover). Drives the profile's pinned-projects rail.
+    const myProjects = profile ? projectsList.filter((p) => isProjectAdmin(p, profile)) : [];
     const detailProject = projectsList.find((p) => p.id === detailId);
     const accent = ACCENTS.find((a) => a.v === t.accent) || ACCENTS[0];
 
@@ -805,6 +882,7 @@ import { connectionService } from '../services/connectionService'
             onOrgPath: () => { setRoute("orgSignup"); window.scrollTo({ top: 0 }); },
             onForgot: (seedEmail) => {
               setForgotEmailSeed(seedEmail || "");
+              setForgotFrom("onboarding");
               setRoute("forgot");
               window.scrollTo({ top: 0 });
             },
@@ -821,7 +899,7 @@ import { connectionService } from '../services/connectionService'
         React.createElement("div", { className: rootClass, style: rootStyle },
           React.createElement(ForgotPassword, {
             initialEmail: forgotEmailSeed,
-            onBack: () => { setRoute("onboarding"); window.scrollTo({ top: 0 }); },
+            onBack: () => { setRoute(forgotFrom); window.scrollTo({ top: 0 }); },
             onComplete: () => {
               // updatePassword left us with a real session — let the shared
               // hydration helper route us (student → discover, org → dashboard).
@@ -841,6 +919,12 @@ import { connectionService } from '../services/connectionService'
         React.createElement("div", { className: rootClass, style: rootStyle },
           React.createElement(OrgSignup, {
             onBack: () => setRoute("onboarding"),
+            onForgot: (seedEmail) => {
+              setForgotEmailSeed(seedEmail || "");
+              setForgotFrom("orgSignup");
+              setRoute("forgot");
+              window.scrollTo({ top: 0 });
+            },
             onSignedUp: () => {
               setRoute("orgOnboarding");
               window.scrollTo({ top: 0 });
@@ -1327,6 +1411,8 @@ import { connectionService } from '../services/connectionService'
           },
           onEdit: (p) => openEdit(p.id),
           onUpdateStatus: updateProjectStatus,
+          onSetCoLead: setCoLead,
+          onKickMember: kickMember,
           onOpenProfile: openProfile,
         }),
 

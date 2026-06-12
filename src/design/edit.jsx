@@ -6,7 +6,7 @@
    ============================================================ */
 import React from 'react'
 import Icon from './icons'
-import { CAT, UNI } from './data'
+import { CAT, UNI, isProjectOwner } from './data'
 import { Av, Facepile, CatTag, Pin } from './shared'
 import ProjectForm from './projectForm'
 
@@ -208,15 +208,20 @@ import ProjectForm from './projectForm'
       onDelete(project.id);
     }
 
-    const extraFooter = React.createElement("button", {
-      type: "button",
-      className: "ghost-link",
-      onClick: () => setConfirming(true),
-      style: { color: "var(--c-startup)", marginLeft: 14 },
-    },
-      React.createElement(Icon, { name: "x", size: 14, stroke: "currentColor" }),
-      "Take it down"
-    );
+    // "Take it down" is OWNER-only — a co-lead can edit the flyer but not
+    // delete it. (NestedApp's onDelete + the owner-only RLS DELETE policy
+    // backstop this; hiding the link just keeps the form honest.)
+    const extraFooter = isProjectOwner(project, profile)
+      ? React.createElement("button", {
+          type: "button",
+          className: "ghost-link",
+          onClick: () => setConfirming(true),
+          style: { color: "var(--c-startup)", marginLeft: 14 },
+        },
+          React.createElement(Icon, { name: "x", size: 14, stroke: "currentColor" }),
+          "Take it down"
+        )
+      : null;
 
     return (
       React.createElement(React.Fragment, null,

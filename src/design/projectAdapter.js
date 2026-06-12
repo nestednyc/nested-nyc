@@ -97,7 +97,9 @@ export function fromDbProject(row) {
       ? row.admins
       : (row.owner_id ? [row.owner_id] : []),
     lead: { name: leadName, role: "Project lead", bio: "", userId: row.owner_id || null, image: memberPhoto(ownerMember) },
-    team: crew.map((m) => ({ name: liveName(m) || notYou(m.name) || "Member", role: m.role || "Member", userId: m.user_id || null, image: memberPhoto(m) })),
+    // memberId = the team_members row id, so owner actions that target the
+    // row itself (kick) don't have to re-query by project+user.
+    team: crew.map((m) => ({ name: liveName(m) || notYou(m.name) || "Member", role: m.role || "Member", userId: m.user_id || null, memberId: m.id || null, image: memberPhoto(m) })),
     event: row.timeline || "",
     place: row.place || "",
     stage: row.stage || "",

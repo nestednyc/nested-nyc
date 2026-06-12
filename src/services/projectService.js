@@ -111,38 +111,6 @@ export const projectService = {
   },
 
   /**
-   * Get all projects owned by the current user
-   * @returns {Promise<{data: array|null, error: object|null}>}
-   */
-  async getMyProjects() {
-    if (!isSupabaseConfigured() || !supabase) {
-      return { data: [], error: null }
-    }
-
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
-      return { data: [], error: null }
-    }
-
-    const { data, error } = await supabase
-      .from('projects')
-      .select('*, team_members(*, profiles(avatar, photos, first_name, last_name, username))')
-      .eq('owner_id', user.id)
-      .order('created_at', { ascending: false })
-
-    // Filter to only include approved team members
-    if (data) {
-      data.forEach(project => {
-        if (project.team_members) {
-          project.team_members = project.team_members.filter(m => m.status === 'approved')
-        }
-      })
-    }
-
-    return { data: data || [], error }
-  },
-
-  /**
    * Create a new project
    * @param {object} project - Project data
    * @returns {Promise<{data: object|null, error: object|null}>}
@@ -528,9 +496,10 @@ export const projectService = {
   },
 
   /**
-   * Pending join requests across ALL projects the current user owns — the
-   * owner-side inbox that powers the Notifications page. Each row carries its
-   * project ({id, title}) for context. (getPendingRequests above is per-project.)
+   * Pending join requests across ALL projects the current user owns or
+   * co-leads — the lead-side inbox that powers the Notifications page. Each
+   * row carries its project ({id, title}) for context. (getPendingRequests
+   * above is per-project.)
    * @returns {Promise<{data: array, error: object|null}>}
    */
   async getMyPendingRequests() {
@@ -542,12 +511,13 @@ export const projectService = {
       return { data: [], error: null }
     }
     // Two-step (no embedded filter — PostgREST's `projects!inner` + a filter on the
-    // embedded column proved unreliable): fetch my owned projects, then their
-    // pending requests. Same RLS path as getPendingRequests(projectId).
+    // embedded column proved unreliable): fetch the projects I lead (owner OR
+    // promoted into admins — `cs` = array contains), then their pending
+    // requests. Same RLS path as getPendingRequests(projectId).
     const { data: owned, error: ownErr } = await supabase
       .from('projects')
       .select('id, name')
-      .eq('owner_id', user.id)
+      .or('owner_id.eq.' + user.id + ',admins.cs.{' + user.id + '}')
     if (ownErr) return { data: [], error: ownErr }
     if (!owned || !owned.length) return { data: [], error: null }
 
