@@ -207,6 +207,31 @@ export const profileService = {
   },
 
   /**
+   * Resolve a student by username for the /u/:username page.
+   * Reads the column-scoped student_cards view (authenticated grant — the
+   * route is student-gated). Case-insensitive: the unique index is on
+   * LOWER(username), so ilike with escaped wildcards matches exactly one row.
+   * @param {string} username
+   * @returns {Promise<{data: object|null, error: object|null}>}
+   */
+  async getByUsername(username) {
+    if (!isSupabaseConfigured() || !supabase) {
+      return { data: null, error: { message: 'Supabase not configured' } }
+    }
+    const needle = String(username || '').replace(/[%_]/g, '\\$&')
+    if (!needle) return { data: null, error: null }
+
+    const { data, error } = await supabase
+      .from('student_cards')
+      .select('*')
+      .ilike('username', needle)
+      .neq('account_type', 'org_admin')
+      .maybeSingle()
+
+    return { data, error }
+  },
+
+  /**
    * Get all profiles (for discovery/matching)
    * @param {object} options - Query options (limit, offset, filters)
    * @returns {Promise<{data: array|null, error: object|null}>}

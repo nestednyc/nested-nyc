@@ -812,6 +812,10 @@ input, textarea, select { font-family: inherit; }
 .pm-photos .polaroid:nth-child(1){transform:rotate(-3deg)} .pm-photos .polaroid:nth-child(2){transform:rotate(2deg);z-index:2} .pm-photos .polaroid:nth-child(3){transform:rotate(4deg)}
 .pm-section { margin-top: 22px; }
 
+/* ---- /u/:username — the profile card as a standalone page ---- */
+.person-page { max-width: 600px; margin: 0 auto; padding: 26px clamp(18px, 3vw, 40px) 120px; }
+.person-page .profile-modal { max-width: none; max-height: none; overflow: visible; animation: none; }
+
 /* ============================================================
    CREATE — Pin a project (5-step form, reuses .onb shell)
    ============================================================ */

@@ -48,3 +48,6 @@ SECURITY_AUDIT.md
 social/
 insta/
 insta-reel/
+
+# Local browser-verification probes (Playwright) — not part of the codebase
+.verify/
