@@ -40,7 +40,8 @@
   const MAJORS = [
     "Computer Science", "Design / Comm Design", "Business", "Mechanical Eng",
     "Economics", "Fine Arts", "Data Science", "Architecture", "Film / Media",
-    "Cognitive Science", "Math", "Marketing", "Music Tech", "Bio / Pre-med", "Undeclared",
+    "Cognitive Science", "Math", "Marketing", "Music Tech", "Bio / Pre-med",
+    "Political Science", "Computer Information Systems", "Undeclared",
   ];
 
   const INTERESTS = [
