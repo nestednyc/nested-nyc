@@ -51,3 +51,6 @@ insta-reel/
 
 # Local browser-verification probes (Playwright) — not part of the codebase
 .verify/
+
+# Email preview screenshots — regenerable from the HTML, not part of the codebase
+email-preview/out/*.png
