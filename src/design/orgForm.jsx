@@ -6,9 +6,8 @@
    ============================================================ */
 import React from 'react'
 import Icon from './icons'
-import { ORG_TYPES, UNIVERSITIES, UNI } from './data'
-import { Av, Stamp, UniLogo } from './shared'
-import { slugify, validateSlug } from '../services/orgService'
+import { ORG_TYPES, UNIVERSITIES } from './data'
+import { Stamp, UniLogo, OrgMini } from './shared'
 
   const { useState } = React;
 
@@ -16,7 +15,6 @@ import { slugify, validateSlug } from '../services/orgService'
 
   const EMPTY_VALUES = {
     name: "",
-    slug: "",
     type: "",
     uni: "",
     bio: "",
@@ -25,29 +23,10 @@ import { slugify, validateSlug } from '../services/orgService'
     instagram: "",
   };
 
-  // Compact org card used in the step-3 preview (and mirrored in the aside).
+  // Step-3 preview / aside mirror — the shared org flyer rendered with the
+  // in-progress draft (always "pending", since this only shows pre-creation).
   function OrgPreview({ name, type, uni, bio }) {
-    const uniName = uni && UNI[uni] ? UNI[uni].name : null;
-    const typeLabel = type ? (ORG_TYPES.find((t) => t.id === type) || {}).label : "Organization";
-    const sub = [typeLabel, uniName].filter(Boolean).join(" · ");
-    return (
-      React.createElement("article", { className: "org-mini grain", style: { "--rot": "-1.5deg" } },
-        React.createElement("span", { className: "tape left" }),
-        React.createElement("span", { className: "tape right" }),
-        React.createElement("div", { className: "org-mini-head" },
-          React.createElement(Av, { name: name && name.trim() ? name : "New Org", size: 46 }),
-          React.createElement("div", { className: "org-mini-id" },
-            React.createElement("b", null, (name || "").trim() || "Your organization"),
-            React.createElement("small", null, sub)
-          )
-        ),
-        React.createElement("p", { className: "org-mini-bio" }, (bio || "").trim() || "A one-line description of who you are and what you host."),
-        React.createElement("div", { className: "org-mini-foot" },
-          React.createElement("span", { className: "pending-chip" },
-            React.createElement(Icon, { name: "clock", size: 12, stroke: "currentColor" }), "Pending .edu review")
-        )
-      )
-    );
+    return React.createElement(OrgMini, { name, type, uni, bio, verified: false });
   }
 
   function OrgForm({
@@ -58,15 +37,12 @@ import { slugify, validateSlug } from '../services/orgService'
     ctaCopy,
     onSubmit,
     onCancel,
-    existingIds,
     extraFooter,
   }) {
     const init = { ...EMPTY_VALUES, ...(initialValues || {}) };
 
     const [step, setStep] = useState(0);
     const [name, setName] = useState(init.name);
-    const [slug, setSlug] = useState(init.slug);
-    const [slugTouched, setSlugTouched] = useState(!!init.slug);
     const [type, setType] = useState(init.type);
     const [uni, setUni] = useState(init.uni || (profile && profile.uni) || "");
     const [bio, setBio] = useState(init.bio);
@@ -77,19 +53,6 @@ import { slugify, validateSlug } from '../services/orgService'
     const editable = mode === "edit";
     const cta = ctaCopy || { primary: "Pin your org", icon: "pin" };
 
-    // Slug auto-suggests from the name until edited. validateSlug + slugify are
-    // the SAME helpers orgService uses on insert, so the form enforces exactly
-    // what the DB CHECK accepts (3–32 chars, a-z0-9-, no edge hyphens, reserved
-    // words blocked). Phase 2 swaps the local create for orgService.createOrg.
-    const effSlug = (slugTouched ? slug : slugify(name)) || "";
-    const slugErr = effSlug ? validateSlug(effSlug) : null;
-    const slugTaken = !!(existingIds && effSlug && existingIds.has(effSlug) && effSlug !== init.slug);
-
-    function setSlugManual(v) {
-      setSlugTouched(true);
-      setSlug(v.toLowerCase().replace(/[^a-z0-9-]/g, ""));
-    }
-
     function next() { setStep((s) => Math.min(s + 1, STEP_COUNT - 1)); }
     function back() { setStep((s) => Math.max(s - 1, 0)); }
     function jumpTo(i) { if (editable) setStep(i); }
@@ -99,7 +62,7 @@ import { slugify, validateSlug } from '../services/orgService'
     const showUni = type && type !== "university";
 
     const stepGates = [
-      !!name.trim() && !!effSlug && !slugErr && !slugTaken && !!type && (!needsUni || !!uni),
+      !!name.trim() && !!type && (!needsUni || !!uni),
       !!bio.trim() && !!location.trim(),
       true,
     ];
@@ -110,7 +73,6 @@ import { slugify, validateSlug } from '../services/orgService'
       if (!allValid) return;
       onSubmit({
         name: name.trim(),
-        slug: effSlug,
         type,
         uni: showUni ? uni : "",
         bio: bio.trim(),
@@ -120,7 +82,7 @@ import { slugify, validateSlug } from '../services/orgService'
       });
     }
 
-    const currentValues = { name, slug: effSlug, type, uni: showUni ? uni : "", bio, location, website, instagram };
+    const currentValues = { name, type, uni: showUni ? uni : "", bio, location, website, instagram };
 
     // ---------- step bodies ----------
     let body;
@@ -143,21 +105,6 @@ import { slugify, validateSlug } from '../services/orgService'
                 onChange: (e) => setName(e.target.value),
               })
             )
-          ),
-
-          React.createElement("div", { className: "field", style: { marginTop: 22 } },
-            React.createElement("label", null, "Page link"),
-            React.createElement("div", { className: "input-wrap slug-wrap" + (effSlug && !slugTaken && !slugErr ? " good" : "") },
-              React.createElement("span", { className: "slug-prefix" }, "nested.app/orgs/"),
-              React.createElement("input", {
-                placeholder: "nyu-ai-collective",
-                value: effSlug,
-                onChange: (e) => setSlugManual(e.target.value),
-              })
-            ),
-            React.createElement("div", { className: "hint" }, (slugTaken || slugErr)
-              ? React.createElement("span", { style: { color: "var(--c-startup)" } }, "// " + (slugTaken ? "that link is taken — try another" : slugErr.toLowerCase()))
-              : "// auto-filled from your name · edit if you like")
           ),
 
           React.createElement("div", { className: "field", style: { marginTop: 22 } },
@@ -326,5 +273,5 @@ import { slugify, validateSlug } from '../services/orgService'
     );
   }
 
-  export { OrgForm, OrgPreview, EMPTY_VALUES, slugify };
+  export { OrgForm, OrgPreview, EMPTY_VALUES };
   export default OrgForm;

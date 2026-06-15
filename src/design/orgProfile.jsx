@@ -8,9 +8,7 @@
 import React from 'react'
 import Icon from './icons'
 import { ETYPE, UNI, ORG_TYPES } from './data'
-import { Av, Facepile, CatTag, Stamp } from './shared'
-
-  const { useState } = React;
+import { Av, Facepile, CatTag, Stamp, UniLogo } from './shared'
 
   // Force user-supplied org links into an http(s) context so a javascript:/data:
   // URL can't execute when clicked. Mirrors the LinkPill guard in people.jsx.
@@ -75,97 +73,85 @@ import { Av, Facepile, CatTag, Stamp } from './shared'
     );
   }
 
-  function OrgEvents({ events, onOpenEvent, isOwner, onCreateEvent }) {
+  // Events split into Upcoming / Past as two labeled lists (no sticky tab bar —
+  // an org page is usually a handful of events; the segmented control was wrong
+  // altitude). Empty → the dashed-paper empty state.
+  function OrgEvents({ events, onOpenEvent }) {
     const upcoming = events.filter((e) => !e.isPast);
     const past = events.filter((e) => e.isPast);
-    const [tab, setTab] = useState(upcoming.length ? "upcoming" : "past");
-    const list = tab === "upcoming" ? upcoming : past;
+
+    if (!upcoming.length && !past.length) {
+      return React.createElement("div", { className: "org-empty" },
+        React.createElement(Icon, { name: "calendar", size: 34, stroke: "var(--accent)" }),
+        React.createElement("p", null, "No events yet."));
+    }
 
     return (
       React.createElement("div", { className: "org-events" },
-        React.createElement("div", { className: "match-tabs" },
-          React.createElement("button", { className: "match-tab" + (tab === "upcoming" ? " active" : ""), onClick: () => setTab("upcoming") },
-            React.createElement(Icon, { name: "calendar", size: 18 }), "Upcoming",
-            upcoming.length > 0 && React.createElement("span", { className: "b" }, upcoming.length)),
-          React.createElement("button", { className: "match-tab" + (tab === "past" ? " active" : ""), onClick: () => setTab("past") },
-            React.createElement(Icon, { name: "clock", size: 18 }), "Past",
-            past.length > 0 && React.createElement("span", { className: "b" }, past.length))
-        ),
-        list.length
+        React.createElement("div", { className: "sec-h" }, "Upcoming"),
+        upcoming.length
           ? React.createElement("div", { className: "event-list" },
-              list.map((e) => React.createElement(EventRow, { key: e.id, e, onOpen: onOpenEvent })))
-          : React.createElement("div", { className: "org-empty" },
-              React.createElement(Icon, { name: "calendar", size: 34, stroke: "var(--accent)" }),
-              React.createElement("p", null, tab === "upcoming" ? "No upcoming events yet." : "No past events."),
-              isOwner && tab === "upcoming" && React.createElement("button", { className: "btn btn-primary", style: { marginTop: 14 }, onClick: onCreateEvent },
-                React.createElement(Icon, { name: "plus", size: 16, stroke: "var(--paper)" }), "Pin an event"))
+              upcoming.map((e) => React.createElement(EventRow, { key: e.id, e, onOpen: onOpenEvent })))
+          : React.createElement("div", { className: "org-empty" }, React.createElement("p", null, "Nothing coming up right now.")),
+        past.length > 0 && React.createElement("div", { className: "sec-h", style: { marginTop: 30 } }, "Past"),
+        past.length > 0 && React.createElement("div", { className: "event-list" },
+          past.map((e) => React.createElement(EventRow, { key: e.id, e, onOpen: onOpenEvent })))
       )
     );
   }
 
-  function OrgProfile({ org, events = [], isOwner, following, onBack, onOpenEvent, onManage, onCreateEvent, onFollow }) {
+  // The public org page — a campus-colored paper poster pinned to the cork
+  // board. Visitor-only (the owner manages from the dashboard; there's no
+  // owner variant of this page anymore). Campus identity (color + logo) comes
+  // from UNI[org.uni] when the org's university resolves, else the accent.
+  function OrgProfile({ org, events = [], following, onBack, onOpenEvent, onFollow }) {
     if (!org) return null;
-    const uniName = org.uni && UNI[org.uni] ? UNI[org.uni].name : null;
+    const uniObj = org.uni && UNI[org.uni] ? UNI[org.uni] : null;
+    const barColor = uniObj ? uniObj.color : "var(--accent)";
     const meta = [orgSub(org), org.location].filter(Boolean).join(" · ");
 
     return (
       React.createElement("div", { className: "org-wrap" },
         React.createElement("div", { className: "backbar" },
           React.createElement("button", { className: "back", onClick: onBack },
-            React.createElement(Icon, { name: "arrowLeft", size: 17 }), "Your orgs")
+            React.createElement(Icon, { name: "arrowLeft", size: 17 }), "Back")
         ),
 
-        React.createElement("div", { className: "org-page grain fade-up" },
-          React.createElement("div", { className: "org-banner" },
-            React.createElement("span", { className: "tape left" }),
-            React.createElement("span", { className: "tape right" }),
-            org.verified && React.createElement(Stamp, { size: 88, label: "ORG", className: "org-stamp" })
-          ),
+        React.createElement("article", { className: "org-page org-poster grain fade-up" },
+          React.createElement("div", { className: "cat-bar", style: { background: barColor } }),
+          org.verified && React.createElement(Stamp, { size: 96, label: "ORG", className: "detail-stamp" }),
 
           React.createElement("div", { className: "org-inner" },
-            React.createElement("div", { className: "org-head" },
-              React.createElement("div", { className: "org-logo" }, React.createElement(Av, { name: org.name, size: 84 })),
-              React.createElement("div", { className: "org-id" },
+            React.createElement("div", { className: "org-headline" },
+              uniObj
+                ? React.createElement(UniLogo, { uni: uniObj, size: 60, radius: "24%" })
+                : React.createElement(Av, { name: org.name, size: 60 }),
+              React.createElement("div", { className: "org-id", style: { minWidth: 0 } },
                 React.createElement("h1", null, org.name),
-                React.createElement("div", { className: "org-meta" },
-                  meta,
-                  org.verified
-                    ? React.createElement("span", { className: "org-badge ok" }, React.createElement(Icon, { name: "check", size: 12, stroke: "var(--paper)", width: 3 }), "Verified")
-                    : React.createElement("span", { className: "org-badge pend" }, React.createElement(Icon, { name: "clock", size: 12, stroke: "currentColor" }), "Pending review")
-                )
+                meta && React.createElement("span", { className: "org-sub" }, meta)
               )
             ),
 
             org.bio && React.createElement("p", { className: "org-bio" }, org.bio),
 
             (org.website || org.instagram) && React.createElement("div", { className: "org-links" },
-              org.website && React.createElement("a", { className: "linkpill", href: safeUrl(org.website), target: "_blank", rel: "noreferrer", onClick: (e) => e.stopPropagation() },
+              org.website && React.createElement("a", { className: "linkpill", href: safeUrl(org.website), target: "_blank", rel: "noreferrer" },
                 React.createElement(Icon, { name: "globe", size: 14 }), org.website.replace(/^https?:\/\//, "")),
-              org.instagram && React.createElement("a", { className: "linkpill", href: "https://instagram.com/" + org.instagram, target: "_blank", rel: "noreferrer", onClick: (e) => e.stopPropagation() },
+              org.instagram && React.createElement("a", { className: "linkpill", href: "https://instagram.com/" + org.instagram, target: "_blank", rel: "noreferrer" },
                 React.createElement(Icon, { name: "camera", size: 14 }), "@" + org.instagram)
             ),
 
             React.createElement("div", { className: "org-cta" },
-              isOwner
-                ? [
-                    React.createElement("span", { key: "y", className: "owner-chip" },
-                      React.createElement(Icon, { name: "check", size: 13, stroke: "var(--accent)", width: 2.4 }), "You manage this org"),
-                    org.verified && React.createElement("button", { key: "c", className: "btn btn-primary", onClick: onCreateEvent },
-                      React.createElement(Icon, { name: "plus", size: 17, stroke: "var(--paper)" }), "Pin an event"),
-                  ]
-                : [
-                    React.createElement("button", { key: "f", className: "btn " + (following ? "btn-primary done" : "btn-primary"), onClick: () => onFollow && onFollow(org) },
-                      following
-                        ? [React.createElement(Icon, { name: "check", size: 17, stroke: "var(--paper)", key: "i" }), "Following"]
-                        : [React.createElement(Icon, { name: "plus", size: 17, stroke: "var(--paper)", key: "i" }), "Follow"]),
-                    org.website && React.createElement("a", { key: "w", className: "btn btn-ghost", href: safeUrl(org.website), target: "_blank", rel: "noreferrer" },
-                      React.createElement(Icon, { name: "external", size: 16 }), "Visit site"),
-                  ]
+              React.createElement("button", { className: "btn " + (following ? "btn-primary done" : "btn-primary"), onClick: () => onFollow && onFollow(org) },
+                following
+                  ? [React.createElement(Icon, { name: "check", size: 17, stroke: "var(--paper)", key: "i" }), "Following"]
+                  : [React.createElement(Icon, { name: "plus", size: 17, stroke: "var(--paper)", key: "i" }), "Follow"]),
+              org.website && React.createElement("a", { className: "btn btn-ghost", href: safeUrl(org.website), target: "_blank", rel: "noreferrer" },
+                React.createElement(Icon, { name: "external", size: 16 }), "Visit site")
             ),
 
             React.createElement("div", { className: "org-section" },
-              React.createElement("div", { className: "sec-h" }, "Events from " + org.name.split(" ")[0]),
-              React.createElement(OrgEvents, { events, onOpenEvent, isOwner, onCreateEvent })
+              React.createElement(OrgEvents, { events, onOpenEvent })
             )
           )
         )

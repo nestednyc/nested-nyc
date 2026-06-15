@@ -22,7 +22,6 @@ import OrgSignup from './orgSignup'
 import OrgOnboard from './orgOnboard'
 import OrgDashboard from './orgDashboard'
 import OrgEdit from './orgEdit'
-import OrgProfile from './orgProfile'
 import OrgView from './orgView'
 import EventForm from './eventForm'
 import EventDetail from './eventDetail'
@@ -166,8 +165,8 @@ import { parse as parseLocation, build as buildPath, accessOf, validateNext, tit
     const [eventDraftId, setEventDraftId] = useState(bootParams.eventDraftId || null);
     // Student-side org-profile navigation. Populated when a student clicks an
     // event's host pill; the orgView route loads the org by slug and renders
-    // a public OrgProfile around it. Distinct from orgAccount (an authed
-    // org owner viewing their OWN page via the orgPublic route).
+    // a public OrgProfile around it. Distinct from orgAccount (an authed org
+    // owner, who manages from the dashboard — owners have no public-page view).
     const [orgViewSlug, setOrgViewSlug] = useState(bootParams.orgViewSlug || null);
     // The event the student is currently inspecting. Set by openEventDetail
     // from any of the feed surfaces (events tab, org public page, org view).
@@ -175,8 +174,7 @@ import { parse as parseLocation, build as buildPath, accessOf, validateNext, tit
     // resolved inside the EventDetail screen.
     const [eventViewId, setEventViewId] = useState(bootParams.eventViewId || null);
     // Where the user came from when opening an event, so Back goes home cleanly:
-    // "events" (default), "orgView" (came from a host's public page), "orgPublic"
-    // (org owner clicked their own event from their public-page surface).
+    // "events" (default) or "orgView" (came from a host's public page).
     // Rides history.state per entry, so a reload restores it too.
     const [eventViewFrom, setEventViewFrom] = useState(() => {
       const st = window.history.state;
@@ -258,7 +256,7 @@ import { parse as parseLocation, build as buildPath, accessOf, validateNext, tit
         authMode,
         detailTitle: dp && dp.title ? dp.title.split(" — ")[0] : null,
         username: profileViewUsername,
-        orgSlug: route === "orgPublic" ? (orgAccount && orgAccount.slug) : orgViewSlug,
+        orgSlug: orgViewSlug,
       });
       // Booted on a Supabase email link: supabase-js owns the URL (it strips
       // its #access_token hash) until hydrateSession routes us and clears this.
@@ -349,11 +347,11 @@ import { parse as parseLocation, build as buildPath, accessOf, validateNext, tit
         return redirect("onboarding");
       }
       if (org) {
-        // Org accounts live in the dashboard subtree. Their own public slug
-        // upgrades to the owner view; student/anon/home URLs go to the
-        // dashboard; other public surfaces (events, projects, other orgs) stay.
+        // Org accounts live in the dashboard subtree. Their own slug + any
+        // student/anon/home URL go to the dashboard; other public surfaces
+        // (events, projects, other orgs) stay.
         if (target === "orgView" && params.orgViewSlug === org.slug) {
-          return redirect("orgPublic");
+          return redirect("orgDashboard");
         }
         if (access === "student" || access === "anon" || target === "discover") {
           return redirect("orgDashboard");
@@ -659,8 +657,20 @@ import { parse as parseLocation, build as buildPath, accessOf, validateNext, tit
       // org admins own an org.
       const myOrgs = await orgService.getMyOrgs();
       if (aborted()) return;
-      const ownedOrg = (myOrgs.data && myOrgs.data[0]) || null;
+      let ownedOrg = (myOrgs.data && myOrgs.data[0]) || null;
       if (ownedOrg) {
+        // Resolve campus → UNI slug for the dashboard flyer echo (color + logo);
+        // the DB row carries university_id, not a uni slug.
+        let orgUni = null;
+        if (ownedOrg.type === 'university' && NestedData.UNI[ownedOrg.slug]) {
+          orgUni = ownedOrg.slug;
+        } else if (ownedOrg.university_id) {
+          const { data: unis } = await orgService.listUniversities();
+          if (aborted()) return;
+          const parent = (unis || []).find((u) => u.id === ownedOrg.university_id);
+          if (parent && NestedData.UNI[parent.slug]) orgUni = parent.slug;
+        }
+        ownedOrg = { ...ownedOrg, uni: orgUni };
         setOrgAccount(ownedOrg);
         orgAccountRef.current = ownedOrg; // applyParsed below must see it NOW
         if (cb) {
@@ -1203,7 +1213,7 @@ import { parse as parseLocation, build as buildPath, accessOf, validateNext, tit
     // applyParsed corrects the position (replaceState, sub-second).
     const needsStudent = route === "profile" || route === "create" || route === "edit" ||
       route === "userProfile" || route === "notifications";
-    const needsOrg = route === "orgDashboard" || route === "orgPublic" || route === "orgEditMe" ||
+    const needsOrg = route === "orgDashboard" || route === "orgEditMe" ||
       route === "eventCreate" || route === "eventEdit";
     if (sessionPending && ((needsStudent && !profile) || (needsOrg && !orgAccount))) {
       return (
@@ -1542,7 +1552,7 @@ import { parse as parseLocation, build as buildPath, accessOf, validateNext, tit
     }
 
     // ---------- ORG APP SHELL (dashboard + own public page) ----------
-    if (orgAccount && (route === "orgDashboard" || route === "orgPublic" || route === "eventDetail")) {
+    if (orgAccount && (route === "orgDashboard" || route === "eventDetail")) {
       return (
         React.createElement("div", { className: rootClass + " corkbg", style: { ...rootStyle, minHeight: "100vh" } },
           // Minimal topbar: brand + org chip + sign-out. No student NAV/search.
@@ -1555,11 +1565,7 @@ import { parse as parseLocation, build as buildPath, accessOf, validateNext, tit
               React.createElement("button", {
                 className: route === "orgDashboard" ? "active" : "",
                 onClick: () => setRoute("orgDashboard"),
-              }, React.createElement(Icon, { name: "grid", size: 18 }), "Dashboard"),
-              React.createElement("button", {
-                className: route === "orgPublic" ? "active" : "",
-                onClick: () => setRoute("orgPublic"),
-              }, React.createElement(Icon, { name: "external", size: 18 }), "Public page")
+              }, React.createElement(Icon, { name: "grid", size: 18 }), "Dashboard")
             ),
             React.createElement("span", { className: "spacer", style: { flex: 1 } }),
             React.createElement("button", { className: "me-chip", onClick: signOut, title: "Sign out" },
@@ -1578,30 +1584,7 @@ import { parse as parseLocation, build as buildPath, accessOf, validateNext, tit
             onCreateEvent: () => { setRoute("eventCreate"); window.scrollTo({ top: 0 }); },
             onEditOrg: () => { setRoute("orgEditMe"); window.scrollTo({ top: 0 }); },
             onEditEvent: (id) => { setEventDraftId(id); setRoute("eventEdit"); window.scrollTo({ top: 0 }); },
-            onViewPublic: () => { setRoute("orgPublic"); window.scrollTo({ top: 0 }); },
             onSignOut: signOut,
-          }),
-
-          route === "orgPublic" && React.createElement(OrgProfile, {
-            org: orgAccount,
-            events: (orgEvents || []).map((e) => ({
-              id: e.id,
-              type: e.event_type || 'talk',
-              title: e.title,
-              day: e.date ? new Date(e.date + 'T00:00:00').getDate().toString().padStart(2, '0') : '—',
-              mon: e.date ? new Date(e.date + 'T00:00:00').toLocaleString('en-US', { month: 'short' }).toUpperCase() : '—',
-              time: e.time || '',
-              place: e.location || '',
-              going: e.attendees || 0,
-              goingNames: [],
-              isPast: !!e.is_past,
-            })),
-            isOwner: true,
-            following: false,
-            onBack: () => setRoute("orgDashboard"),
-            onOpenEvent: (id) => openEventDetail(id, "orgPublic"),
-            onCreateEvent: () => setRoute("eventCreate"),
-            onFollow: () => {},
           }),
 
           // Org owner viewing the public side of one of their own events.
@@ -1612,7 +1595,7 @@ import { parse as parseLocation, build as buildPath, accessOf, validateNext, tit
             profile,
             rsvped,
             orgAccount,
-            onBack: () => { setEventViewId(null); setRoute(eventViewFrom === "orgPublic" ? "orgPublic" : "orgDashboard"); },
+            onBack: () => { setEventViewId(null); setRoute("orgDashboard"); },
             onRSVP: toggleRsvp,
             onOpenOrg: openOrgView,
             onEditEvent: (id) => { setEventDraftId(id); setEventViewId(null); setRoute("eventEdit"); window.scrollTo({ top: 0 }); },

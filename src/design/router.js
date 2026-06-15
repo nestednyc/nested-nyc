@@ -21,10 +21,9 @@
 // NestedApp state field it hydrates. `state` is extra state pinned
 // by the path itself (e.g. which auth form /login opens).
 //
-// `orgPublic` (an org owner viewing their own page) and `soon` have
-// no entry on purpose: orgPublic shares /org/:slug — parse always
-// yields orgView and NestedApp upgrades its own slug — and soon has
-// no URL at all (build returns null, the URL stays put).
+// `soon` has no entry on purpose: no URL at all (build returns null, the
+// URL stays put). Org owners have no public-page route — visiting their
+// own /org/:slug just routes them to the dashboard.
 const ROUTES = [
   { route: "discover",      path: "/",                          access: "public" },
   { route: "events",        path: "/events",                    access: "public" },
@@ -52,7 +51,6 @@ for (const r of ROUTES) r.segs = r.path === "/" ? [] : r.path.slice(1).split("/"
 
 const ACCESS = {
   soon: "public",
-  orgPublic: "org",
 };
 for (const r of ROUTES) if (!(r.route in ACCESS)) ACCESS[r.route] = r.access;
 
@@ -103,9 +101,8 @@ export function parse(pathname, search) {
 
 const enc = encodeURIComponent;
 // route → path, from a snapshot of the param state the route owns. null means
-// "leave the URL alone": soon has no URL, orgPublic can't build before
-// orgAccount loads, and a param route with a null param would write a broken
-// path — staying put is always safer than a wrong pushState.
+// "leave the URL alone": soon has no URL, and a param route with a null param
+// would write a broken path — staying put is always safer than a wrong pushState.
 const BUILD = {
   discover:      () => "/",
   events:        () => "/events",
@@ -119,7 +116,6 @@ const BUILD = {
   profile:       () => "/profile",
   userProfile:   (s) => (s.profileViewUsername ? "/u/" + enc(s.profileViewUsername) : null),
   orgView:       (s) => (s.orgViewSlug ? "/org/" + enc(s.orgViewSlug) : null),
-  orgPublic:     (s) => (s.orgSlug ? "/org/" + enc(s.orgSlug) : null),
   onboarding:    (s) => (s.authMode === "signin" ? "/login" : "/signup"),
   forgot:        () => "/forgot",
   orgSignup:     () => "/org/signup",
@@ -166,8 +162,7 @@ export function titleFor(route, ctx) {
     case "notifications": return "Notifications · " + SITE;
     case "profile":       return "Your profile · " + SITE;
     case "userProfile":   return c.username ? "@" + c.username + " · " + SITE : SITE;
-    case "orgView":
-    case "orgPublic":     return c.orgSlug ? c.orgSlug + " · " + SITE : SITE;
+    case "orgView":       return c.orgSlug ? c.orgSlug + " · " + SITE : SITE;
     case "onboarding":    return (c.authMode === "signin" ? "Log in" : "Sign up") + " · " + SITE;
     case "forgot":        return "Reset password · " + SITE;
     case "orgSignup":     return "Orgs on Nested · " + SITE;

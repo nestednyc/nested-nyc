@@ -3,7 +3,7 @@
    ============================================================ */
 import React from 'react'
 import Icon from './icons'
-import { avColor, initials } from './data'
+import { avColor, initials, UNI, ORG_TYPES } from './data'
 
   const { useState, useRef } = React;
 
@@ -104,6 +104,37 @@ import { avColor, initials } from './data'
     }
     return React.createElement("span", { className: "uni-logo", style: base },
       React.createElement("img", { src: uni.logo, alt: uni.name + " logo", loading: "lazy", onError: () => setFailed(true) })
+    );
+  }
+
+  // Compact org "flyer" — a taped paper card (cork-board vocabulary). The single
+  // source for the org's small representation: the signup-form live preview AND
+  // the dashboard's "your public flyer" echo both render this, so they can't
+  // drift. Glyph is the campus mark (UniLogo) when the org's `uni` slug resolves,
+  // else the initials avatar. Foot shows the verified/pending state.
+  function OrgMini({ name, type, uni, bio, verified }) {
+    const uniObj = uni && UNI[uni] ? UNI[uni] : null;
+    const typeLabel = type ? ((ORG_TYPES.find((t) => t.id === type) || {}).label || "Organization") : "Organization";
+    const sub = [typeLabel, uniObj && uniObj.name].filter(Boolean).join(" · ");
+    const display = name && name.trim() ? name.trim() : "Your organization";
+    return (
+      React.createElement("article", { className: "org-mini grain", style: { "--rot": "0deg" } },
+        React.createElement("div", { className: "org-mini-head" },
+          uniObj
+            ? React.createElement(UniLogo, { uni: uniObj, size: 46, radius: "26%" })
+            : React.createElement(Av, { name: display, size: 46 }),
+          React.createElement("div", { className: "org-mini-id" },
+            React.createElement("b", null, display),
+            React.createElement("small", null, sub)
+          )
+        ),
+        React.createElement("p", { className: "org-mini-bio" }, (bio || "").trim() || "A one-line description of who you are and what you host."),
+        React.createElement("div", { className: "org-mini-foot" },
+          verified
+            ? React.createElement("span", { className: "owner-chip" }, React.createElement(Icon, { name: "check", size: 12, stroke: "var(--accent)", width: 2.4 }), "Verified")
+            : React.createElement("span", { className: "pending-chip" }, React.createElement(Icon, { name: "clock", size: 12, stroke: "currentColor" }), "Pending .edu review")
+        )
+      )
     );
   }
 
@@ -243,5 +274,5 @@ import { avColor, initials } from './data'
     );
   }
 
-  export { Av, Facepile, CatTag, Pin, Stamp, Toasts, UniLogo, formatEventDate, Skeleton, CodeBoxes, ConfirmModal };
-  export const UI = { Av, Facepile, CatTag, Pin, Stamp, Toasts, UniLogo, formatEventDate, Skeleton, CodeBoxes, ConfirmModal };
+  export { Av, Facepile, CatTag, Pin, Stamp, Toasts, UniLogo, formatEventDate, Skeleton, CodeBoxes, ConfirmModal, OrgMini };
+  export const UI = { Av, Facepile, CatTag, Pin, Stamp, Toasts, UniLogo, formatEventDate, Skeleton, CodeBoxes, ConfirmModal, OrgMini };

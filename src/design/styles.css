@@ -984,11 +984,6 @@ input, textarea, select { font-family: inherit; }
    (cork-board vocabulary; reuses .onb / .detail / .match tokens)
    ============================================================ */
 
-/* ---- slug field (form) ---- */
-.slug-wrap { padding-left: 14px; }
-.slug-prefix { font-family: var(--mono); font-size: 12.5px; color: var(--ink-faint); white-space: nowrap; }
-.slug-wrap input { padding-left: 4px; }
-
 /* ---- org mini preview (onboarding aside + step 3) ---- */
 .org-mini {
   position: relative; background: var(--paper); border: 1.5px solid var(--paper-edge);
@@ -1025,44 +1020,37 @@ input, textarea, select { font-family: inherit; }
   position: relative; background: var(--paper); border: 1.5px solid var(--paper-edge);
   border-radius: calc(var(--radius) + 4px); box-shadow: var(--shadow-card); overflow: hidden;
 }
-.org-banner {
-  position: relative; height: 132px;
-  background:
-    radial-gradient(circle at 18% 30%, var(--accent-wash), transparent 60%),
-    linear-gradient(120deg, var(--accent-wash), oklch(0.74 0.045 70 / .45));
-  border-bottom: 1.5px solid var(--paper-edge);
-}
-.org-banner .tape { top: 16px; }
-.org-stamp { position: absolute; right: 22px; top: 20px; transform: rotate(-10deg); opacity: .92; pointer-events: none; }
 .org-inner { padding: 0 clamp(22px,4vw,40px) 36px; }
-.org-head { display: flex; align-items: flex-end; gap: 18px; margin-top: -46px; }
-.org-logo { padding: 5px; background: var(--paper); border-radius: 50%; box-shadow: var(--shadow-card); flex-shrink: 0; }
-.org-id { padding-bottom: 6px; min-width: 0; }
-.org-id h1 { font-family: var(--disp); font-weight: 800; font-size: clamp(26px, 3.4vw, 38px); line-height: 1.04; letter-spacing: -0.02em; color: var(--ink); }
-.org-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: 8px; font-family: var(--mono); font-size: 12px; color: var(--ink-soft); }
-.org-badge { display: inline-flex; align-items: center; gap: 5px; font-size: 10.5px; letter-spacing: .04em; text-transform: uppercase; padding: 4px 9px; border-radius: 999px; }
-.org-badge.ok { color: var(--paper); background: var(--accent); }
-.org-badge.pend { color: var(--ink-faint); background: var(--paper-2); border: 1px dashed var(--line); }
 .org-bio { font-size: 16.5px; line-height: 1.55; color: var(--ink); margin-top: 20px; max-width: 64ch; }
 .org-links { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
-.org-links .linkpill {
-  display: inline-flex; align-items: center; gap: 7px; font-family: var(--mono); font-size: 12px;
-  color: var(--ink-soft); text-decoration: none; padding: 7px 13px; border-radius: 999px;
-  border: 1.5px solid var(--paper-edge); background: var(--paper); transition: all .14s;
-}
-.org-links .linkpill:hover { border-color: var(--accent); color: var(--accent-ink); }
 .org-cta { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-top: 24px; }
 .org-section { margin-top: 34px; }
 .org-events { margin-top: 16px; }
 
-/* ---- dashboard stats ---- */
-.stat-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
-.stat-tile {
-  background: var(--paper); border: 1.5px solid var(--paper-edge); border-radius: var(--radius);
-  padding: 18px 14px; text-align: center;
-}
-.stat-tile b { display: block; font-family: var(--disp); font-weight: 800; font-size: 28px; line-height: 1; color: var(--ink); }
-.stat-tile small { display: block; font-family: var(--mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-faint); margin-top: 6px; }
+/* ---- org poster (rebuilt: campus-colored paper pinned to the board) ---- */
+.org-poster { position: relative; }
+.org-poster .cat-bar { height: 13px; }
+.org-headline { display: flex; align-items: flex-start; gap: 18px; padding-top: 24px; }
+.org-headline .uni-logo, .org-headline .av { flex-shrink: 0; }
+.org-headline h1 { font-family: var(--disp); font-weight: 800; font-size: clamp(26px, 3.4vw, 38px); line-height: 1.04; letter-spacing: -0.02em; color: var(--ink); max-width: 22ch; overflow-wrap: anywhere; }
+.org-sub { display: block; margin-top: 8px; font-family: var(--mono); font-size: 12px; color: var(--ink-soft); }
+
+/* ---- org dashboard "control room" ---- */
+.dash-panels { display: grid; grid-template-columns: 1.25fr 1fr; gap: 18px; margin: 18px 0 8px; align-items: start; }
+.dash-side { display: flex; flex-direction: column; gap: 18px; }
+.dash-panel { background: var(--paper-2); border: 1.5px solid var(--paper-edge); border-radius: var(--radius); padding: 18px; }
+.dash-panel.pending { border-style: dashed; }
+.panel-h { font-family: var(--mono); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-faint); margin-bottom: 14px; }
+.echo-note { font-family: var(--mono); font-size: 11.5px; color: var(--ink-faint); margin-top: 12px; text-align: center; }
+.manage-row { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; background: var(--paper); border: 1.5px solid var(--paper-edge); border-radius: 12px; padding: 13px 15px; cursor: pointer; font-family: var(--body); font-weight: 600; font-size: 14.5px; color: var(--ink); transition: all .14s; }
+.manage-row:hover { border-color: var(--accent); box-shadow: var(--shadow-card); transform: translateY(-1px); }
+.manage-row svg { color: var(--ink-soft); flex-shrink: 0; }
+.manage-row .arr { margin-left: auto; color: var(--ink-faint); }
+.manage-row + .manage-row { margin-top: 10px; }
+.num-strip { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 18px; font-family: var(--mono); font-size: 12px; color: var(--ink-soft); letter-spacing: .04em; }
+.num-strip span { display: inline-flex; align-items: baseline; gap: 6px; }
+.num-strip b { font-family: var(--disp); font-weight: 800; font-size: 24px; color: var(--ink); }
+.dash-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin: 4px 0 6px; }
 
 /* ---- event rows (org events list) ---- */
 .event-list { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; }
@@ -1106,11 +1094,6 @@ input, textarea, select { font-family: inherit; }
 .oc-id b { display: flex; align-items: center; gap: 7px; font-family: var(--disp); font-weight: 700; font-size: 16px; color: var(--ink); }
 .oc-id small { font-family: var(--mono); font-size: 11.5px; color: var(--ink-faint); }
 .verify-tick { display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: 50%; background: var(--accent); flex-shrink: 0; }
-
-@media (max-width: 760px) {
-  .org-head { flex-direction: column; align-items: flex-start; gap: 10px; margin-top: -40px; }
-  .er-right { display: none; }
-}
 
 /* ---- university logo (image tile w/ initials fallback) ---- */
 /* contain + light padding: the mark fills the tile but a circular seal or
@@ -1555,6 +1538,12 @@ input, textarea, select { font-family: inherit; }
      animations still override `transform` while they run, so the interactive
      board physics survive untouched. */
   .flyer { transform: rotate(0deg); }
+  /* org poster flattens like every other flyer; its corner stamp shrinks so it
+     never crowds a wrapped name (scoped — project detail's stamp is untouched). */
+  .org-poster { transform: none; }
+  .org-poster .detail-stamp { width: 66px; height: 66px; top: 18px; right: 14px; }
+  .org-headline { gap: 14px; }
+  .dash-panels { grid-template-columns: 1fr; }
   /* A bit more vertical air so each card's pin/tape (which juts top:-12px above
      the card) clears the card stacked above it instead of floating over it. */
   .feed-grid { gap: 30px 20px; }
@@ -1598,7 +1587,6 @@ input, textarea, select { font-family: inherit; }
   /* multi-column form grids → single column */
   .uni-list { grid-template-columns: 1fr; }
   .pin-style-picker { grid-template-columns: 1fr; }
-  .stat-row { grid-template-columns: 1fr; }
   /* role builder: title on its own line, [note][open][x] below */
   .role-builder .row { grid-template-columns: 1fr auto auto; }
   .role-builder .row .rb-title { grid-column: 1 / -1; }
