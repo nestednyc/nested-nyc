@@ -33,7 +33,7 @@ import { orgService } from '../services/orgService'
 import { eventService } from '../services/eventService'
 import { storageService } from '../services/storageService'
 import { toDbProfile, fromDbProfile, dataUrlToFile } from './profileAdapter'
-import { projectService } from '../services/projectService'
+import { projectService, closeRole } from '../services/projectService'
 import { toDbProject, fromDbProject, creatorTeamMember } from './projectAdapter'
 import { toPerson } from './peopleAdapter'
 import { connectionService } from '../services/connectionService'
@@ -933,9 +933,11 @@ import { parse as parseLocation, build as buildPath, accessOf, validateNext, tit
         if (inInbox) setProjectRequests((arr) => [inInbox, ...arr]);
         return;
       }
-      // Reflect the new crew member on the flyer optimistically.
+      // Reflect the new crew member on the flyer optimistically: bump joined AND
+      // close the role they applied for so "N roles open" drops in the same render
+      // (mirrors the server-side change in projectService.approveRequest).
       if (req) setProjects((arr) => arr.map((p) => p.id === req.project_id
-        ? { ...p, joinedCount: (p.joinedCount || 0) + 1, team: [...(p.team || []), { name: req.name, role: req.role || "Member" }] }
+        ? { ...p, joinedCount: (p.joinedCount || 0) + 1, roles: closeRole(p.roles, req.role), team: [...(p.team || []), { name: req.name, role: req.role || "Member" }] }
         : p));
       toast("Added to the crew", "check");
     }
@@ -1061,7 +1063,7 @@ import { parse as parseLocation, build as buildPath, accessOf, validateNext, tit
       openPerson(row.username);
     }
 
-    async function submitModal(text) {
+    async function submitModal(text, role) {
       if (!modal) return;
       // Only the join flow submits; the contact modal just surfaces real links.
       if (modal.type !== "join") { setModal(null); return; }
@@ -1073,7 +1075,9 @@ import { parse as parseLocation, build as buildPath, accessOf, validateNext, tit
       toast("Request sent to " + proj.lead.name.split(" ")[0], "check");
       if (!isSupabaseConfigured()) return;
       // Inserts a pending team_members row (RLS: a user may add self as 'pending').
-      const { error } = await projectService.joinProject(proj.id, "", text || "");
+      // role = the specific open role the applicant picked (or "" when the project
+      // has no open roles / a single one was auto-targeted by the modal).
+      const { error } = await projectService.joinProject(proj.id, role || "", text || "");
       if (error) {
         setRequested((r) => { const n = new Set(r); n.delete(proj.id); return n; });
         toast("Request didn't send — " + (error.message || "try again"), "x");
@@ -1774,6 +1778,11 @@ import { parse as parseLocation, build as buildPath, accessOf, validateNext, tit
   // ---------- Request to join / Contact modal ----------
   function Modal({ modal, onClose, onSubmit, profile }) {
     const [text, setText] = useState("");
+    // JOIN: which open role the applicant targets. Default to the first open role;
+    // the picker (below) only renders when there's more than one, so a single-role
+    // project auto-targets it with no extra UI and zero open roles sends "".
+    const joinOpenRoles = ((modal.project && modal.project.roles) || []).filter((r) => r && r.open);
+    const [selectedIdx, setSelectedIdx] = useState(0);
     const isJoin = modal.type === "join";
     // CONTACT: surface the lead's REAL contact — the team-chat link they added on
     // their flyer. There's no messaging system, so we never fake a DM or an
@@ -1818,10 +1827,23 @@ import { parse as parseLocation, build as buildPath, accessOf, validateNext, tit
             React.createElement("h2", null, "Request to join"),
             React.createElement("p", null,
               "Send a note to ", React.createElement("b", { key: "b" }, lead.name), ", who's leading ", React.createElement("b", { key: "b2" }, "“" + modal.project.title.split(" — ")[0] + "”"), ". A line about why you're a fit goes a long way."),
+            joinOpenRoles.length > 1 && React.createElement("div", { className: "join-roles", style: { marginBottom: 14 } },
+              React.createElement("div", { style: { fontFamily: "var(--mono)", fontSize: 11.5, color: "var(--ink-faint)", fontWeight: 600, marginBottom: 8 } }, "Which role?"),
+              React.createElement("div", { className: "chips-grid" },
+                joinOpenRoles.map((r, i) => {
+                  const on = selectedIdx === i;
+                  return React.createElement("button", {
+                    key: i, type: "button",
+                    className: "pick" + (on ? " on accent" : ""),
+                    onClick: () => setSelectedIdx(i),
+                  }, on && React.createElement(Icon, { name: "check", size: 13, width: 2.4 }), r.title);
+                })
+              )
+            ),
             React.createElement("textarea", { placeholder, value: text, autoFocus: true, onChange: (e) => setText(e.target.value) }),
             React.createElement("div", { className: "modal-actions" },
               React.createElement("button", { className: "btn btn-ghost", onClick: onClose }, "Cancel"),
-              React.createElement("button", { className: "btn btn-primary", onClick: () => onSubmit(text) },
+              React.createElement("button", { className: "btn btn-primary", onClick: () => onSubmit(text, joinOpenRoles[selectedIdx] ? joinOpenRoles[selectedIdx].title : "") },
                 React.createElement(Icon, { name: "send", size: 16, stroke: "var(--paper)" }),
                 "Send request")
             )

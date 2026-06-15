@@ -52,6 +52,32 @@ async function hydratePublicProfiles(projects) {
   }
 }
 
+/**
+ * Return a copy of a roles[] array with one still-open role marked filled
+ * (`open:false`), so the flyer's "N roles open" count (detail.jsx / discover.jsx
+ * derive it from these flags) drops by one when a join request is approved.
+ *
+ * `title` is the specific role the applicant asked for (team_members.role):
+ *   - matches an OPEN role           → close that exact role
+ *   - matches only a FILLED role     → no-op (approving an extra person must not
+ *                                      steal a different still-open slot)
+ *   - empty / no match (legacy, or a
+ *     no-role "I'm interested" note) → close the first open role
+ * No open role — or a non-array — returns the input unchanged, so the count can
+ * never go negative. Pure; backs NestedApp's optimistic update (NestedApp.jsx).
+ * The authoritative close runs server-side in the close_project_role RPC
+ * (migration 20260614000000), which mirrors this logic case-for-case.
+ */
+export function closeRole(roles, title) {
+  if (!Array.isArray(roles)) return roles
+  let i = title ? roles.findIndex((r) => r && r.open && r.title === title) : -1
+  if (i === -1) {
+    const requestedExists = title && roles.some((r) => r && r.title === title)
+    if (!requestedExists) i = roles.findIndex((r) => r && r.open)
+  }
+  return i === -1 ? roles : roles.map((r, idx) => (idx === i ? { ...r, open: false } : r))
+}
+
 export const projectService = {
   /**
    * Get all published projects for the Discover feed
@@ -486,20 +512,21 @@ export const projectService = {
       .select()
       .single()
 
-    // Decrement spots_left on the project
+    // An approval fills a slot: close the specific role the applicant asked for
+    // (data.role) so the flyer's "N roles open" count drops in step with "joined".
+    // Done server-side via close_project_role, which row-locks the project so
+    // concurrent approvals each close a distinct still-open slot (no last-write-wins)
+    // and writes only when a slot actually closes (no updated_at churn). Best-effort:
+    // a failed close leaves the approval intact rather than rolling it back, so the
+    // caller never toasts "couldn't approve" over a successful approval.
+    // (We deliberately do NOT touch projects.spots_left — it isn't surfaced
+    // anywhere in the UI, so maintaining it only risked a second counter drifting
+    // from roles[].)
     if (data && !error) {
-      const { data: project } = await supabase
-        .from('projects')
-        .select('spots_left')
-        .eq('id', data.project_id)
-        .single()
-
-      if (project) {
-        await supabase
-          .from('projects')
-          .update({ spots_left: Math.max((project.spots_left || 0) - 1, 0) })
-          .eq('id', data.project_id)
-      }
+      await supabase.rpc('close_project_role', {
+        p_project_id: data.project_id,
+        p_title: data.role || '',
+      })
     }
 
     return { data, error }
