@@ -453,18 +453,12 @@ input, textarea, select { font-family: inherit; }
 /* side rail */
 .rail { display: flex; flex-direction: column; gap: 18px; }
 .rail-card { background: var(--paper-2); border: 1.5px solid var(--paper-edge); border-radius: 12px; padding: 20px; }
-.rail-card.lead { background: var(--paper); }
 .kv { display: flex; align-items: center; gap: 12px; padding: 11px 0; border-bottom: 1px dashed var(--line); }
 .kv:last-child { border-bottom: 0; }
 .kv .ic { width: 34px; height: 34px; border-radius: 9px; background: var(--accent-wash); color: var(--accent-ink); display: grid; place-items: center; flex: none; }
 .kv .ic svg { width: 17px; height: 17px; }
 .kv .kv-t small { font-family: var(--mono); font-size: 10.5px; color: var(--ink-faint); text-transform: uppercase; letter-spacing: .08em; display: block; }
 .kv .kv-t b { font-size: 14.5px; font-weight: 600; }
-
-.lead-head { display: flex; align-items: center; gap: 13px; margin-bottom: 16px; }
-.lead-head .av { width: 46px; height: 46px; font-size: 16px; }
-.lead-head .who b { font-size: 16px; font-weight: 700; display: block; }
-.lead-head .who small { font-family: var(--mono); font-size: 11px; color: var(--ink-soft); }
 
 .team-pile { display: flex; flex-direction: column; gap: 9px; }
 .team-row { display: flex; align-items: center; gap: 11px; }
@@ -475,9 +469,35 @@ input, textarea, select { font-family: inherit; }
 .team-row.clickable { cursor: pointer; border-radius: 10px; padding: 5px 8px; margin: -5px -8px; transition: background .14s ease; }
 .team-row.clickable:hover { background: var(--accent-wash); }
 .team-row.clickable:hover .t-who b { color: var(--accent-ink); }
-.lead-head.clickable { cursor: pointer; transition: opacity .14s ease; }
-.lead-head.clickable:hover { opacity: .82; }
-.lead-head.clickable:hover .who b { color: var(--accent-ink); }
+/* Crew manager modal: one labeled chip per row for the role move; kick is a
+   mono marginalia link in the sub-line. Never two buttons side by side. */
+.crew-chip {
+  display: inline-flex; align-items: center; gap: 5px; flex: none;
+  font-family: var(--mono); font-size: 11px; font-weight: 700; letter-spacing: .02em;
+  padding: 7px 11px; border-radius: 999px; cursor: pointer;
+  background: var(--paper-2); color: var(--ink-soft);
+  border: 1.5px solid var(--paper-edge); transition: all .14s ease;
+}
+.crew-chip:hover { border-color: var(--ink-faint); color: var(--ink); }
+.crew-chip:active { transform: translateY(1px); }
+.crew-chip.promote { background: var(--accent-wash); color: var(--accent-ink); border-color: var(--accent); }
+.crew-chip.promote:hover { background: var(--accent); color: var(--paper); }
+.row-remove {
+  background: none; border: 0; cursor: pointer; font: inherit;
+  color: var(--ink-faint); padding: 8px; margin: -8px; margin-left: -4px;
+}
+.row-remove:hover { color: var(--c-startup); text-decoration: underline dotted; }
+/* Scoped to the crew-manager modal only: its rows pair a long name with a
+   fixed chip, so the name must ellipsize (rows there set min-width:0 inline).
+   Elsewhere .t-who names WRAP — a global nowrap would blow long names past
+   the rail-card edge, where flex min-width:auto defeats the ellipsis. */
+.crew-pile .t-who b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Crew-card annotation line; .act is the owner-only inline trigger styled as
+   marginalia — padding/negative-margin keeps a finger-sized tap target without
+   adding a pixel of layout. */
+.lead-note { display: flex; align-items: baseline; gap: 4px; flex-wrap: wrap; font-family: var(--mono); font-size: 11.5px; color: var(--ink-faint); }
+.lead-note .act { background: none; border: 0; cursor: pointer; font: inherit; color: var(--accent-ink); text-decoration: underline dotted; padding: 10px; margin: -10px; }
+.lead-note .act:hover { color: var(--accent); }
 
 .detail-cta { display: flex; gap: 12px; margin-top: 26px; flex-wrap: wrap; }
 .detail-cta .btn { padding: 14px 24px; font-size: 15.5px; }
@@ -1466,6 +1486,8 @@ input, textarea, select { font-family: inherit; }
 @keyframes sheetUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
 
 @media (max-width: 860px) {
+  /* crew-manager chips grow to finger size (~36px tall) */
+  .crew-chip { padding: 9px 13px; font-size: 11.5px; }
   /* ---- top bar: keep brand mark + the 3 section tabs; swap the utilities ---- */
   .topbar { gap: 12px; }
   .topbar .brand .name { display: none; }        /* mark-only */
@@ -1641,16 +1663,17 @@ input, textarea, select { font-family: inherit; }
    ------------------------------------------------------------
    The split-screen .onb shell is shared by ~10 screens (create,
    forgot, org*, *Form, edit). Everything here is scoped to
-   .onb-signup — a class carried ONLY by the two student-
-   onboarding roots — and floored by the media query, so desktop
-   (>=881px) and every other .onb screen are byte-identical.
-   Below 880px the base CSS hides .onb-aside, deleting the brand
-   identity; this restores it (cork board + a pinned paper form)
-   and fixes the form's mobile usability.
+   .onb-signup — carried by the two student-onboarding roots AND
+   both OrgSignup roots (auth form + code step) — and floored by
+   the media query, so desktop (>=881px) and every non-.onb-signup
+   .onb screen are byte-identical. Below 880px the base CSS hides
+   .onb-aside, deleting the brand identity; this restores it (cork
+   board + a pinned paper form) and fixes the form's mobile
+   usability.
    ============================================================ */
 
 /* New mobile-only elements: inert on desktop, revealed in the block below. */
-.onb-mobhead, .onb-card-pin, .onb-peek { display: none; }
+.onb-mobhead, .onb-card-pin, .onb-peek, .onb-orgline, .onb-mobback { display: none; }
 
 @media (max-width: 880px) {
   /* Re-hide the desktop pitch/preview aside on mobile for EVERY .onb screen
@@ -1693,6 +1716,27 @@ input, textarea, select { font-family: inherit; }
     font-family: var(--mono); font-size: 12.5px; line-height: 1.4;
     letter-spacing: .01em; color: var(--ink-soft); max-width: 30ch; margin: 0;
   }
+
+  /* Back affordance for the org auth screens: their desktop Back button lives
+     in the aside, which is hidden here. Sits left-aligned above the card. */
+  .onb-signup .onb-mobback {
+    display: inline-flex; align-items: center; gap: 6px;
+    align-self: flex-start; margin-bottom: 14px;
+    border: 0; background: none; padding: 0;
+    font-family: var(--mono); font-size: 13px; font-weight: 600;
+    color: var(--ink-soft);
+  }
+
+  /* Org-path entry under the student auth card — the desktop version is the
+     aside-footer link, also hidden here. Mirrors .a-footer-link's voice,
+     recolored from paper-on-cork-photo to ink-on-cork-pane. */
+  .onb-signup .onb-orgline {
+    display: block; width: 100%; margin: 20px 0 30px; padding: 10px;
+    border: 0; background: none; text-align: center;
+    font-family: var(--mono); font-size: 12.5px; letter-spacing: .02em;
+    color: var(--ink-soft);
+  }
+  .onb-signup .onb-orgline span { text-decoration: underline; text-underline-offset: 3px; font-weight: 700; }
 
   /* The form: a sheet of paper pinned to the board. */
   .onb-signup .onb-card {

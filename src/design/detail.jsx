@@ -3,8 +3,8 @@
    ============================================================ */
 import React from 'react'
 import Icon from './icons'
-import { CAT, UNI, isProjectAdmin, statusMeta, STATUSES } from './data'
-import { CatTag, Av, Facepile } from './shared'
+import { CAT, UNI, isProjectAdmin, isProjectOwner, projectAdminSet, coLeadsOf, statusMeta, STATUSES } from './data'
+import { CatTag, Av, Facepile, ConfirmModal } from './shared'
 
   const { useState } = React;
 
@@ -107,7 +107,92 @@ import { CatTag, Av, Facepile } from './shared'
   }
 
 
-  function ProjectDetail({ p, profile, saved, joined, requested, onBack, onSave, onRequest, onMessage, onEdit, onUpdateStatus, pendingRequests = [], onApprove, onReject, onOpenProfile }) {
+  /* Owner-only crew manager behind the crew card's "✦ edit" link. Rows here
+     are INERT (no profile click-through — one surface, one meaning): each
+     carries exactly ONE labeled chip for its role move (promote → confirm,
+     demote instant since it's reversible), and the destructive kick lives in
+     the mono sub-line as marginalia ("· ✕ remove" → ConfirmKick). */
+  function CoLeadModal({ p, coLeads, candidates, onCancel, onPick, onStepDown, onKick }) {
+    const cat = CAT[p.cat];
+    const removeLink = (m) => onKick && React.createElement("button", {
+      className: "row-remove",
+      title: "Remove " + m.name + " from the crew",
+      onClick: () => onKick(m),
+    }, "· ✕ remove");
+    return (
+      React.createElement("div", { className: "scrim", onClick: onCancel },
+        React.createElement("div", { className: "modal", onClick: (e) => e.stopPropagation(), style: { maxWidth: 440 } },
+          React.createElement("div", { className: "cat-bar", style: { background: p.flyerColor || cat.color } }),
+          React.createElement("button", { className: "modal-close", onClick: onCancel },
+            React.createElement(Icon, { name: "x", size: 18 })),
+          React.createElement("div", { className: "modal-inner" },
+            React.createElement("div", { style: { fontFamily: "var(--mono)", fontSize: 11.5, color: "var(--ink-faint)", marginBottom: 6 } }, "// co-sign the flyer"),
+            React.createElement("h2", null, "Who's leading this with you?"),
+            React.createElement("p", null, "A co-lead runs the flyer with you — edits, status, updates, and the join inbox."),
+            React.createElement("div", { className: "team-pile crew-pile", style: { marginTop: 14 } },
+              coLeads.map((m) => React.createElement("div", { className: "team-row", key: "cl-" + m.userId },
+                React.createElement(Av, { name: m.name, img: m.image }),
+                React.createElement("span", { className: "t-who", style: { flex: 1, minWidth: 0 } },
+                  React.createElement("b", null, m.name),
+                  React.createElement("small", null, "Co-lead", removeLink(m))),
+                React.createElement("button", {
+                  className: "crew-chip",
+                  title: "Move " + m.name + " back to regular crew",
+                  onClick: () => onStepDown(m),
+                }, React.createElement(Icon, { name: "undo", size: 13 }), "back to crew")
+              )),
+              candidates.map((m) => React.createElement("div", { className: "team-row", key: "c-" + m.userId },
+                React.createElement(Av, { name: m.name, img: m.image }),
+                React.createElement("span", { className: "t-who", style: { flex: 1, minWidth: 0 } },
+                  React.createElement("b", null, m.name),
+                  React.createElement("small", null, m.role, removeLink(m))),
+                React.createElement("button", {
+                  className: "crew-chip promote",
+                  title: "Make " + m.name + " a co-lead",
+                  onClick: () => onPick(m),
+                }, React.createElement(Icon, { name: "sparkle", size: 13 }), "make co-lead")
+              )),
+              // Reachable mid-session: the owner just kicked/demoted everyone.
+              !coLeads.length && !candidates.length && React.createElement("p", {
+                style: { fontFamily: "var(--mono)", fontSize: 11.5, color: "var(--ink-faint)", margin: 0 },
+              }, "When someone joins the crew, you can promote them here.")
+            )
+          )
+        )
+      )
+    );
+  }
+
+  /* Owner-only confirm before removing someone from the crew — destructive
+     enough (their seat, their co-lead grant) to warrant a deliberate click. */
+  function ConfirmKick({ p, member, onCancel, onConfirm }) {
+    return React.createElement(ConfirmModal, {
+      accent: p.flyerColor || CAT[p.cat].color,
+      title: "Remove " + member.name.split(" ")[0] + " from the crew?",
+      body: React.createElement(React.Fragment, null,
+        React.createElement("b", null, member.name),
+        " comes off “" + (p.title || "this project") + "” and their spot opens back up. They can always request to join again."),
+      ctaLabel: "Remove them", ctaIcon: "x", danger: true,
+      onCancel, onConfirm,
+    });
+  }
+
+  /* Owner-only confirm before promoting a crew member. Co-lead is a real
+     grant (edit the flyer, post updates, run the join inbox) so it gets a
+     deliberate click; demoting is one click since it's instantly reversible. */
+  function ConfirmPromote({ p, member, onCancel, onConfirm }) {
+    return React.createElement(ConfirmModal, {
+      accent: p.flyerColor || CAT[p.cat].color,
+      title: "Make " + member.name.split(" ")[0] + " a co-lead?",
+      body: React.createElement(React.Fragment, null,
+        React.createElement("b", null, member.name),
+        " will run this project with you — edit the flyer, change the status, post updates, and approve requests to join. Only you can take the flyer down or change co-leads."),
+      ctaLabel: "Make co-lead", ctaIcon: "sparkle",
+      onCancel, onConfirm,
+    });
+  }
+
+  function ProjectDetail({ p, profile, saved, joined, requested, onBack, onSave, onRequest, onMessage, onEdit, onUpdateStatus, onSetCoLead, onKickMember, pendingRequests = [], onApprove, onReject, onOpenProfile }) {
     const cat = CAT[p.cat];
     const uni = UNI[p.uni];
     // teamNames = lead + joiners (for the "crew" facepile); extra counts faces
@@ -117,6 +202,22 @@ import { CatTag, Av, Facepile } from './shared'
     // Admin (owner or co-admin) edits status/alert inline and sees the edit CTA.
     const isAdmin = isProjectAdmin(p, profile);
     const isOwner = !!(onEdit && isAdmin);
+    // Co-leads = crew members promoted into projects.admins. Only the TRUE
+    // owner (not a co-lead) can promote/demote — isProjectAdmin vs isProjectOwner.
+    const adminSet = projectAdminSet(p);
+    const coLeads = coLeadsOf(p);
+    // Crew members the owner could still promote (have a real account, not
+    // already a co-lead). Rows without a userId are legacy denormalized members.
+    const coLeadCandidates = p.team.filter((t) => t.userId && !adminSet.has(t.userId));
+    const canManageCoLeads = isProjectOwner(p, profile) && typeof onSetCoLead === "function";
+    // The crew manager's only entry point: an inline action on the crew card's
+    // annotation line — owners see "✦ edit" where visitors see marginalia.
+    const coLeadAction = canManageCoLeads && (coLeads.length > 0 || coLeadCandidates.length > 0);
+    // Promote/demote lives behind one quiet link in the masthead — the picker
+    // modal (step 1) then ConfirmPromote (step 2). Crew rows stay untouched.
+    const [coLeadsOpen, setCoLeadsOpen] = useState(false);
+    const [promoting, setPromoting] = useState(null); // crew member pending promote-confirm
+    const [kicking, setKicking] = useState(null);     // crew member pending remove-confirm
     // Crew + lead rows deep-link to each person's real profile when we know
     // their user id (carried through from team_members.user_id / owner_id).
     const canOpen = typeof onOpenProfile === "function";
@@ -140,6 +241,37 @@ import { CatTag, Av, Facepile } from './shared'
           React.createElement("button", { className: "back", onClick: onBack },
             React.createElement(Icon, { name: "arrowLeft", size: 17 }), "The board")
         ),
+
+        coLeadsOpen && !promoting && !kicking && React.createElement(CoLeadModal, {
+          p, coLeads, candidates: coLeadCandidates,
+          onCancel: () => setCoLeadsOpen(false),
+          onPick: (m) => setPromoting(m),
+          onStepDown: (m) => onSetCoLead(p.id, m.userId, false),
+          onKick: typeof onKickMember === "function" ? (m) => setKicking(m) : null,
+        }),
+        promoting && React.createElement(ConfirmPromote, {
+          p, member: promoting,
+          // Cancel returns to the picker (coLeadsOpen is still true); confirm
+          // closes the whole flow — the byline change is the payoff.
+          onCancel: () => setPromoting(null),
+          onConfirm: () => {
+            const m = promoting;
+            setPromoting(null);
+            setCoLeadsOpen(false);
+            onSetCoLead(p.id, m.userId, true);
+          },
+        }),
+        kicking && React.createElement(ConfirmKick, {
+          p, member: kicking,
+          // Cancel returns to the picker; confirm stays in it so the owner can
+          // keep tidying the crew — the row just disappears from the list.
+          onCancel: () => setKicking(null),
+          onConfirm: () => {
+            const m = kicking;
+            setKicking(null);
+            onKickMember(p.id, m.userId);
+          },
+        }),
 
         React.createElement("div", { className: "detail grain fade-up" },
           React.createElement("div", { className: "cat-bar", style: { background: p.flyerColor || cat.color } }),
@@ -229,20 +361,6 @@ import { CatTag, Av, Facepile } from './shared'
                     ))
                   )
                 ),
-                React.createElement("div", { className: "rail-card lead" },
-                  React.createElement("div", {
-                    className: "lead-head" + (canOpen && p.lead.userId ? " clickable" : ""),
-                    onClick: canOpen && p.lead.userId ? () => onOpenProfile(p.lead.userId) : undefined,
-                    title: canOpen && p.lead.userId ? "View " + p.lead.name + "'s profile" : undefined,
-                  },
-                    React.createElement(Av, { name: p.lead.name, img: p.lead.image }),
-                    React.createElement("span", { className: "who" },
-                      React.createElement("b", null, p.lead.name),
-                      React.createElement("small", null, p.lead.role)
-                    )
-                  ),
-                  React.createElement("div", { style: { fontFamily: "var(--mono)", fontSize: 11.5, color: "var(--ink-faint)", marginBottom: 4 } }, "// project lead · " + p.lead.bio)
-                ),
                 React.createElement("div", { className: "rail-card" },
                   React.createElement("div", { className: "kv" },
                     React.createElement("span", { className: "ic" }, React.createElement(Icon, { name: "calendar", size: 17 })),
@@ -263,7 +381,24 @@ import { CatTag, Av, Facepile } from './shared'
                   ),
                   React.createElement("div", { className: "team-pile" },
                     personRow(p.lead.name, p.lead.role, p.lead.userId, "lead", p.lead.image),
-                    p.team.map((t, i) => personRow(t.name, t.role, t.userId, i, t.image))
+                    p.team.map((t, i) => personRow(
+                      t.name,
+                      (t.userId && adminSet.has(t.userId)) ? "Co-lead" : t.role,
+                      t.userId, i, t.image
+                    ))
+                  ),
+                  // Annotation doubles as the feature's trigger: owners see an
+                  // inline "✦ add a co-lead" / "✦ edit" action where visitors
+                  // see plain marginalia. Opens the crew manager modal.
+                  React.createElement("div", { className: "lead-note", style: { marginTop: 12 } },
+                    React.createElement("span", null,
+                      coLeads.length
+                        ? "// led together" + (coLeadAction ? " ·" : "")
+                        : "// project lead" + (coLeadAction ? " ·" : (p.lead.bio ? " · " + p.lead.bio : ""))),
+                    coLeadAction && React.createElement("button", {
+                      className: "act",
+                      onClick: () => setCoLeadsOpen(true),
+                    }, "✦ " + (coLeads.length ? "edit" : "add a co-lead"))
                   )
                 )
               )

@@ -5,7 +5,7 @@
    ============================================================ */
 import React from 'react'
 import Icon from './icons'
-import { CATEGORIES, CAT, UNI, statusMeta, isProjectAdmin } from './data'
+import { CATEGORIES, CAT, UNI, statusMeta, isProjectAdmin, coLeadsOf } from './data'
 import { Facepile, CatTag, Pin, Skeleton } from './shared'
 
   const { useState, useMemo, useRef } = React;
@@ -63,9 +63,18 @@ import { Facepile, CatTag, Pin, Skeleton } from './shared'
     ];
     const shown = faces.slice(0, 3);
     const extra = Math.max(0, faces.length - shown.length);
-    const joinedTxt = p.joinedCount === 0
-      ? "Led by " + p.lead.name.split(" ")[0]
-      : "Joined by " + joiners.slice(0, 2).map((n) => n.split(" ")[0]).join(", ") + (p.joinedCount > 2 ? " +" + (p.joinedCount - 2) : "");
+    // Co-leads (crew members promoted into p.admins) share the masthead: the
+    // card reads "Led by A & B" so co-ownership shows at a glance. Without
+    // co-leads the original led-by / joined-by copy stands.
+    const leadFirsts = [
+      p.lead.name.split(" ")[0],
+      ...coLeadsOf(p).map((t) => t.name.split(" ")[0]),
+    ];
+    const joinedTxt = leadFirsts.length > 1
+      ? "Led by " + leadFirsts.slice(0, 3).join(" & ") + (leadFirsts.length > 3 ? " +" + (leadFirsts.length - 3) : "")
+      : p.joinedCount === 0
+        ? "Led by " + p.lead.name.split(" ")[0]
+        : "Joined by " + joiners.slice(0, 2).map((n) => n.split(" ")[0]).join(", ") + (p.joinedCount > 2 ? " +" + (p.joinedCount - 2) : "");
 
     const isTape = p.pinType === "tape";
     // Controlled if parent passes onPeel; otherwise the card owns its own fasteners.

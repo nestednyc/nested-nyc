@@ -137,38 +137,6 @@ export const projectService = {
   },
 
   /**
-   * Get all projects owned by the current user
-   * @returns {Promise<{data: array|null, error: object|null}>}
-   */
-  async getMyProjects() {
-    if (!isSupabaseConfigured() || !supabase) {
-      return { data: [], error: null }
-    }
-
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
-      return { data: [], error: null }
-    }
-
-    const { data, error } = await supabase
-      .from('projects')
-      .select('*, team_members(*, profiles(avatar, photos, first_name, last_name, username))')
-      .eq('owner_id', user.id)
-      .order('created_at', { ascending: false })
-
-    // Filter to only include approved team members
-    if (data) {
-      data.forEach(project => {
-        if (project.team_members) {
-          project.team_members = project.team_members.filter(m => m.status === 'approved')
-        }
-      })
-    }
-
-    return { data: data || [], error }
-  },
-
-  /**
    * Create a new project
    * @param {object} project - Project data
    * @returns {Promise<{data: object|null, error: object|null}>}
@@ -206,9 +174,39 @@ export const projectService = {
       return { data: null, error: { message: 'Supabase not configured' } }
     }
 
+    // admins + ownership are server-controlled on this path (RLS + the
+    // projects_guard_ownership trigger pin them). Never round-trip them from
+    // the client, even by accident: a stale admins copy would silently clash
+    // with grants made elsewhere. setProjectAdmins below is the ONE writer.
+    const { admins, owner_id, id, ...safe } = updates || {}
+
     const { data, error } = await supabase
       .from('projects')
-      .update(updates)
+      .update(safe)
+      .eq('id', projectId)
+      .select()
+      .single()
+
+    return { data, error }
+  },
+
+  /**
+   * Replace a project's co-lead grants. The ONLY path that writes
+   * projects.admins: send the full array, nothing else. RLS restricts to
+   * owner/co-lead and the projects_guard_ownership trigger enforces that
+   * only the owner can change the array — and only to approved members.
+   * @param {string} projectId - The project UUID
+   * @param {string[]} admins - Full replacement admins array (user ids as text)
+   * @returns {Promise<{data: object|null, error: object|null}>}
+   */
+  async setProjectAdmins(projectId, admins) {
+    if (!isSupabaseConfigured() || !supabase) {
+      return { data: null, error: { message: 'Supabase not configured' } }
+    }
+
+    const { data, error } = await supabase
+      .from('projects')
+      .update({ admins })
       .eq('id', projectId)
       .select()
       .single()
@@ -555,9 +553,10 @@ export const projectService = {
   },
 
   /**
-   * Pending join requests across ALL projects the current user owns — the
-   * owner-side inbox that powers the Notifications page. Each row carries its
-   * project ({id, title}) for context. (getPendingRequests above is per-project.)
+   * Pending join requests across ALL projects the current user owns or
+   * co-leads — the lead-side inbox that powers the Notifications page. Each
+   * row carries its project ({id, title}) for context. (getPendingRequests
+   * above is per-project.)
    * @returns {Promise<{data: array, error: object|null}>}
    */
   async getMyPendingRequests() {
@@ -569,12 +568,13 @@ export const projectService = {
       return { data: [], error: null }
     }
     // Two-step (no embedded filter — PostgREST's `projects!inner` + a filter on the
-    // embedded column proved unreliable): fetch my owned projects, then their
-    // pending requests. Same RLS path as getPendingRequests(projectId).
+    // embedded column proved unreliable): fetch the projects I lead (owner OR
+    // promoted into admins — `cs` = array contains), then their pending
+    // requests. Same RLS path as getPendingRequests(projectId).
     const { data: owned, error: ownErr } = await supabase
       .from('projects')
       .select('id, name')
-      .eq('owner_id', user.id)
+      .or('owner_id.eq.' + user.id + ',admins.cs.{' + user.id + '}')
     if (ownErr) return { data: [], error: ownErr }
     if (!owned || !owned.length) return { data: [], error: null }
 

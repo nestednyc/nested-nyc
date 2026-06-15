@@ -151,11 +151,15 @@ export { supabase, isSupabaseConfigured, getConfigurationError }
  */
 export const authService = {
   /**
-   * Validate .edu email before any auth operation
+   * Validate basic email shape only — no domain requirement. The gate for
+   * operations that work on EXISTING accounts of any kind (sign-in, password
+   * reset): orgs use non-.edu addresses, and account existence is the real
+   * check there. Anything that can CREATE a student account keeps
+   * validateEduEmail.
    * @param {string} email - Email to validate
    * @returns {{valid: boolean, error: object|null}}
    */
-  validateEduEmail(email) {
+  validateEmailFormat(email) {
     if (!email || typeof email !== 'string' || email.trim() === '') {
       return {
         valid: false,
@@ -176,6 +180,18 @@ export const authService = {
         }
       }
     }
+
+    return { valid: true, error: null }
+  },
+
+  /**
+   * Validate .edu email before any auth operation
+   * @param {string} email - Email to validate
+   * @returns {{valid: boolean, error: object|null}}
+   */
+  validateEduEmail(email) {
+    const formatValidation = this.validateEmailFormat(email)
+    if (!formatValidation.valid) return formatValidation
 
     // Student-only network: require a .edu address. Org admins sign up via
     // signUpAsOrg(), which skips this check (the DB trigger exempts them too).
@@ -329,12 +345,9 @@ export const authService = {
    */
   async signUpAsOrg(email, password) {
     // Basic format check only — no .edu requirement for org accounts.
-    if (!email || typeof email !== 'string' || email.trim() === '') {
-      return { data: null, error: { message: 'Please enter your email address', code: 'INVALID_EMAIL' } }
-    }
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    if (!emailRegex.test(email)) {
-      return { data: null, error: { message: 'Please enter a valid email address', code: 'INVALID_EMAIL_FORMAT' } }
+    const emailValidation = this.validateEmailFormat(email)
+    if (!emailValidation.valid) {
+      return { data: null, error: emailValidation.error }
     }
 
     const passwordValidation = this.validatePassword(password)
@@ -350,6 +363,9 @@ export const authService = {
         email,
         password,
         options: {
+          // The URL router (main) consumes ?next= via validateNext, so the
+          // email-link fallback lands on org onboarding. (We'd dropped this
+          // on the now-false "no router" assumption; restored.)
           emailRedirectTo: `${window.location.origin}/auth/confirm?next=/org/onboarding`,
           data: {
             account_type: 'org_admin',
@@ -377,8 +393,9 @@ export const authService = {
    * @returns {Promise<{data: any, error: any}>}
    */
   async signInWithEmailPassword(email, password) {
-    // Validate email first
-    const emailValidation = this.validateEduEmail(email)
+    // Format-only check: org accounts sign in with non-.edu addresses, and an
+    // account either exists or it doesn't — no domain gate on sign-in.
+    const emailValidation = this.validateEmailFormat(email)
     if (!emailValidation.valid) {
       return { data: null, error: emailValidation.error }
     }
@@ -585,7 +602,7 @@ export const authService = {
    * @returns {Promise<{data: any, error: any}>}
    */
   async verifyPasswordResetOtp(email, token) {
-    const emailValidation = this.validateEduEmail(email)
+    const emailValidation = this.validateEmailFormat(email)
     if (!emailValidation.valid) {
       return { data: null, error: emailValidation.error }
     }
@@ -679,13 +696,15 @@ export const authService = {
   // ===========================================
 
   /**
-   * Send password reset email (only .edu emails)
+   * Send password reset email (any registered account — students and orgs)
    * Supabase emails the user a link that redirects to /auth/reset
-   * @param {string} email - User's .edu email address
+   * @param {string} email - The email on the account
    * @returns {Promise<{data: any, error: any}>}
    */
   async sendPasswordReset(email) {
-    const validation = this.validateEduEmail(email)
+    // Format-only: reset works on existing accounts of either type, and
+    // Supabase sends nothing for unknown emails anyway.
+    const validation = this.validateEmailFormat(email)
     if (!validation.valid) {
       return { data: null, error: validation.error }
     }

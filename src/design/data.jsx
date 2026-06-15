@@ -181,13 +181,24 @@
     // legacy fallback: pre-ownership projects keyed by lead display name
     return !!(project.lead && project.lead.name === profile.username);
   }
+  /* Co-lead derivations — the single definition of "who co-leads", shared by
+     the discover card masthead and the detail crew card so the two surfaces
+     can't drift. The admins array holds the owner too; co-leads are the TEAM
+     rows whose userId carries a grant (the owner isn't in team). */
+  function projectAdminSet(project) {
+    return new Set(Array.isArray(project && project.admins) ? project.admins : []);
+  }
+  function coLeadsOf(project) {
+    const grants = projectAdminSet(project);
+    return ((project && project.team) || []).filter((t) => t.userId && grants.has(t.userId));
+  }
 
   export {
     CATEGORIES, CAT, UNIVERSITIES, UNI, MAJORS, INTERESTS, FIELDS, SKILLS,
     EVENT_TYPES, ETYPE, ROLES, ROLE, STAGES, COMMITMENTS,
     ORG_TYPES, ORG_TYPE,
     LINK_ICON, avColor, initials, findById, orgEventsOf, sortByDay,
-    ownerToken, isProjectAdmin, isProjectOwner,
+    ownerToken, isProjectAdmin, isProjectOwner, projectAdminSet, coLeadsOf,
     STATUSES, STATUS, statusMeta, DEFAULT_STATUS,
   };
 
@@ -196,6 +207,6 @@
     EVENT_TYPES, ETYPE, ROLES, ROLE, STAGES, COMMITMENTS,
     ORG_TYPES, ORG_TYPE,
     LINK_ICON, avColor, initials, findById, orgEventsOf, sortByDay,
-    ownerToken, isProjectAdmin, isProjectOwner,
+    ownerToken, isProjectAdmin, isProjectOwner, projectAdminSet, coLeadsOf,
     STATUSES, STATUS, statusMeta, DEFAULT_STATUS,
   };
