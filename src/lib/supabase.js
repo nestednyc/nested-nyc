@@ -275,9 +275,12 @@ export const authService = {
    * Sign up a new user with email and password (only .edu emails)
    * @param {string} email - User's .edu email address
    * @param {string} password - User's chosen password
+   * @param {{next?: string}} [opts] - Optional internal return path; rides the
+   *   confirmation link as /auth/confirm?next=… (validated client-side by
+   *   router.validateNext when the link lands).
    * @returns {Promise<{data: any, error: any}>}
    */
-  async signUpWithEmailPassword(email, password) {
+  async signUpWithEmailPassword(email, password, opts) {
     // Validate email first
     const emailValidation = this.validateEduEmail(email)
     if (!emailValidation.valid) {
@@ -301,7 +304,7 @@ export const authService = {
         email,
         password,
         options: {
-          emailRedirectTo: `${window.location.origin}/auth/confirm`,
+          emailRedirectTo: `${window.location.origin}/auth/confirm${opts?.next ? `?next=${encodeURIComponent(opts.next)}` : ''}`,
           data: {
             email_domain: email.split('@')[1].toLowerCase()
           }
@@ -360,7 +363,10 @@ export const authService = {
         email,
         password,
         options: {
-          emailRedirectTo: `${window.location.origin}/auth/confirm`,
+          // The URL router (main) consumes ?next= via validateNext, so the
+          // email-link fallback lands on org onboarding. (We'd dropped this
+          // on the now-false "no router" assumption; restored.)
+          emailRedirectTo: `${window.location.origin}/auth/confirm?next=/org/onboarding`,
           data: {
             account_type: 'org_admin',
             email_domain: email.split('@')[1].toLowerCase()
@@ -436,9 +442,10 @@ export const authService = {
    * Send magic link / OTP code for passwordless sign in (only .edu emails)
    * Uses Supabase signInWithOtp which sends both a magic link AND a 6-digit code
    * @param {string} email - User's email address
+   * @param {{next?: string}} [opts] - Optional internal return path for the link
    * @returns {Promise<{data: any, error: any}>}
    */
-  async sendMagicLink(email) {
+  async sendMagicLink(email, opts) {
     // Validate .edu email FIRST before any Supabase call
     const validation = this.validateEduEmail(email)
     if (!validation.valid) {
@@ -458,7 +465,7 @@ export const authService = {
         email,
         options: {
           // Magic link redirects to /auth/confirm for token exchange
-          emailRedirectTo: `${window.location.origin}/auth/confirm`,
+          emailRedirectTo: `${window.location.origin}/auth/confirm${opts?.next ? `?next=${encodeURIComponent(opts.next)}` : ''}`,
           shouldCreateUser: true,
           data: {
             email_domain: email.split('@')[1].toLowerCase()
@@ -569,11 +576,17 @@ export const authService = {
    * @param {string} email
    * @returns {Promise<{data: any, error: any}>}
    */
-  async resendSignupOtp(email) {
+  async resendSignupOtp(email, opts) {
     const { ready, error: configError } = this.checkSupabaseReady()
     if (!ready) return { data: null, error: configError }
     try {
-      const { data, error } = await supabase.auth.resend({ type: 'signup', email })
+      const { data, error } = await supabase.auth.resend({
+        type: 'signup',
+        email,
+        options: opts?.next
+          ? { emailRedirectTo: `${window.location.origin}/auth/confirm?next=${encodeURIComponent(opts.next)}` }
+          : undefined,
+      })
       if (error) return { data: null, error: this._mapSupabaseError(error) }
       return { data, error: null }
     } catch (err) {

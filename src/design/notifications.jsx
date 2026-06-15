@@ -58,6 +58,7 @@ import { ContactLinks } from './people'
                   style: { cursor: "pointer", color: "var(--accent-ink)", fontWeight: 600 },
                 }, proj.title)
               : "your project",
+            req.role ? [" for ", React.createElement("b", { key: "role", style: { color: "var(--accent-ink)" } }, req.role)] : null,
             (req.message || req.school) ? " · " + (req.message || req.school) : "")
         ),
         React.createElement("span", { style: { display: "flex", gap: 6 } },

@@ -93,64 +93,58 @@ import { Av, Skeleton } from './shared'
     );
   }
 
-  // ---- full profile modal ----
-  function ProfileModal({ person, connected, onClose, onConnect }) {
-    const r = ROLE[person.role];
+  // ---- full profile body ----
+  // The card's inner content, shared by the /u/:username page (userProfile.jsx)
+  // which wraps it in a backbar + paper shell. Pass showConnect:false to hide
+  // the action row (e.g. viewing yourself).
+  function PersonProfile({ person, connected, onConnect, showConnect = true }) {
     return (
-      React.createElement("div", { className: "scrim", onClick: onClose },
-        React.createElement("div", { className: "profile-modal", onClick: (e) => e.stopPropagation() },
-          React.createElement("div", { className: "cat-bar", style: { background: r.color } }),
-          React.createElement("button", { className: "modal-close", onClick: onClose }, React.createElement(Icon, { name: "x", size: 18 })),
-          React.createElement("div", { className: "pm-inner" },
-            React.createElement("div", { className: "pm-photos" }, person.photos.slice(0, 3).map((p, i) => React.createElement(Polaroid, { key: i, label: p.l, src: p.src }))),
-            React.createElement("div", { className: "sc-namerow" },
-              React.createElement("span", { className: "sc-name", style: { fontSize: 30 } }, person.name),
-              React.createElement(RoleBadge, { role: person.role })
-            ),
-            React.createElement("div", { className: "sc-meta" }, "@" + person.handle + " \u00b7 " + UNI[person.uni].full + " \u00b7 " + person.major + " " + person.year),
-            React.createElement("p", { className: "sc-bio", style: { fontSize: 16 } }, person.bio),
-            (person.building || person.avail) && React.createElement("div", { className: "sc-looking" },
-              React.createElement(Icon, { name: "pin", size: 16 }),
-              React.createElement("div", { className: "t" }, [
-                person.building ? "Building " : null,
-                person.building ? React.createElement("b", { key: "b" }, person.building) : null,
-                (person.building && person.avail) ? " \u00b7 " : null,
-                person.avail || null,
-              ].filter(Boolean))
-            ),
-            React.createElement("div", { className: "pm-section" },
-              React.createElement("div", { className: "sec-h" }, "Skills"),
-              React.createElement("div", { className: "links" }, person.skills.map((s, i) => React.createElement("span", { className: "tag2", key: i }, s)))
-            ),
-            React.createElement("div", { className: "pm-section" },
-              React.createElement("div", { className: "sec-h" }, "Into"),
-              React.createElement("div", { className: "links" }, person.interests.map((s, i) => React.createElement("span", { className: "tag2", key: i }, s)))
-            ),
-            React.createElement("div", { className: "pm-section" },
-              React.createElement("div", { className: "sec-h" }, "Get in touch"),
-              React.createElement(ContactLinks, { person })
-            ),
-            React.createElement("div", { className: "modal-actions", style: { marginTop: 22 } },
-              React.createElement("button", { className: "btn " + (connected ? "btn-primary done" : "btn-primary"), style: { flex: 1, padding: 13 }, onClick: () => onConnect(person.id) },
-                connected
-                  ? [React.createElement(Icon, { name: "check", size: 17, stroke: "var(--paper)", key: "i" }), "Connected"]
-                  : [React.createElement(Icon, { name: "heart", size: 17, stroke: "var(--paper)", key: "i" }), "Connect"])
-            )
-          )
+      React.createElement("div", { className: "pm-inner" },
+        React.createElement("div", { className: "pm-photos" }, person.photos.slice(0, 3).map((p, i) => React.createElement(Polaroid, { key: i, label: p.l, src: p.src }))),
+        React.createElement("div", { className: "sc-namerow" },
+          React.createElement("span", { className: "sc-name", style: { fontSize: 30 } }, person.name),
+          React.createElement(RoleBadge, { role: person.role })
+        ),
+        React.createElement("div", { className: "sc-meta" }, "@" + person.handle + " \u00b7 " + UNI[person.uni].full + " \u00b7 " + person.major + " " + person.year),
+        React.createElement("p", { className: "sc-bio", style: { fontSize: 16 } }, person.bio),
+        (person.building || person.avail) && React.createElement("div", { className: "sc-looking" },
+          React.createElement(Icon, { name: "pin", size: 16 }),
+          React.createElement("div", { className: "t" }, [
+            person.building ? "Building " : null,
+            person.building ? React.createElement("b", { key: "b" }, person.building) : null,
+            (person.building && person.avail) ? " \u00b7 " : null,
+            person.avail || null,
+          ].filter(Boolean))
+        ),
+        React.createElement("div", { className: "pm-section" },
+          React.createElement("div", { className: "sec-h" }, "Skills"),
+          React.createElement("div", { className: "links" }, person.skills.map((s, i) => React.createElement("span", { className: "tag2", key: i }, s)))
+        ),
+        React.createElement("div", { className: "pm-section" },
+          React.createElement("div", { className: "sec-h" }, "Into"),
+          React.createElement("div", { className: "links" }, person.interests.map((s, i) => React.createElement("span", { className: "tag2", key: i }, s)))
+        ),
+        React.createElement("div", { className: "pm-section" },
+          React.createElement("div", { className: "sec-h" }, "Get in touch"),
+          React.createElement(ContactLinks, { person })
+        ),
+        showConnect && React.createElement("div", { className: "modal-actions", style: { marginTop: 22 } },
+          React.createElement("button", { className: "btn " + (connected ? "btn-primary done" : "btn-primary"), style: { flex: 1, padding: 13 }, onClick: () => onConnect(person.id) },
+            connected
+              ? [React.createElement(Icon, { name: "check", size: 17, stroke: "var(--paper)", key: "i" }), "Connected"]
+              : [React.createElement(Icon, { name: "heart", size: 17, stroke: "var(--paper)", key: "i" }), "Connect"])
         )
       )
     );
   }
 
-  function People({ connected = [], onConnect, onDisconnect, people = [], loading = false, error = null, onRetry }) {
+  function People({ connected = [], onConnect, onDisconnect, people = [], loading = false, error = null, onRetry, onOpenPerson }) {
     const [mode, setMode] = useState("browse");
-    const [modalPerson, setModalPerson] = useState(null);
     // Controlled: NestedApp owns the connection set (optimistic + revert, like
     // toggleSave). We read it and call the handlers; no local connection state.
+    // Opening a profile navigates to /u/:username via onOpenPerson — the old
+    // in-page modal is gone.
     const connSet = new Set(connected);
-    function addConn(id) { if (connSet.has(id)) return; onConnect && onConnect(id); }
-    function removeConn(id) { if (!connSet.has(id)) return; onDisconnect && onDisconnect(id); }
-    function toggleConn(id) { connSet.has(id) ? removeConn(id) : addConn(id); }
 
     const TABS = [
       { id: "browse", label: "Browse", icon: "grid" },
@@ -172,7 +166,7 @@ import { Av, Skeleton } from './shared'
     } else if (mode === "browse") {
       body = people.length
         ? React.createElement("div", { className: "people-grid" },
-            people.map((p) => React.createElement(PersonCard, { key: p.id, person: p, onOpen: setModalPerson })))
+            people.map((p) => React.createElement(PersonCard, { key: p.id, person: p, onOpen: onOpenPerson })))
         : React.createElement("div", { className: "match-empty fade-up" },
             React.createElement("div", { className: "ill" }, React.createElement(Icon, { name: "users", size: 42, stroke: "var(--accent)" })),
             React.createElement("h3", null, "No other students yet"),
@@ -187,7 +181,7 @@ import { Av, Skeleton } from './shared'
                   React.createElement("div", { className: "who" },
                     React.createElement("b", null, p.name),
                     React.createElement("small", null, "@" + p.handle + " \u00b7 " + UNI[p.uni].name)),
-                  React.createElement("button", { className: "btn btn-ghost", style: { marginLeft: "auto", padding: "7px 12px", fontSize: 13 }, onClick: () => setModalPerson(p) }, "Profile")
+                  React.createElement("button", { className: "btn btn-ghost", style: { marginLeft: "auto", padding: "7px 12px", fontSize: 13 }, onClick: () => onOpenPerson && onOpenPerson(p) }, "Profile")
                 ),
                 React.createElement(ContactLinks, { person: p })
               )
@@ -215,14 +209,10 @@ import { Av, Skeleton } from './shared'
               t.n > 0 && React.createElement("span", { className: "b" }, t.n))
           ))
         ),
-        body,
-        modalPerson && React.createElement(ProfileModal, {
-          person: modalPerson, connected: connSet.has(modalPerson.id),
-          onClose: () => setModalPerson(null), onConnect: toggleConn,
-        })
+        body
       )
     );
   }
 
-  export { People, ContactLinks, ProfileModal };
+  export { People, ContactLinks, PersonProfile };
   export default People;

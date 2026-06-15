@@ -51,7 +51,10 @@ import { toDbProfile, fromDbProfile } from './profileAdapter'
     }, u.name[0]);
   }
 
-  function Onboarding({ onComplete, onOrgPath, onForgot, initialMode }) {
+  // returnTo: validated internal path the user was headed to before the auth
+  // wall. Rides the confirmation email as ?next= so even the new-tab link
+  // round-trip lands them back where they started.
+  function Onboarding({ onComplete, onOrgPath, onForgot, initialMode, returnTo }) {
     const [mode, setMode] = useState(initialMode === "signin" ? "signin" : "signup"); // 'signup' | 'signin'
     const [step, setStep] = useState(0);
     const [email, setEmail] = useState("");
@@ -190,7 +193,7 @@ import { toDbProfile, fromDbProfile } from './profileAdapter'
       }
 
       // Try signup; if the account already exists, fall back to sign-in
-      let signupRes = await authService.signUpWithEmailPassword(email.trim(), password);
+      let signupRes = await authService.signUpWithEmailPassword(email.trim(), password, returnTo ? { next: returnTo } : undefined);
       if (signupRes.error && /already|exists|registered/i.test(signupRes.error.message || "")) {
         signupRes = await authService.signInWithEmailPassword(email.trim(), password);
       }
@@ -260,7 +263,7 @@ import { toDbProfile, fromDbProfile } from './profileAdapter'
       if (resendCooldown > 0 || submitting) return;
       setCode(["", "", "", "", "", ""]);
       setSubmitError("");
-      const { error } = await authService.resendSignupOtp(email.trim());
+      const { error } = await authService.resendSignupOtp(email.trim(), returnTo ? { next: returnTo } : undefined);
       if (error) { setSubmitError(getErrorMessage(error)); return; }
       setResendCooldown(30);
       setTimeout(() => codeRefs.current[0] && codeRefs.current[0].focus(), 50);

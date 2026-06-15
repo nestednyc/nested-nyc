@@ -4,14 +4,15 @@
 import React from 'react'
 import Icon from './icons'
 import { NestedData, CAT, isProjectAdmin, isProjectOwner } from './data'
-import { Av, Toasts, Stamp } from './shared'
+import { Av, Toasts, Stamp, Skeleton } from './shared'
 import { useTweaks, TweaksPanel, TweakSection, TweakColor, TweakRadio, TweakToggle } from './tweaks-panel'
 import Onboarding from './onboarding'
 import ForgotPassword from './forgot'
 import Discover, { ProjectCard } from './discover'
 import Events from './events'
 import Matches from './matches'
-import People, { ContactLinks, ProfileModal } from './people'
+import People, { ContactLinks } from './people'
+import UserProfile from './userProfile'
 import Notifications from './notifications'
 import ProjectDetail from './detail'
 import Profile from './profile'
@@ -32,10 +33,11 @@ import { orgService } from '../services/orgService'
 import { eventService } from '../services/eventService'
 import { storageService } from '../services/storageService'
 import { toDbProfile, fromDbProfile, dataUrlToFile } from './profileAdapter'
-import { projectService } from '../services/projectService'
+import { projectService, closeRole } from '../services/projectService'
 import { toDbProject, fromDbProject, creatorTeamMember } from './projectAdapter'
 import { toPerson } from './peopleAdapter'
 import { connectionService } from '../services/connectionService'
+import { parse as parseLocation, build as buildPath, accessOf, validateNext, titleFor } from './router'
 
   const { useState, useEffect, useRef } = React;
 
@@ -83,29 +85,33 @@ import { connectionService } from '../services/connectionService'
     { id: "people",   label: "People",   icon: "users" },
   ];
 
-  // Routes a logged-out guest is allowed to occupy. The backend already exposes
-  // published projects, events, orgs and their team rosters to the `anon` role
-  // (see migration 20260526000002_public_browse.sql), so these surfaces render
-  // without a session. Only these three RESTORE from localStorage on load —
-  // each renders from state that's actually persisted (detailId at most);
-  // eventDetail/orgView ids aren't persisted, so they'd reload blank. People,
-  // Saved, Notifications, own Profile, create/edit and the auth screens all
-  // require an account, so a guest who lands on one falls back to Discover.
-  const GUEST_ROUTES = new Set(["discover", "events", "detail"]);
-  const asGuestRoute = (r) => (GUEST_ROUTES.has(r) ? r : "discover");
-
   function App() {
     const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
     const persisted = useRef(loadState());
     if (!persisted.current.joinedAt) persisted.current.joinedAt = Date.now();
     const viewedThisSession = useRef(null); // lazy Set, hydrated from sessionStorage
 
-    // No persisted profile → guest: open the cork-board (Discover) rather than
-    // the sign-up wall. A returning guest restores their last PUBLIC route.
-    const [route, setRoute] = useState(persisted.current.profile ? (persisted.current.route || "discover") : asGuestRoute(persisted.current.route));
+    // ─── Boot parse: the URL owns the initial position ──────────────────────
+    // parse() → {route, params, state} | {authCallback, kind, next} | null.
+    // The boot NEVER role-gates: the cached localStorage blob can't identify
+    // org owners (their `profile` is null), so gated screens render skeletons
+    // until hydrateSession re-parses and corrects (replaceState, sub-second).
+    // A Supabase email link (/auth/*) boots as a discover skeleton with the
+    // callback stashed in authCallbackRef; supabase-js consumes the
+    // #access_token hash itself and hydration routes the fresh session.
+    const urlBootRef = useRef(undefined);
+    if (urlBootRef.current === undefined) {
+      urlBootRef.current = parseLocation(window.location.pathname, window.location.search);
+    }
+    const boot = urlBootRef.current;
+    const bootParams = (boot && !boot.authCallback && boot.params) || {};
+    const [route, setRoute] = useState(boot && !boot.authCallback ? boot.route : "discover");
     const [profile, setProfile] = useState(persisted.current.profile || null);
-    const [detailId, setDetailId] = useState(persisted.current.detailId || null);
-    const [editId, setEditId] = useState(persisted.current.editId || null);
+    const [detailId, setDetailId] = useState(bootParams.detailId || null);
+    const [editId, setEditId] = useState(bootParams.editId || null);
+    // True until the first hydrateSession resolves — lets deep-linked gated
+    // screens hold a skeleton instead of crashing on a null profile/org.
+    const [sessionPending, setSessionPending] = useState(() => isSupabaseConfigured());
     // Supabase is the source of truth for these now — start empty and hydrate
     // from the services on login (see the project load effect below). `connected`
     // (outgoing) and `incoming` (who connected with you) are both persisted.
@@ -123,9 +129,9 @@ import { connectionService } from '../services/connectionService'
     const [incoming, setIncoming] = useState([]);
     const [projectRequests, setProjectRequests] = useState([]);
     const [pendingRequests, setPendingRequests] = useState([]);
-    // A student profile being viewed in a modal (opened from a project's crew
-    // list / lead). Resolved from `people` by user id. Null = closed.
-    const [viewPerson, setViewPerson] = useState(null);
+    // /u/:username — the handle on the userProfile route. Set by openProfile
+    // (in-app navigation) or the boot/popstate URL parse (deep link).
+    const [profileViewUsername, setProfileViewUsername] = useState(bootParams.profileViewUsername || null);
     // One-shot: set when a student finishes onboarding so we land on their own
     // profile in edit mode (to nudge them to fill it out). Profile clears it via
     // onAutoEditConsumed, so a normal later visit stays read-only. Not persisted.
@@ -137,6 +143,10 @@ import { connectionService } from '../services/connectionService'
     // guest fetch on mount (the guest gets the public Discover feed), so paint a
     // skeleton, not an empty-state flash. Mock mode (unconfigured) loads nothing.
     const [projectsLoading, setProjectsLoading] = useState(() => isSupabaseConfigured());
+    // Deep-linked /projects/:id (view or edit) that isn't in the loaded feed:
+    // "loading" while projectService.getProject resolves it, "missing" when it
+    // doesn't exist / isn't visible to this viewer. "idle" otherwise.
+    const [detailFetch, setDetailFetch] = useState("idle");
     // Surface hydration error + retry. loadErrors is { discover, people, saved }
     // (each a Supabase error or undefined) so each page shows its own error
     // state; retrySurface bumps reloadNonce, which the loader effect depends on.
@@ -149,22 +159,29 @@ import { connectionService } from '../services/connectionService'
     // student app. orgEvents is loaded lazily on dashboard entry.
     const [orgAccount, setOrgAccount] = useState(null);
     const [orgEvents, setOrgEvents] = useState([]);
-    const [orgEventsLoading, setOrgEventsLoading] = useState(false);
-    const [eventDraftId, setEventDraftId] = useState(null);
+    // Starts true: a deep-linked /dashboard/events/:id/edit must not bounce in
+    // the one render between orgAccount landing and the loader effect firing.
+    // Only read in org context, so the idle-true for students is inert.
+    const [orgEventsLoading, setOrgEventsLoading] = useState(true);
+    const [eventDraftId, setEventDraftId] = useState(bootParams.eventDraftId || null);
     // Student-side org-profile navigation. Populated when a student clicks an
     // event's host pill; the orgView route loads the org by slug and renders
     // a public OrgProfile around it. Distinct from orgAccount (an authed
     // org owner viewing their OWN page via the orgPublic route).
-    const [orgViewSlug, setOrgViewSlug] = useState(null);
+    const [orgViewSlug, setOrgViewSlug] = useState(bootParams.orgViewSlug || null);
     // The event the student is currently inspecting. Set by openEventDetail
     // from any of the feed surfaces (events tab, org public page, org view).
     // Cleared when leaving the route. Past/owner/anon variants are all
     // resolved inside the EventDetail screen.
-    const [eventViewId, setEventViewId] = useState(null);
+    const [eventViewId, setEventViewId] = useState(bootParams.eventViewId || null);
     // Where the user came from when opening an event, so Back goes home cleanly:
     // "events" (default), "orgView" (came from a host's public page), "orgPublic"
     // (org owner clicked their own event from their public-page surface).
-    const [eventViewFrom, setEventViewFrom] = useState("events");
+    // Rides history.state per entry, so a reload restores it too.
+    const [eventViewFrom, setEventViewFrom] = useState(() => {
+      const st = window.history.state;
+      return (st && st.nested && st.nested.eventViewFrom) || "events";
+    });
     const [query, setQuery] = useState("");
     const [soonLabel, setSoonLabel] = useState("Events");
     const [modal, setModal] = useState(null); // {type:'join'|'contact', project, lead}
@@ -189,18 +206,198 @@ import { connectionService } from '../services/connectionService'
     const [mSearchOpen, setMSearchOpen] = useState(false);
     // Which form the auth screen opens on. "Sign up" / gated actions → signup;
     // the guest "Log in" button → signin (a returning user shouldn't see signup).
-    const [authMode, setAuthMode] = useState("signup");
+    // /login and /signup pin it from the URL.
+    const [authMode, setAuthMode] = useState((boot && !boot.authCallback && boot.state && boot.state.authMode) || "signup");
     // Send a guest to the auth screen in a given mode. Used by the top-bar
     // Log in / Sign up buttons; gated actions go through requireAuth (signup).
-    const goAuth = (mode) => { setAuthMode(mode); setRoute("onboarding"); window.scrollTo({ top: 0 }); };
+    // Both remember where the user stood (returnTo) so finishing auth lands
+    // them back there; from the home board the stash is cleared instead —
+    // landing on the post-signup default beats replaying a stale destination.
+    const goAuth = (mode) => {
+      stashReturnTo(window.location.pathname !== "/" ? window.location.pathname : null);
+      setAuthMode(mode); setRoute("onboarding"); window.scrollTo({ top: 0 });
+    };
 
-    // persist
+    // persist — a light identity cache only: {profile, joinedAt}. Position
+    // (route/ids) now lives in the URL; reopening bare nested.social lands on
+    // Discover by design.
     useEffect(() => {
       localStorage.setItem(LS, JSON.stringify({
-        profile, route, detailId, editId,
+        profile,
         joinedAt: persisted.current.joinedAt,
       }));
-    }, [profile, route, detailId, editId]);
+    }, [profile]);
+
+    // ─── URL mirror (write side) ────────────────────────────────────────────
+    // The `route` state machine stays the source of truth; this effect mirrors
+    // it into the address bar + tab title (router.js is the pure codec). The
+    // read side — boot parse and popstate — coordinates through these refs so
+    // neither side echoes the other back.
+    //
+    // NO dependency array — it must run on EVERY commit. The one-shot flags
+    // are armed synchronously in handlers that also set state, so the next
+    // commit is the one they describe and consuming them up front keeps them
+    // exact. With a dep array, an applyParsed that re-applies the current
+    // route (setRoute bails, deps never change) would leave a flag armed until
+    // an unrelated navigation — which would then silently replace instead of
+    // push, eating a history entry. Per-run cost is a string compare + title
+    // set; writes only happen when the built path actually differs.
+    const bootWriteRef = useRef(true);    // first URL write replaces the boot entry
+    const replaceNextRef = useRef(false); // one-shot: next write is replaceState
+    const applyingPopRef = useRef(false); // one-shot: state just came FROM the URL — don't echo it back
+    const authCallbackRef = useRef(boot && boot.authCallback ? { kind: boot.kind, next: boot.next } : null);
+    useEffect(() => {
+      const replaceArmed = bootWriteRef.current || replaceNextRef.current;
+      bootWriteRef.current = false;
+      replaceNextRef.current = false;
+      const popApplying = applyingPopRef.current;
+      applyingPopRef.current = false;
+
+      const dp = detailId ? projects.find((p) => p.id === detailId) : null;
+      document.title = titleFor(route, {
+        authMode,
+        detailTitle: dp && dp.title ? dp.title.split(" — ")[0] : null,
+        username: profileViewUsername,
+        orgSlug: route === "orgPublic" ? (orgAccount && orgAccount.slug) : orgViewSlug,
+      });
+      // Booted on a Supabase email link: supabase-js owns the URL (it strips
+      // its #access_token hash) until hydrateSession routes us and clears this.
+      if (authCallbackRef.current) return;
+      const path = buildPath(route, {
+        detailId, editId, eventViewId, orgViewSlug, profileViewUsername,
+        eventDraftId, authMode, orgSlug: orgAccount && orgAccount.slug,
+      });
+      if (path === null) return; // soon / params not ready — leave the URL alone
+      if (popApplying) return;   // the URL already shows this state
+      const stateObj = { nested: { eventViewFrom } };
+      if (path === window.location.pathname) {
+        // Same path — just keep the entry's eventViewFrom fresh (no new entry).
+        const st = window.history.state;
+        if (!st || !st.nested || st.nested.eventViewFrom !== eventViewFrom) {
+          window.history.replaceState(stateObj, "", path + window.location.search);
+        }
+        return;
+      }
+      window.history[replaceArmed ? "replaceState" : "pushState"](stateObj, "", path);
+    });
+
+    // Latest profile/orgAccount for the popstate listener + applyParsed: the
+    // listener binds once (mount) and must read current auth state without
+    // re-subscribing; hydrateSession also writes these refs synchronously so
+    // its own applyParsed call can't see a stale value.
+    const profileRef = useRef(profile);
+    useEffect(() => { profileRef.current = profile; }, [profile]);
+    const orgAccountRef = useRef(orgAccount);
+    useEffect(() => { orgAccountRef.current = orgAccount; }, [orgAccount]);
+
+    // returnTo: where to land after auth, surviving the email round-trip via
+    // sessionStorage (and ?next= on the emailRedirectTo for new-tab links).
+    // Always re-validated at consumption — never trust a stored path.
+    const RETURN_TO_SS = "nested.nyc.returnTo.v1";
+    function stashReturnTo(path) {
+      // null clears: an auth entry from the home board carries no destination,
+      // and a stale one from an abandoned gate must not steer this sign-in.
+      try {
+        if (path) sessionStorage.setItem(RETURN_TO_SS, path);
+        else sessionStorage.removeItem(RETURN_TO_SS);
+      } catch (e) {}
+    }
+    function peekReturnTo() {
+      let v = null;
+      try { v = sessionStorage.getItem(RETURN_TO_SS); } catch (e) {}
+      return validateNext(v);
+    }
+    function takeReturnTo() {
+      let v = null;
+      try {
+        v = sessionStorage.getItem(RETURN_TO_SS);
+        sessionStorage.removeItem(RETURN_TO_SS);
+      } catch (e) {}
+      return validateNext(v);
+    }
+
+    // Apply a parsed URL (boot correction, popstate, or hydration) to the
+    // state machine, role-gating via accessOf. Corrections clear the pop
+    // suppression and arm a replace, so the bar is fixed without stacking a
+    // history entry. Sets ONLY the params the target route owns — stale params
+    // stay put on purpose (edit-cancel needs detailId; renders are
+    // route-gated, so leftovers are inert).
+    function applyParsed(parsed, opts) {
+      const me = profileRef.current;
+      const org = orgAccountRef.current;
+      const p = (parsed && !parsed.authCallback && parsed.route && parsed) || { route: "discover", params: {}, state: {} };
+      const target = p.route;
+      const params = p.params || {};
+
+      const redirect = (r) => {
+        applyingPopRef.current = false; // a correction must write the bar
+        replaceNextRef.current = true;
+        setRoute(r);
+        window.scrollTo({ top: 0 });
+      };
+
+      const access = accessOf(target);
+      if (!me && !org && (access === "student" || access === "org")) {
+        // Guest on a gated URL: remember the destination, show the auth wall.
+        stashReturnTo(buildPath(target, {
+          detailId: params.detailId, editId: params.editId, eventViewId: params.eventViewId,
+          orgViewSlug: params.orgViewSlug, profileViewUsername: params.profileViewUsername,
+          eventDraftId: params.eventDraftId,
+        }));
+        toast("Sign in to see that page", "sparkle");
+        setAuthMode("signup");
+        return redirect("onboarding");
+      }
+      if (org) {
+        // Org accounts live in the dashboard subtree. Their own public slug
+        // upgrades to the owner view; student/anon/home URLs go to the
+        // dashboard; other public surfaces (events, projects, other orgs) stay.
+        if (target === "orgView" && params.orgViewSlug === org.slug) {
+          return redirect("orgPublic");
+        }
+        if (access === "student" || access === "anon" || target === "discover") {
+          return redirect("orgDashboard");
+        }
+      } else if (access === "org") {
+        return redirect("discover"); // student on an org-only URL
+      } else if (me && access === "anon") {
+        return redirect("discover"); // already signed in — no auth screens
+      }
+      if (me && target === "userProfile" && me.username && params.profileViewUsername &&
+          params.profileViewUsername.toLowerCase() === String(me.username).toLowerCase()) {
+        return redirect("profile"); // own handle → own profile page
+      }
+
+      if (target === "detail") setDetailId(params.detailId);
+      if (target === "edit") setEditId(params.editId);
+      if (target === "eventDetail") setEventViewId(params.eventViewId);
+      if (target === "orgView") setOrgViewSlug(params.orgViewSlug);
+      if (target === "userProfile") setProfileViewUsername(params.profileViewUsername);
+      if (target === "eventEdit") setEventDraftId(params.eventDraftId);
+      if (p.state && p.state.authMode) setAuthMode(p.state.authMode);
+      if (opts && opts.replace) replaceNextRef.current = true;
+      setRoute(target);
+    }
+
+    // ─── URL mirror (read side): Back/Forward ───────────────────────────────
+    useEffect(() => {
+      function onPop(e) {
+        const { pathname, search } = window.location;
+        // A /auth/* entry resurfacing in history is a dead callback — replace
+        // it with home directly (no state may change, so fix the bar here).
+        if (pathname === "/auth" || pathname.indexOf("/auth/") === 0) {
+          window.history.replaceState({ nested: { eventViewFrom: "events" } }, "", "/");
+          applyParsed({ route: "discover", params: {}, state: {} }, {});
+          return;
+        }
+        const st = e.state;
+        setEventViewFrom((st && st.nested && st.nested.eventViewFrom) || "events");
+        applyingPopRef.current = true;
+        applyParsed(parseLocation(pathname, search), {});
+      }
+      window.addEventListener("popstate", onPop);
+      return () => window.removeEventListener("popstate", onPop);
+    }, []);
 
     function toast(text, icon) {
       const id = Math.random().toString(36).slice(2);
@@ -212,6 +409,7 @@ import { connectionService } from '../services/connectionService'
     // through here: a one-line nudge + the sign-up screen. (EventDetail's RSVP
     // already used this onSignIn pattern; this generalizes it to every gate.)
     function requireAuth(msg) {
+      stashReturnTo(window.location.pathname !== "/" ? window.location.pathname : null);
       toast(msg || "Sign up to continue", "sparkle");
       setAuthMode("signup");
       setRoute("onboarding");
@@ -315,6 +513,28 @@ import { connectionService } from '../services/connectionService'
       return () => { cancelled = true; };
     }, [profile && profile.id, reloadNonce]);
 
+    // Cold-load: a deep-linked project missing from the hydrated feed (beyond
+    // the feed page, fetched before the feed, or a direct link to something the
+    // feed never carries). Wait for the feed to settle, then fetch by id —
+    // anon-readable for published rows — and append-if-absent into `projects`
+    // so the existing admin/saved/derived logic works unchanged.
+    useEffect(() => {
+      const wantedId = route === "detail" ? detailId : route === "edit" ? editId : null;
+      if (!wantedId || !isSupabaseConfigured()) { setDetailFetch("idle"); return; }
+      if (projectsLoading) return;
+      if (projects.some((p) => p.id === wantedId)) { setDetailFetch("idle"); return; }
+      let cancelled = false;
+      setDetailFetch("loading");
+      projectService.getProject(wantedId).then(({ data, error }) => {
+        if (cancelled) return;
+        if (error || !data) { setDetailFetch("missing"); return; }
+        const ui = fromDbProject(data);
+        setProjects((arr) => (arr.some((p) => p.id === ui.id) ? arr : [...arr, ui]));
+        setDetailFetch("idle");
+      }).catch(() => { if (!cancelled) setDetailFetch("missing"); });
+      return () => { cancelled = true; };
+    }, [route, detailId, editId, projectsLoading, projects]);
+
     // Latest projects list, for realtime handlers below: they subscribe once per
     // session and must read the current projects without re-binding the channel.
     const projectsRef = useRef([]);
@@ -388,38 +608,69 @@ import { connectionService } from '../services/connectionService'
     // Called on mount AND after the forgot-password flow completes, so a
     // fresh session is routed the same way as a returning session. Cached
     // localStorage profile renders instantly while this runs.
+    //
+    // The URL wins: hydration re-parses the CURRENT location at resolve time
+    // (popstate may have moved us mid-await) and only corrects it when the
+    // session's role can't occupy it — every correction is a replaceState via
+    // applyParsed, never a new history entry. The old "org owners always land
+    // on the dashboard" force-route survives ONLY for `/`. A /auth/* boot
+    // (Supabase email link) is routed here too, then authCallbackRef unfreezes
+    // the URL mirror.
     async function hydrateSession(shouldAbort) {
-      if (!isSupabaseConfigured()) return; // offline / no env — local-only mode
+      if (!isSupabaseConfigured()) { setSessionPending(false); return; } // offline / no env — local-only mode
       const aborted = () => shouldAbort && shouldAbort();
 
       const sessRes = await authService.getSession();
       if (aborted()) return;
       const session = sessRes && sessRes.data && sessRes.data.session;
 
+      const here = parseLocation(window.location.pathname, window.location.search);
+      const cb = authCallbackRef.current || (here && here.authCallback ? here : null);
+      const finish = () => {
+        authCallbackRef.current = null;
+        setSessionPending(false);
+      };
+
       if (!session) {
-        // No live session — guest mode. Wipe any stale cached profile, but don't
-        // slam the auth wall: keep the current public route, else drop to Discover.
+        // No live session — guest mode. Wipe any stale cached profile.
         if (persisted.current.profile) {
           setProfile(null);
+          profileRef.current = null;
           try { localStorage.removeItem(LS); } catch (e) {}
         }
-        setRoute((r) => asGuestRoute(r));
-        return;
+        if (cb) {
+          // An email link that produced no session is dead (expired/used).
+          toast("That link has expired — sign in to continue", "x");
+          authCallbackRef.current = null;
+          window.history.replaceState({ nested: { eventViewFrom: "events" } }, "", "/");
+          applyParsed({ route: "discover", params: {}, state: {} }, {});
+          return finish();
+        }
+        // Guest: the URL wins. Gated URLs gate inside applyParsed
+        // (stash returnTo → auth wall, bar replaced with /signup).
+        applyParsed(here, { replace: true });
+        return finish();
       }
 
       // Branch on account_type: an authed user is either a student (has
       // profiles.onboarding_completed=true) or an org owner (owns a row in
       // organizations). We check org-ownership first because it's the
       // stronger signal: profile rows exist for all auth users, but only
-      // org admins own an org. The org public_profiles view ALSO returns
-      // org rows shaped as profiles, but those aren't what we want here.
+      // org admins own an org.
       const myOrgs = await orgService.getMyOrgs();
       if (aborted()) return;
       const ownedOrg = (myOrgs.data && myOrgs.data[0]) || null;
       if (ownedOrg) {
         setOrgAccount(ownedOrg);
-        setRoute("orgDashboard");
-        return;
+        orgAccountRef.current = ownedOrg; // applyParsed below must see it NOW
+        if (cb) {
+          const target = cb.next ? parseLocation(cb.next, "") : null;
+          authCallbackRef.current = null;
+          applyParsed(target || { route: "orgDashboard", params: {}, state: {} }, { replace: true });
+          return finish();
+        }
+        applyParsed(here, { replace: true });
+        return finish();
       }
 
       const { data: row, error } = await profileService.getCurrentProfile();
@@ -429,21 +680,45 @@ import { connectionService } from '../services/connectionService'
         // Signed-in user with no profile AND no org → either a fresh org
         // signup that hasn't created its org row yet (send to orgOnboarding)
         // or a student mid-onboarding. We can't distinguish reliably from
-        // the row alone, so check user metadata.
+        // the row alone, so check user metadata. Any deep link they carried
+        // is stashed so finishing onboarding returns them to it.
+        if (cb && cb.next) {
+          stashReturnTo(cb.next);
+        } else if (here && !here.authCallback && accessOf(here.route) !== "anon") {
+          stashReturnTo(window.location.pathname);
+        }
         const metaAcct = session.user && session.user.user_metadata && session.user.user_metadata.account_type;
-        setRoute(metaAcct === "org_admin" ? "orgOnboarding" : "onboarding");
-        return;
+        authCallbackRef.current = null;
+        replaceNextRef.current = true;
+        if (metaAcct === "org_admin") {
+          setRoute("orgOnboarding");
+        } else {
+          setAuthMode("signup");
+          setRoute("onboarding");
+        }
+        return finish();
       }
 
       const sessUser = session.user || {};
       const hydrated = fromDbProfile(row, sessUser.email);
       setProfile(hydrated);
-      // A signed-in student shouldn't sit on an auth screen: kick them to
-      // Discover from onboarding/forgot (mount after an email link) AND from
-      // the org door (a student who signed in there by mistake — hydration is
-      // the shared routing brain for every auth outcome). Any other route is
-      // where they were working; leave it alone.
-      setRoute((r) => (r === "onboarding" || r === "forgot" || r === "orgSignup" || r === "orgOnboarding" ? "discover" : r));
+      profileRef.current = hydrated; // applyParsed below must see it NOW
+      if (cb) {
+        // Fresh session out of an email link: validated ?next= wins, then any
+        // same-tab returnTo stash, then home.
+        const target = (cb.next && parseLocation(cb.next, "")) || null;
+        const ret = !target && takeReturnTo();
+        authCallbackRef.current = null;
+        applyParsed(target || (ret && parseLocation(ret, "")) || { route: "discover", params: {}, state: {} }, { replace: true });
+        return finish();
+      }
+      // Student: the URL wins (own /u/<handle> upgrades to /profile inside
+      // applyParsed; anon/org URLs bounce home there too — which also covers a
+      // student who signed in via the org door: applyParsed sees access==="anon"
+      // for /org/signup and redirects to discover, so they never land in org
+      // onboarding).
+      applyParsed(here, { replace: true });
+      return finish();
     }
 
     useEffect(() => {
@@ -509,7 +784,10 @@ import { connectionService } from '../services/connectionService'
         if (!slot) continue;
         const src = typeof slot === "string" ? slot : slot.src;
         if (!src || !src.startsWith("data:")) continue;
-        const file = await dataUrlToFile(src, "photo-" + i + ".jpg");
+        // uploadProfilePhoto derives the storage extension from this filename,
+        // so it has to track the dataURL's actual encoding (WebP vs JPEG).
+        const ext = src.startsWith("data:image/webp") ? "webp" : "jpg";
+        const file = await dataUrlToFile(src, "photo-" + i + "." + ext);
         if (!file) continue;
         let { url, error: upErr } = await storageService.uploadProfilePhoto(userId, file, i);
         // Lost/stale auth → refresh once and retry the upload.
@@ -539,6 +817,31 @@ import { connectionService } from '../services/connectionService'
         return false;
       }
       const hydrated = fromDbProfile(row, user.email);
+
+      // Photos replaced or cleared by this save leave their old objects behind
+      // (every upload gets a unique Date.now() name, so nothing is overwritten).
+      // Delete them now that the upsert succeeded — fire-and-forget, scoped to
+      // this user's own folder; a failed delete just leaves a stale file.
+      try {
+        const marker = "/storage/v1/object/public/avatars/";
+        const keep = new Set(
+          (hydrated.photos || []).map((p) => p && p.src).filter(Boolean)
+        );
+        ((profile && profile.photos) || [])
+          .map((p) => (typeof p === "string" ? p : p && p.src))
+          .filter((src) => src && !keep.has(src) && src.includes(marker))
+          .forEach((src) => {
+            const path = decodeURIComponent(src.split(marker)[1] || "");
+            if (path.startsWith(userId + "/")) {
+              storageService.deleteAvatar(path).then(({ error }) => {
+                if (error) console.error("Stale photo cleanup failed:", error);
+              });
+            }
+          });
+      } catch (err) {
+        console.error("Stale photo cleanup failed:", err);
+      }
+
       setProfile(hydrated);
       toast("Profile updated", "check");
       return true;
@@ -716,11 +1019,13 @@ import { connectionService } from '../services/connectionService'
         if (inInbox) setProjectRequests((arr) => [inInbox, ...arr]);
         return;
       }
-      // Reflect the new crew member on the flyer optimistically. Carry the
-      // ids the crew-manager features key off (promote needs userId, kick
-      // needs memberId) so the fresh member is manageable without a reload.
+      // Reflect the new crew member on the flyer optimistically: bump joined,
+      // close the role they applied for so "N roles open" drops in the same
+      // render (mirrors close_project_role server-side), AND carry the ids the
+      // crew-manager features key off (promote needs userId, kick needs
+      // memberId) so the fresh member is manageable without a reload.
       if (req) setProjects((arr) => arr.map((p) => p.id === req.project_id
-        ? { ...p, joinedCount: (p.joinedCount || 0) + 1, team: [...(p.team || []), { name: req.name, role: req.role || "Member", userId: req.user_id || null, memberId: req.id || null }] }
+        ? { ...p, joinedCount: (p.joinedCount || 0) + 1, roles: closeRole(p.roles, req.role), team: [...(p.team || []), { name: req.name, role: req.role || "Member", userId: req.user_id || null, memberId: req.id || null }] }
         : p));
       toast("Added to the crew", "check");
     }
@@ -821,24 +1126,32 @@ import { connectionService } from '../services/connectionService'
       window.scrollTo({ top: 0 });
     }
 
-    // Open a teammate's profile from a project's crew/lead. Self → own profile
-    // page; everyone else → the shared People ProfileModal, resolved from the
-    // already-loaded `people` list by user id.
+    // Navigate to a student's /u/:username page (from the People grid,
+    // Notifications, a project's crew/lead, or an event's attendees).
+    function openPerson(handle) {
+      if (!handle) return;
+      setProfileViewUsername(handle);
+      setRoute("userProfile");
+      window.scrollTo({ top: 0 });
+    }
+    // Open a teammate's profile by user id. Self → own profile page; everyone
+    // else → resolve the username (loaded People list first, public profile as
+    // fallback) and navigate to /u/:username.
     async function openProfile(userId) {
       if (!userId) return;
       if (!profile) return requireAuth("Sign in to view student profiles");
       if (userId === profile.id) { setRoute("profile"); window.scrollTo({ top: 0 }); return; }
       const person = people.find((pp) => pp.id === userId);
-      if (person) { setViewPerson(person); return; }
-      // Not in the loaded People list (e.g. an event attendee who hasn't surfaced
-      // in browse). Fall back to their public profile so the click still lands.
+      if (person && person.handle) return openPerson(person.handle);
+      // Not in the loaded People list (e.g. an event attendee who hasn't
+      // surfaced in browse). Resolve their handle so the click still lands.
       if (!isSupabaseConfigured()) { toast("That profile isn't available yet", "x"); return; }
       const { data: row, error } = await profileService.getPublicProfile(userId);
-      if (error || !row) { toast("That profile isn't available yet", "x"); return; }
-      setViewPerson(toPerson(row));
+      if (error || !row || !row.username) { toast("That profile isn't available yet", "x"); return; }
+      openPerson(row.username);
     }
 
-    async function submitModal(text) {
+    async function submitModal(text, role) {
       if (!modal) return;
       // Only the join flow submits; the contact modal just surfaces real links.
       if (modal.type !== "join") { setModal(null); return; }
@@ -850,7 +1163,9 @@ import { connectionService } from '../services/connectionService'
       toast("Request sent to " + proj.lead.name.split(" ")[0], "check");
       if (!isSupabaseConfigured()) return;
       // Inserts a pending team_members row (RLS: a user may add self as 'pending').
-      const { error } = await projectService.joinProject(proj.id, "", text || "");
+      // role = the specific open role the applicant picked (or "" when the project
+      // has no open roles / a single one was auto-targeted by the modal).
+      const { error } = await projectService.joinProject(proj.id, role || "", text || "");
       if (error) {
         setRequested((r) => { const n = new Set(r); n.delete(proj.id); return n; });
         toast("Request didn't send — " + (error.message || "try again"), "x");
@@ -880,15 +1195,47 @@ import { connectionService } from '../services/connectionService'
       t.texture ? "" : "no-texture",
     ].join(" ");
 
+    // ---------- FIRST-HYDRATION HOLD ----------
+    // A deep link can land on a screen whose identity hasn't resolved yet
+    // (student screens crash on a null profile; org screens render against a
+    // null orgAccount). While the first hydrateSession is in flight, hold a
+    // skeleton instead — hydration then either fills the identity or
+    // applyParsed corrects the position (replaceState, sub-second).
+    const needsStudent = route === "profile" || route === "create" || route === "edit" ||
+      route === "userProfile" || route === "notifications";
+    const needsOrg = route === "orgDashboard" || route === "orgPublic" || route === "orgEditMe" ||
+      route === "eventCreate" || route === "eventEdit";
+    if (sessionPending && ((needsStudent && !profile) || (needsOrg && !orgAccount))) {
+      return (
+        React.createElement("div", { className: rootClass + " corkbg", style: { ...rootStyle, minHeight: "100vh" } },
+          React.createElement("div", { className: "discover" }, React.createElement(Skeleton, { count: 6 })),
+          React.createElement(Toasts, { items: toasts })
+        )
+      );
+    }
+
     // ---------- ONBOARDING (full-screen, no topbar) ----------
     if (route === "onboarding") {
       return (
         React.createElement("div", { className: rootClass, style: rootStyle },
           React.createElement(Onboarding, {
             initialMode: authMode,
+            returnTo: peekReturnTo(),
             onComplete: (p) => {
-              setProfile(p); setProfileEditOnArrive(true); setRoute("profile"); window.scrollTo({ top: 0 });
-              toast("Welcome to Nested, @" + p.username + " — finish your profile so people can find you", "sparkle");
+              setProfile(p);
+              profileRef.current = p; // applyParsed below must see it NOW
+              const ret = takeReturnTo();
+              const target = ret && ret !== "/" ? parseLocation(ret, "") : null;
+              if (target) {
+                // They were headed somewhere — take them back (replacing the
+                // auth entry) instead of the profile-edit nudge.
+                applyParsed(target, { replace: true });
+                window.scrollTo({ top: 0 });
+                toast("Welcome to Nested, @" + p.username, "sparkle");
+              } else {
+                setProfileEditOnArrive(true); setRoute("profile"); window.scrollTo({ top: 0 });
+                toast("Welcome to Nested, @" + p.username + " — finish your profile so people can find you", "sparkle");
+              }
               setJustVerified(true);
               setTimeout(() => setJustVerified(false), 1500);
             },
@@ -1034,7 +1381,17 @@ import { connectionService } from '../services/connectionService'
     // ---------- EVENT EDIT (owner-only) ----------
     if (route === "eventEdit" && orgAccount && eventDraftId) {
       const draft = orgEvents.find((e) => e.id === eventDraftId);
+      // Deep link: the org's events may still be loading — hold, don't bounce.
+      if (!draft && orgEventsLoading) {
+        return (
+          React.createElement("div", { className: rootClass + " corkbg", style: { ...rootStyle, minHeight: "100vh" } },
+            React.createElement("div", { className: "discover" }, React.createElement(Skeleton, { count: 3 })),
+            React.createElement(Toasts, { items: toasts })
+          )
+        );
+      }
       if (!draft) {
+        replaceNextRef.current = true; // correction, not navigation — don't stack history
         setEventDraftId(null);
         setRoute("orgDashboard");
         return null;
@@ -1113,8 +1470,18 @@ import { connectionService } from '../services/connectionService'
     // ---------- EDIT (full-screen, no topbar) ----------
     if (route === "edit") {
       const editProject = projectsList.find((p) => p.id === editId);
-      // Guard: if the project vanished (e.g. stale persisted editId), bail out.
+      // Guard: the project may still be cold-loading (deep link) — hold a
+      // skeleton; bounce only once the feed AND the by-id fetch have settled.
       if (!editProject) {
+        if (projectsLoading || detailFetch === "loading") {
+          return (
+            React.createElement("div", { className: rootClass + " corkbg", style: { ...rootStyle, minHeight: "100vh" } },
+              React.createElement("div", { className: "discover" }, React.createElement(Skeleton, { count: 3 })),
+              React.createElement(Toasts, { items: toasts })
+            )
+          );
+        }
+        replaceNextRef.current = true; // correction, not navigation — don't stack history
         setEditId(null);
         setRoute(detailId ? "detail" : "discover");
         return null;
@@ -1122,6 +1489,7 @@ import { connectionService } from '../services/connectionService'
       // Ownership lock: the real gate. Even if a non-admin reaches this route
       // (stale editId, hand-edited localStorage), refuse to render the editor.
       if (!isProjectAdmin(editProject, profile)) {
+        replaceNextRef.current = true;
         setEditId(null);
         setRoute(detailId === editProject.id ? "detail" : "discover");
         toast("Only the person who pinned this can edit it", "x");
@@ -1377,9 +1745,24 @@ import { connectionService } from '../services/connectionService'
           connected,
           onConnect,
           onDisconnect,
+          onOpenPerson: (person) => openPerson(person.handle),
           loading: projectsLoading,
           error: loadErrors && loadErrors.people,
           onRetry: retrySurface,
+        }),
+
+        // Student profile page (/u/:username). Self-fetches by handle; the
+        // already-loaded People list seeds in-app arrivals so there's no
+        // skeleton flash. Own handle never reaches here (applyParsed and
+        // openProfile both upgrade it to the profile route).
+        route === "userProfile" && profileViewUsername && React.createElement(UserProfile, {
+          username: profileViewUsername,
+          initialPerson: people.find((pp) => pp.handle && pp.handle.toLowerCase() === profileViewUsername.toLowerCase()) || null,
+          connected,
+          onConnect,
+          onDisconnect,
+          onBack: () => goNav("people"),
+          viewerId: profile && profile.id,
         }),
 
         route === "notifications" && React.createElement(Notifications, {
@@ -1390,9 +1773,9 @@ import { connectionService } from '../services/connectionService'
           onApprove: approveRequest,
           onReject: rejectRequest,
           onOpenProject: openProject,
-          // Incoming connections are full toPerson objects — open them straight
-          // in the shared ProfileModal (skills, what they're building, all links).
-          onOpenProfile: (person) => setViewPerson(person),
+          // Incoming connections are full toPerson objects — navigate straight
+          // to their /u/:username page.
+          onOpenProfile: (person) => openPerson(person.handle),
           loading: projectsLoading,
           error: loadErrors && loadErrors.notifications,
           onRetry: retrySurface,
@@ -1408,6 +1791,21 @@ import { connectionService } from '../services/connectionService'
           error: loadErrors && loadErrors.saved,
           onRetry: retrySurface,
         }),
+
+        // Deep-linked detail: skeleton while the feed / by-id fetch resolves;
+        // gone (or never visible) → a cork-board flavored empty state.
+        route === "detail" && !detailProject && (projectsLoading || detailFetch === "loading") &&
+          React.createElement("div", { className: "discover" }, React.createElement(Skeleton, { count: 3 })),
+        route === "detail" && !detailProject && !projectsLoading && detailFetch !== "loading" &&
+          React.createElement("div", { className: "discover" },
+            React.createElement("div", { className: "match-empty fade-up" },
+              React.createElement("div", { className: "ill" }, React.createElement(Icon, { name: "pin", size: 42, stroke: "var(--accent)" })),
+              React.createElement("h3", null, "This flyer's not on the board"),
+              React.createElement("p", null, "It may have been taken down, or the link is off. Browse the board for what's pinned right now."),
+              React.createElement("button", { className: "btn btn-primary", style: { marginTop: 22 }, onClick: () => goNav("discover") },
+                React.createElement(Icon, { name: "grid", size: 16, stroke: "var(--paper)" }), "Back to the board")
+            )
+          ),
 
         route === "detail" && detailProject && React.createElement(ProjectDetail, {
           p: detailProject, profile,
@@ -1449,12 +1847,6 @@ import { connectionService } from '../services/connectionService'
         route === "soon" && React.createElement(SoonPane, { label: soonLabel, saved, joined, requested, projects: projectsList, onOpen: openProject, onSave: toggleSave, onBack: () => goNav("discover") }),
 
         modal && React.createElement(Modal, { modal, onClose: () => setModal(null), onSubmit: submitModal, profile }),
-        viewPerson && React.createElement(ProfileModal, {
-          person: viewPerson,
-          connected: connected.includes(viewPerson.id),
-          onClose: () => setViewPerson(null),
-          onConnect: (id) => { connected.includes(id) ? onDisconnect(id) : onConnect(id); },
-        }),
         // Mobile account sheet (≤860px) — opened by the top-bar avatar; nests
         // Profile / Saved / Notifications / Sign out so the mobile bar stays minimal.
         sheetOpen && profile && React.createElement("div", { className: "sheet-scrim", onClick: () => setSheetOpen(false) },
@@ -1486,6 +1878,11 @@ import { connectionService } from '../services/connectionService'
   // ---------- Request to join / Contact modal ----------
   function Modal({ modal, onClose, onSubmit, profile }) {
     const [text, setText] = useState("");
+    // JOIN: which open role the applicant targets. Default to the first open role;
+    // the picker (below) only renders when there's more than one, so a single-role
+    // project auto-targets it with no extra UI and zero open roles sends "".
+    const joinOpenRoles = ((modal.project && modal.project.roles) || []).filter((r) => r && r.open);
+    const [selectedIdx, setSelectedIdx] = useState(0);
     const isJoin = modal.type === "join";
     // CONTACT: surface the lead's REAL contact — the team-chat link they added on
     // their flyer. There's no messaging system, so we never fake a DM or an
@@ -1530,10 +1927,23 @@ import { connectionService } from '../services/connectionService'
             React.createElement("h2", null, "Request to join"),
             React.createElement("p", null,
               "Send a note to ", React.createElement("b", { key: "b" }, lead.name), ", who's leading ", React.createElement("b", { key: "b2" }, "“" + modal.project.title.split(" — ")[0] + "”"), ". A line about why you're a fit goes a long way."),
+            joinOpenRoles.length > 1 && React.createElement("div", { className: "join-roles", style: { marginBottom: 14 } },
+              React.createElement("div", { style: { fontFamily: "var(--mono)", fontSize: 11.5, color: "var(--ink-faint)", fontWeight: 600, marginBottom: 8 } }, "Which role?"),
+              React.createElement("div", { className: "chips-grid" },
+                joinOpenRoles.map((r, i) => {
+                  const on = selectedIdx === i;
+                  return React.createElement("button", {
+                    key: i, type: "button",
+                    className: "pick" + (on ? " on accent" : ""),
+                    onClick: () => setSelectedIdx(i),
+                  }, on && React.createElement(Icon, { name: "check", size: 13, width: 2.4 }), r.title);
+                })
+              )
+            ),
             React.createElement("textarea", { placeholder, value: text, autoFocus: true, onChange: (e) => setText(e.target.value) }),
             React.createElement("div", { className: "modal-actions" },
               React.createElement("button", { className: "btn btn-ghost", onClick: onClose }, "Cancel"),
-              React.createElement("button", { className: "btn btn-primary", onClick: () => onSubmit(text) },
+              React.createElement("button", { className: "btn btn-primary", onClick: () => onSubmit(text, joinOpenRoles[selectedIdx] ? joinOpenRoles[selectedIdx].title : "") },
                 React.createElement(Icon, { name: "send", size: 16, stroke: "var(--paper)" }),
                 "Send request")
             )
