@@ -30,7 +30,12 @@ import { authService, isSupabaseConfigured, getErrorMessage } from '../lib/supab
     const [resendCooldown, setResendCooldown] = useState(0);
     const codeRefs = useRef([]);
 
-    const isEdu = /@[^@]+\.edu$/.test(email.trim());
+    // Format-only: this screen serves students AND org accounts (any domain).
+    // The reset email only ever goes to an existing account, so the address
+    // shape is the only thing worth gating client-side. Same validator the
+    // service re-applies, so the button can't enable for an address the
+    // service would reject.
+    const emailValid = authService.validateEmailFormat(email.trim()).valid;
     const codeString = code.join("");
     const codeReady = codeString.length === 6;
     const passwordValid = password.length >= 6 && /[A-Z]/.test(password);
@@ -67,7 +72,7 @@ import { authService, isSupabaseConfigured, getErrorMessage } from '../lib/supab
     }
 
     async function submitEmail() {
-      if (!isEdu) { setEmailTouched(true); return; }
+      if (!emailValid) { setEmailTouched(true); return; }
       const ok = await sendCode();
       if (ok) {
         setCode(["", "", "", "", "", ""]);
@@ -144,26 +149,26 @@ import { authService, isSupabaseConfigured, getErrorMessage } from '../lib/supab
     let body;
 
     if (step === "email") {
-      const cls = !emailTouched || email === "" ? "" : isEdu ? "good" : "bad";
+      const cls = !emailTouched || email === "" ? "" : emailValid ? "good" : "bad";
       body = (
         React.createElement("div", { className: "fade-up", key: "fp0" },
           React.createElement("span", { className: "onb-kicker" }, "Reset · Step 1"),
           React.createElement("h1", null, "Forgot password?"),
-          React.createElement("p", { className: "desc" }, "Drop your .edu email and we'll send a 6-digit code. The code expires in a few minutes."),
+          React.createElement("p", { className: "desc" }, "Drop the email on your account and we'll send a 6-digit code. The code expires in a few minutes."),
           React.createElement("div", { className: "field" },
-            React.createElement("label", null, "University email"),
+            React.createElement("label", null, "Email"),
             React.createElement("div", { className: "input-wrap " + cls },
               React.createElement(Icon, { name: "mail", size: 19 }),
               React.createElement("input", {
-                type: "email", placeholder: "you@nyu.edu", value: email, autoFocus: !initialEmail,
+                type: "email", placeholder: "you@nyu.edu or events@yourorg.com", value: email, autoFocus: !initialEmail,
                 onChange: (e) => { setEmail(e.target.value); setEmailTouched(true); setSubmitError(""); },
-                onKeyDown: (e) => { if (e.key === "Enter" && isEdu && !submitting) submitEmail(); },
+                onKeyDown: (e) => { if (e.key === "Enter" && emailValid && !submitting) submitEmail(); },
               })
             ),
             submitError
               ? React.createElement("div", { className: "hint err" }, "// " + submitError)
-              : emailTouched && email && !isEdu
-                ? React.createElement("div", { className: "hint err" }, "// must be a .edu address")
+              : emailTouched && email && !emailValid
+                ? React.createElement("div", { className: "hint err" }, "// that doesn't look like an email address")
                 : React.createElement("div", { className: "hint" }, "// the same one you signed up with")
           )
         )
@@ -249,7 +254,7 @@ import { authService, isSupabaseConfigured, getErrorMessage } from '../lib/supab
 
     // ---------- gating ----------
     const stepIndex = step === "email" ? 0 : step === "code" ? 1 : 2;
-    const canPrimary = step === "email" ? (isEdu && !submitting)
+    const canPrimary = step === "email" ? (emailValid && !submitting)
       : step === "code" ? (codeReady && !submitting)
       : (canSubmitPassword && !submitting);
     const primaryLabel = (() => {

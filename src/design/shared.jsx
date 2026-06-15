@@ -5,7 +5,7 @@ import React from 'react'
 import Icon from './icons'
 import { avColor, initials } from './data'
 
-  const { useState } = React;
+  const { useState, useRef } = React;
 
   function Av({ name, color, size, img }) {
     const style = { background: color || avColor(name) };
@@ -136,5 +136,112 @@ import { avColor, initials } from './data'
     );
   }
 
-  export { Av, Facepile, CatTag, Pin, Stamp, Toasts, UniLogo, formatEventDate, Skeleton };
-  export const UI = { Av, Facepile, CatTag, Pin, Stamp, Toasts, UniLogo, formatEventDate, Skeleton };
+  // Confirm dialog in the flyer voice: scrim > paper modal > cat-bar accent >
+  // close > title/body > ghost Cancel + primary CTA. `accent` is the cat-bar
+  // color — callers pass `p.flyerColor || CAT[p.cat].color` so this file stays
+  // free of the taxonomy. `danger` paints the CTA in the alert red. `body`
+  // takes a node, so callers can bold names inline.
+  function ConfirmModal({ accent, title, body, ctaLabel, ctaIcon, danger, onCancel, onConfirm }) {
+    return (
+      React.createElement("div", { className: "scrim", onClick: onCancel },
+        React.createElement("div", { className: "modal", onClick: (e) => e.stopPropagation(), style: { maxWidth: 440 } },
+          React.createElement("div", { className: "cat-bar", style: { background: accent } }),
+          React.createElement("button", { className: "modal-close", onClick: onCancel },
+            React.createElement(Icon, { name: "x", size: 18 })),
+          React.createElement("div", { className: "modal-inner" },
+            React.createElement("h2", null, title),
+            React.createElement("p", null, body),
+            React.createElement("div", { className: "modal-actions" },
+              React.createElement("button", { className: "btn btn-ghost", onClick: onCancel }, "Cancel"),
+              React.createElement("button", {
+                className: "btn btn-primary",
+                onClick: onConfirm,
+                style: danger ? { background: "var(--c-startup)", borderColor: "var(--c-startup)" } : undefined,
+              },
+                ctaIcon && React.createElement(Icon, { name: ctaIcon, size: 16, stroke: "var(--paper)" }),
+                ctaLabel)
+            )
+          )
+        )
+      )
+    );
+  }
+
+  const CODE_BOX_STYLE = {
+    width: 46, height: 56, textAlign: "center",
+    fontFamily: "var(--mono)", fontSize: 22, fontWeight: 700,
+    color: "var(--ink)", background: "var(--paper)",
+    border: "1.5px solid var(--paper-edge)", borderRadius: 11,
+    outline: "none", transition: "border-color .15s, box-shadow .15s",
+  };
+
+  // Six-box 6-digit code input (signup / reset confirmation codes). Owns the
+  // per-box refs and the focus dance — type → advance, backspace on empty →
+  // retreat, paste → fill and land on the first gap. The caller owns the value
+  // (array of 6 strings) and receives the full next array via onChange; Enter
+  // on a complete code fires onSubmit. onboarding.jsx / forgot.jsx predate
+  // this and still carry their own copies — new code screens use this one.
+  function CodeBoxes({ value, onChange, onSubmit, autoFocus }) {
+    const refs = useRef([]);
+    const ready = value.join("").length === 6;
+
+    function setDigit(i, raw) {
+      const digits = (raw || "").replace(/\D/g, "");
+      // OTP autofill (and some keyboards) insert the whole code as one input
+      // event rather than a paste — distribute it across the boxes.
+      if (digits.length > 1) {
+        const next = ["", "", "", "", "", ""];
+        digits.slice(0, 6).split("").forEach((d, j) => { next[j] = d; });
+        onChange(next);
+        const firstEmpty = next.findIndex((c) => !c);
+        const focusIdx = firstEmpty === -1 ? 5 : firstEmpty;
+        refs.current[focusIdx] && refs.current[focusIdx].focus();
+        return;
+      }
+      const digit = digits.slice(0, 1);
+      const next = value.slice();
+      next[i] = digit;
+      onChange(next);
+      if (digit && i < 5) refs.current[i + 1] && refs.current[i + 1].focus();
+    }
+    function onKeyDown(i, e) {
+      if (e.key === "Backspace" && !value[i] && i > 0) {
+        refs.current[i - 1] && refs.current[i - 1].focus();
+      } else if (e.key === "Enter" && ready && onSubmit) {
+        onSubmit();
+      }
+    }
+    function onPaste(e) {
+      const pasted = (e.clipboardData.getData("text") || "").replace(/\D/g, "").slice(0, 6);
+      if (!pasted) return;
+      e.preventDefault();
+      const next = ["", "", "", "", "", ""];
+      pasted.split("").forEach((d, i) => { if (i < 6) next[i] = d; });
+      onChange(next);
+      const firstEmpty = next.findIndex((c) => !c);
+      const focusIdx = firstEmpty === -1 ? 5 : firstEmpty;
+      refs.current[focusIdx] && refs.current[focusIdx].focus();
+    }
+
+    return (
+      React.createElement("div", { style: { display: "flex", gap: 10 }, onPaste: onPaste },
+        value.map((d, i) => (
+          React.createElement("input", {
+            key: i,
+            ref: (el) => { refs.current[i] = el; },
+            type: "text", inputMode: "numeric", maxLength: 1, autoFocus: !!autoFocus && i === 0,
+            // one-time-code on box 1 lets iOS/macOS offer the emailed code as
+            // an autofill suggestion (it lands as a normal insertion, which
+            // setDigit truncates — but without the attribute it's never offered).
+            autoComplete: i === 0 ? "one-time-code" : "off",
+            value: d, className: "code-box", style: CODE_BOX_STYLE,
+            onChange: (e) => setDigit(i, e.target.value),
+            onKeyDown: (e) => onKeyDown(i, e),
+          })
+        ))
+      )
+    );
+  }
+
+  export { Av, Facepile, CatTag, Pin, Stamp, Toasts, UniLogo, formatEventDate, Skeleton, CodeBoxes, ConfirmModal };
+  export const UI = { Av, Facepile, CatTag, Pin, Stamp, Toasts, UniLogo, formatEventDate, Skeleton, CodeBoxes, ConfirmModal };

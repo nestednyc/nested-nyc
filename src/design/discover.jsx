@@ -5,7 +5,7 @@
    ============================================================ */
 import React from 'react'
 import Icon from './icons'
-import { CATEGORIES, CAT, UNI, statusMeta, isProjectAdmin } from './data'
+import { CATEGORIES, CAT, UNI, statusMeta, isProjectAdmin, coLeadsOf } from './data'
 import { Facepile, CatTag, Pin, Skeleton } from './shared'
 
   const { useState, useMemo, useRef } = React;
@@ -66,10 +66,9 @@ import { Facepile, CatTag, Pin, Skeleton } from './shared'
     // Co-leads (crew members promoted into p.admins) share the masthead: the
     // card reads "Led by A & B" so co-ownership shows at a glance. Without
     // co-leads the original led-by / joined-by copy stands.
-    const adminSet = new Set(Array.isArray(p.admins) ? p.admins : []);
     const leadFirsts = [
       p.lead.name.split(" ")[0],
-      ...p.team.filter((t) => t.userId && adminSet.has(t.userId)).map((t) => t.name.split(" ")[0]),
+      ...coLeadsOf(p).map((t) => t.name.split(" ")[0]),
     ];
     const joinedTxt = leadFirsts.length > 1
       ? "Led by " + leadFirsts.slice(0, 3).join(" & ") + (leadFirsts.length > 3 ? " +" + (leadFirsts.length - 3) : "")

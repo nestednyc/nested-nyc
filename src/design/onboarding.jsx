@@ -725,6 +725,13 @@ import { toDbProfile, fromDbProfile } from './profileAdapter'
                 React.createElement(Icon, { name: "arrowRight", size: 17, stroke: "var(--paper)" })
               )
             )
+          ),
+          // Mobile-only org-path entry: the desktop link lives in the aside
+          // footer above, and the aside is display:none under 880px — without
+          // this, phones have no way into org sign-up at all.
+          onOrgPath && React.createElement("button", { className: "onb-orgline", onClick: onOrgPath, type: "button" },
+            "Running a uni or club? ",
+            React.createElement("span", null, "Org sign-up →")
           )
         )
       )

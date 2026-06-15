@@ -7,7 +7,7 @@
 import React from 'react'
 import Icon from './icons'
 import { CAT, UNI, isProjectOwner } from './data'
-import { Av, Facepile, CatTag, Pin } from './shared'
+import { Av, Facepile, CatTag, Pin, ConfirmModal } from './shared'
 import ProjectForm from './projectForm'
 
   const { useRef, useState } = React;
@@ -116,33 +116,16 @@ import ProjectForm from './projectForm'
 
   function ConfirmDelete({ project, onCancel, onConfirm }) {
     const cat = project.cat ? CAT[project.cat] : CAT.startup;
-    return (
-      React.createElement("div", { className: "scrim", onClick: onCancel },
-        React.createElement("div", { className: "modal", onClick: (e) => e.stopPropagation(), style: { maxWidth: 440 } },
-          React.createElement("div", { className: "cat-bar", style: { background: project.flyerColor || cat.color } }),
-          React.createElement("button", { className: "modal-close", onClick: onCancel },
-            React.createElement(Icon, { name: "x", size: 18 })),
-          React.createElement("div", { className: "modal-inner" },
-            React.createElement("h2", null, "Take this flyer down?"),
-            React.createElement("p", null,
-              "This removes ",
-              React.createElement("b", null, "“" + (project.title || "your project") + "”"),
-              " from the board. You can pin a new one anytime."
-            ),
-            React.createElement("div", { className: "modal-actions" },
-              React.createElement("button", { className: "btn btn-ghost", onClick: onCancel }, "Cancel"),
-              React.createElement("button", {
-                className: "btn btn-primary",
-                onClick: onConfirm,
-                style: { background: "var(--c-startup)", borderColor: "var(--c-startup)" },
-              },
-                React.createElement(Icon, { name: "x", size: 17, stroke: "var(--paper)" }),
-                "Take it down")
-            )
-          )
-        )
-      )
-    );
+    return React.createElement(ConfirmModal, {
+      accent: project.flyerColor || cat.color,
+      title: "Take this flyer down?",
+      body: React.createElement(React.Fragment, null,
+        "This removes ",
+        React.createElement("b", null, "“" + (project.title || "your project") + "”"),
+        " from the board. You can pin a new one anytime."),
+      ctaLabel: "Take it down", ctaIcon: "x", danger: true,
+      onCancel, onConfirm,
+    });
   }
 
   function Edit({ project, profile, onSave, onDelete, onCancel }) {

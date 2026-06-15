@@ -453,18 +453,12 @@ input, textarea, select { font-family: inherit; }
 /* side rail */
 .rail { display: flex; flex-direction: column; gap: 18px; }
 .rail-card { background: var(--paper-2); border: 1.5px solid var(--paper-edge); border-radius: 12px; padding: 20px; }
-.rail-card.lead { background: var(--paper); }
 .kv { display: flex; align-items: center; gap: 12px; padding: 11px 0; border-bottom: 1px dashed var(--line); }
 .kv:last-child { border-bottom: 0; }
 .kv .ic { width: 34px; height: 34px; border-radius: 9px; background: var(--accent-wash); color: var(--accent-ink); display: grid; place-items: center; flex: none; }
 .kv .ic svg { width: 17px; height: 17px; }
 .kv .kv-t small { font-family: var(--mono); font-size: 10.5px; color: var(--ink-faint); text-transform: uppercase; letter-spacing: .08em; display: block; }
 .kv .kv-t b { font-size: 14.5px; font-weight: 600; }
-
-.lead-head { display: flex; align-items: center; gap: 13px; margin-bottom: 16px; }
-.lead-head .av { width: 46px; height: 46px; font-size: 16px; }
-.lead-head .who b { font-size: 16px; font-weight: 700; display: block; }
-.lead-head .who small { font-family: var(--mono); font-size: 11px; color: var(--ink-soft); }
 
 .team-pile { display: flex; flex-direction: column; gap: 9px; }
 .team-row { display: flex; align-items: center; gap: 11px; }
@@ -475,9 +469,6 @@ input, textarea, select { font-family: inherit; }
 .team-row.clickable { cursor: pointer; border-radius: 10px; padding: 5px 8px; margin: -5px -8px; transition: background .14s ease; }
 .team-row.clickable:hover { background: var(--accent-wash); }
 .team-row.clickable:hover .t-who b { color: var(--accent-ink); }
-.lead-head.clickable { cursor: pointer; transition: opacity .14s ease; }
-.lead-head.clickable:hover { opacity: .82; }
-.lead-head.clickable:hover .who b { color: var(--accent-ink); }
 /* Crew manager modal: one labeled chip per row for the role move; kick is a
    mono marginalia link in the sub-line. Never two buttons side by side. */
 .crew-chip {
@@ -496,7 +487,11 @@ input, textarea, select { font-family: inherit; }
   color: var(--ink-faint); padding: 8px; margin: -8px; margin-left: -4px;
 }
 .row-remove:hover { color: var(--c-startup); text-decoration: underline dotted; }
-.team-row .t-who b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Scoped to the crew-manager modal only: its rows pair a long name with a
+   fixed chip, so the name must ellipsize (rows there set min-width:0 inline).
+   Elsewhere .t-who names WRAP — a global nowrap would blow long names past
+   the rail-card edge, where flex min-width:auto defeats the ellipsis. */
+.crew-pile .t-who b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* Crew-card annotation line; .act is the owner-only inline trigger styled as
    marginalia — padding/negative-margin keeps a finger-sized tap target without
    adding a pixel of layout. */
@@ -1664,12 +1659,13 @@ input, textarea, select { font-family: inherit; }
    ------------------------------------------------------------
    The split-screen .onb shell is shared by ~10 screens (create,
    forgot, org*, *Form, edit). Everything here is scoped to
-   .onb-signup — a class carried ONLY by the two student-
-   onboarding roots — and floored by the media query, so desktop
-   (>=881px) and every other .onb screen are byte-identical.
-   Below 880px the base CSS hides .onb-aside, deleting the brand
-   identity; this restores it (cork board + a pinned paper form)
-   and fixes the form's mobile usability.
+   .onb-signup — carried by the two student-onboarding roots AND
+   both OrgSignup roots (auth form + code step) — and floored by
+   the media query, so desktop (>=881px) and every non-.onb-signup
+   .onb screen are byte-identical. Below 880px the base CSS hides
+   .onb-aside, deleting the brand identity; this restores it (cork
+   board + a pinned paper form) and fixes the form's mobile
+   usability.
    ============================================================ */
 
 /* New mobile-only elements: inert on desktop, revealed in the block below. */

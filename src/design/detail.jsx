@@ -3,8 +3,8 @@
    ============================================================ */
 import React from 'react'
 import Icon from './icons'
-import { CAT, UNI, isProjectAdmin, isProjectOwner, statusMeta, STATUSES } from './data'
-import { CatTag, Av, Facepile } from './shared'
+import { CAT, UNI, isProjectAdmin, isProjectOwner, projectAdminSet, coLeadsOf, statusMeta, STATUSES } from './data'
+import { CatTag, Av, Facepile, ConfirmModal } from './shared'
 
   const { useState } = React;
 
@@ -129,7 +129,7 @@ import { CatTag, Av, Facepile } from './shared'
             React.createElement("div", { style: { fontFamily: "var(--mono)", fontSize: 11.5, color: "var(--ink-faint)", marginBottom: 6 } }, "// co-sign the flyer"),
             React.createElement("h2", null, "Who's leading this with you?"),
             React.createElement("p", null, "A co-lead runs the flyer with you — edits, status, updates, and the join inbox."),
-            React.createElement("div", { className: "team-pile", style: { marginTop: 14 } },
+            React.createElement("div", { className: "team-pile crew-pile", style: { marginTop: 14 } },
               coLeads.map((m) => React.createElement("div", { className: "team-row", key: "cl-" + m.userId },
                 React.createElement(Av, { name: m.name, img: m.image }),
                 React.createElement("span", { className: "t-who", style: { flex: 1, minWidth: 0 } },
@@ -166,60 +166,30 @@ import { CatTag, Av, Facepile } from './shared'
   /* Owner-only confirm before removing someone from the crew — destructive
      enough (their seat, their co-lead grant) to warrant a deliberate click. */
   function ConfirmKick({ p, member, onCancel, onConfirm }) {
-    const cat = CAT[p.cat];
-    return (
-      React.createElement("div", { className: "scrim", onClick: onCancel },
-        React.createElement("div", { className: "modal", onClick: (e) => e.stopPropagation(), style: { maxWidth: 440 } },
-          React.createElement("div", { className: "cat-bar", style: { background: p.flyerColor || cat.color } }),
-          React.createElement("button", { className: "modal-close", onClick: onCancel },
-            React.createElement(Icon, { name: "x", size: 18 })),
-          React.createElement("div", { className: "modal-inner" },
-            React.createElement("h2", null, "Remove " + member.name.split(" ")[0] + " from the crew?"),
-            React.createElement("p", null,
-              React.createElement("b", null, member.name),
-              " comes off “" + (p.title || "this project") + "” and their spot opens back up. They can always request to join again."),
-            React.createElement("div", { className: "modal-actions" },
-              React.createElement("button", { className: "btn btn-ghost", onClick: onCancel }, "Cancel"),
-              React.createElement("button", {
-                className: "btn btn-primary",
-                onClick: onConfirm,
-                style: { background: "var(--c-startup)", borderColor: "var(--c-startup)" },
-              },
-                React.createElement(Icon, { name: "x", size: 16, stroke: "var(--paper)" }),
-                "Remove them")
-            )
-          )
-        )
-      )
-    );
+    return React.createElement(ConfirmModal, {
+      accent: p.flyerColor || CAT[p.cat].color,
+      title: "Remove " + member.name.split(" ")[0] + " from the crew?",
+      body: React.createElement(React.Fragment, null,
+        React.createElement("b", null, member.name),
+        " comes off “" + (p.title || "this project") + "” and their spot opens back up. They can always request to join again."),
+      ctaLabel: "Remove them", ctaIcon: "x", danger: true,
+      onCancel, onConfirm,
+    });
   }
 
   /* Owner-only confirm before promoting a crew member. Co-lead is a real
      grant (edit the flyer, post updates, run the join inbox) so it gets a
      deliberate click; demoting is one click since it's instantly reversible. */
   function ConfirmPromote({ p, member, onCancel, onConfirm }) {
-    const cat = CAT[p.cat];
-    return (
-      React.createElement("div", { className: "scrim", onClick: onCancel },
-        React.createElement("div", { className: "modal", onClick: (e) => e.stopPropagation(), style: { maxWidth: 440 } },
-          React.createElement("div", { className: "cat-bar", style: { background: p.flyerColor || cat.color } }),
-          React.createElement("button", { className: "modal-close", onClick: onCancel },
-            React.createElement(Icon, { name: "x", size: 18 })),
-          React.createElement("div", { className: "modal-inner" },
-            React.createElement("h2", null, "Make " + member.name.split(" ")[0] + " a co-lead?"),
-            React.createElement("p", null,
-              React.createElement("b", null, member.name),
-              " will run this project with you — edit the flyer, change the status, post updates, and approve requests to join. Only you can take the flyer down or change co-leads."),
-            React.createElement("div", { className: "modal-actions" },
-              React.createElement("button", { className: "btn btn-ghost", onClick: onCancel }, "Cancel"),
-              React.createElement("button", { className: "btn btn-primary", onClick: onConfirm },
-                React.createElement(Icon, { name: "sparkle", size: 16, stroke: "var(--paper)" }),
-                "Make co-lead")
-            )
-          )
-        )
-      )
-    );
+    return React.createElement(ConfirmModal, {
+      accent: p.flyerColor || CAT[p.cat].color,
+      title: "Make " + member.name.split(" ")[0] + " a co-lead?",
+      body: React.createElement(React.Fragment, null,
+        React.createElement("b", null, member.name),
+        " will run this project with you — edit the flyer, change the status, post updates, and approve requests to join. Only you can take the flyer down or change co-leads."),
+      ctaLabel: "Make co-lead", ctaIcon: "sparkle",
+      onCancel, onConfirm,
+    });
   }
 
   function ProjectDetail({ p, profile, saved, joined, requested, onBack, onSave, onRequest, onMessage, onEdit, onUpdateStatus, onSetCoLead, onKickMember, pendingRequests = [], onApprove, onReject, onOpenProfile }) {
@@ -234,8 +204,8 @@ import { CatTag, Av, Facepile } from './shared'
     const isOwner = !!(onEdit && isAdmin);
     // Co-leads = crew members promoted into projects.admins. Only the TRUE
     // owner (not a co-lead) can promote/demote — isProjectAdmin vs isProjectOwner.
-    const adminSet = new Set(Array.isArray(p.admins) ? p.admins : []);
-    const coLeads = p.team.filter((t) => t.userId && adminSet.has(t.userId));
+    const adminSet = projectAdminSet(p);
+    const coLeads = coLeadsOf(p);
     // Crew members the owner could still promote (have a real account, not
     // already a co-lead). Rows without a userId are legacy denormalized members.
     const coLeadCandidates = p.team.filter((t) => t.userId && !adminSet.has(t.userId));

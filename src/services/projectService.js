@@ -148,9 +148,39 @@ export const projectService = {
       return { data: null, error: { message: 'Supabase not configured' } }
     }
 
+    // admins + ownership are server-controlled on this path (RLS + the
+    // projects_guard_ownership trigger pin them). Never round-trip them from
+    // the client, even by accident: a stale admins copy would silently clash
+    // with grants made elsewhere. setProjectAdmins below is the ONE writer.
+    const { admins, owner_id, id, ...safe } = updates || {}
+
     const { data, error } = await supabase
       .from('projects')
-      .update(updates)
+      .update(safe)
+      .eq('id', projectId)
+      .select()
+      .single()
+
+    return { data, error }
+  },
+
+  /**
+   * Replace a project's co-lead grants. The ONLY path that writes
+   * projects.admins: send the full array, nothing else. RLS restricts to
+   * owner/co-lead and the projects_guard_ownership trigger enforces that
+   * only the owner can change the array — and only to approved members.
+   * @param {string} projectId - The project UUID
+   * @param {string[]} admins - Full replacement admins array (user ids as text)
+   * @returns {Promise<{data: object|null, error: object|null}>}
+   */
+  async setProjectAdmins(projectId, admins) {
+    if (!isSupabaseConfigured() || !supabase) {
+      return { data: null, error: { message: 'Supabase not configured' } }
+    }
+
+    const { data, error } = await supabase
+      .from('projects')
+      .update({ admins })
       .eq('id', projectId)
       .select()
       .single()

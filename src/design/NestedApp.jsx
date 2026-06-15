@@ -176,6 +176,11 @@ import { connectionService } from '../services/connectionService'
     // Which auth screen opened forgot-password ("onboarding" | "orgSignup"),
     // so its Back button returns an org to the org door, not the student wall.
     const [forgotFrom, setForgotFrom] = useState("onboarding");
+    // Which form the org auth screen opens on. Set to "signin" when an org
+    // backs out of forgot-password (they left the sign-in form; OrgSignup
+    // remounts across routes, so the mode must arrive as a prop); reset to
+    // "signup" whenever the org auth flow exits.
+    const [orgAuthMode, setOrgAuthMode] = useState("signup");
     // Mobile-only chrome state (≤860px): the account sheet behind the avatar, and
     // the collapsible top-bar search. Both are inert on desktop — their only
     // triggers live in the mobile-only top-bar cluster, which is display:none above
@@ -433,8 +438,12 @@ import { connectionService } from '../services/connectionService'
       const sessUser = session.user || {};
       const hydrated = fromDbProfile(row, sessUser.email);
       setProfile(hydrated);
-      const cachedRoute = persisted.current.route;
-      if (!cachedRoute || cachedRoute === "onboarding" || cachedRoute === "forgot") setRoute("discover");
+      // A signed-in student shouldn't sit on an auth screen: kick them to
+      // Discover from onboarding/forgot (mount after an email link) AND from
+      // the org door (a student who signed in there by mistake — hydration is
+      // the shared routing brain for every auth outcome). Any other route is
+      // where they were working; leave it alone.
+      setRoute((r) => (r === "onboarding" || r === "forgot" || r === "orgSignup" || r === "orgOnboarding" ? "discover" : r));
     }
 
     useEffect(() => {
@@ -620,7 +629,9 @@ import { connectionService } from '../services/connectionService'
     // demote them. Co-leads can edit the flyer / post updates / run the join
     // inbox, but only the OWNER may change the admins list itself — the DB
     // enforces that with the projects_guard_ownership trigger; this check is
-    // the client-side mirror. Optimistic, reverts with a toast on failure.
+    // the client-side mirror. Optimistic; the failure path undoes THIS toggle
+    // against current state (never restores a whole snapshot, which would
+    // clobber other crew ops that landed in between).
     async function setCoLead(projectId, userId, make) {
       const prev = projectsList.find((p) => p.id === projectId);
       if (!prev || !isProjectOwner(prev, profile)) {
@@ -632,21 +643,26 @@ import { connectionService } from '../services/connectionService'
       const admins = make
         ? [...new Set([...base, userId])]
         : base.filter((a) => a !== userId);
-      setProjects((arr) => arr.map((p) => (p.id === projectId ? { ...p, admins } : p)));
+      const toggleAdmin = (list, on) => {
+        const cur = Array.isArray(list) ? list : [];
+        return on ? [...new Set([...cur, userId])] : cur.filter((a) => a !== userId);
+      };
+      setProjects((arr) => arr.map((p) => (p.id === projectId ? { ...p, admins: toggleAdmin(p.admins, make) } : p)));
       const member = (prev.team || []).find((t) => t.userId === userId);
       const who = member ? member.name.split(" ")[0] : "They";
       toast(make ? who + " now co-leads this project" : who + " is no longer a co-lead", make ? "sparkle" : "x");
       if (!isSupabaseConfigured()) return;
-      const { error } = await projectService.updateProject(projectId, { admins });
+      const { error } = await projectService.setProjectAdmins(projectId, admins);
       if (error) {
-        setProjects((arr) => arr.map((p) => (p.id === projectId ? prev : p)));
+        setProjects((arr) => arr.map((p) => (p.id === projectId ? { ...p, admins: toggleAdmin(p.admins, !make) } : p)));
         toast("Couldn't update co-leads — " + (error.message || "try again"), "x");
       }
     }
-    // Owner-only: remove a crew member entirely — their team_members row and,
-    // if they were a co-lead, their grant in admins. Admins is revoked FIRST so
-    // a failed row-delete can never leave a kicked member still holding edit
-    // rights. Optimistic, reverts with a toast on failure.
+    // Owner-only: remove a crew member entirely. ONE call — deleting the
+    // team_members row also revokes any co-lead grant atomically via the
+    // team_members_revoke_admin DB trigger, so there's no two-step partial
+    // state to manage. Optimistic; failure re-inserts THIS member against
+    // current state rather than restoring a stale snapshot.
     async function kickMember(projectId, userId) {
       const prev = projectsList.find((p) => p.id === projectId);
       if (!prev || !isProjectOwner(prev, profile)) {
@@ -656,35 +672,30 @@ import { connectionService } from '../services/connectionService'
       if (!userId || userId === prev.ownerId) return;
       const member = (prev.team || []).find((t) => t.userId === userId);
       if (!member) return;
-      const team = (prev.team || []).filter((t) => t.userId !== userId);
-      const base = Array.isArray(prev.admins) ? prev.admins : [];
-      const admins = base.filter((a) => a !== userId);
-      const wasCoLead = base.includes(userId);
-      const revert = () => setProjects((arr) => arr.map((p) => (p.id === projectId ? prev : p)));
-      setProjects((arr) => arr.map((p) => (p.id === projectId
-        ? { ...p, team, admins, joinedCount: Math.max(0, (p.joinedCount || 0) - 1) }
-        : p)));
+      const wasCoLead = (Array.isArray(prev.admins) ? prev.admins : []).includes(userId);
+      const applyKick = (p) => ({
+        ...p,
+        team: (p.team || []).filter((t) => t.userId !== userId),
+        admins: (Array.isArray(p.admins) ? p.admins : []).filter((a) => a !== userId),
+        joinedCount: Math.max(0, (p.joinedCount || 0) - 1),
+      });
+      const undoKick = (p) => ({
+        ...p,
+        team: (p.team || []).some((t) => t.userId === userId) ? p.team : [...(p.team || []), member],
+        admins: wasCoLead ? [...new Set([...(Array.isArray(p.admins) ? p.admins : []), userId])] : p.admins,
+        joinedCount: (p.joinedCount || 0) + 1,
+      });
+      setProjects((arr) => arr.map((p) => (p.id === projectId ? applyKick(p) : p)));
       toast(member.name.split(" ")[0] + " was removed from the crew", "x");
       if (!isSupabaseConfigured()) return;
       if (!member.memberId) {
-        revert();
+        setProjects((arr) => arr.map((p) => (p.id === projectId ? undoKick(p) : p)));
         toast("Couldn't remove them — try again", "x");
         return;
       }
-      if (wasCoLead) {
-        const { error } = await projectService.updateProject(projectId, { admins });
-        if (error) {
-          revert();
-          toast("Couldn't remove them — " + (error.message || "try again"), "x");
-          return;
-        }
-      }
       const { error } = await projectService.removeTeamMember(member.memberId);
       if (error) {
-        // The co-lead grant (if any) is already revoked server-side, so don't
-        // revert wholesale — restore the member to the crew WITHOUT their
-        // co-lead status, keeping the UI in lockstep with the server.
-        setProjects((arr) => arr.map((p) => (p.id === projectId ? { ...prev, admins } : p)));
+        setProjects((arr) => arr.map((p) => (p.id === projectId ? undoKick(p) : p)));
         toast("Couldn't remove them — " + (error.message || "try again"), "x");
       }
     }
@@ -705,9 +716,11 @@ import { connectionService } from '../services/connectionService'
         if (inInbox) setProjectRequests((arr) => [inInbox, ...arr]);
         return;
       }
-      // Reflect the new crew member on the flyer optimistically.
+      // Reflect the new crew member on the flyer optimistically. Carry the
+      // ids the crew-manager features key off (promote needs userId, kick
+      // needs memberId) so the fresh member is manageable without a reload.
       if (req) setProjects((arr) => arr.map((p) => p.id === req.project_id
-        ? { ...p, joinedCount: (p.joinedCount || 0) + 1, team: [...(p.team || []), { name: req.name, role: req.role || "Member" }] }
+        ? { ...p, joinedCount: (p.joinedCount || 0) + 1, team: [...(p.team || []), { name: req.name, role: req.role || "Member", userId: req.user_id || null, memberId: req.id || null }] }
         : p));
       toast("Added to the crew", "check");
     }
@@ -899,7 +912,13 @@ import { connectionService } from '../services/connectionService'
         React.createElement("div", { className: rootClass, style: rootStyle },
           React.createElement(ForgotPassword, {
             initialEmail: forgotEmailSeed,
-            onBack: () => { setRoute(forgotFrom); window.scrollTo({ top: 0 }); },
+            onBack: () => {
+              // An org abandoning the reset left the SIGN-IN form — reopen it
+              // there (OrgSignup remounts, so the mode must travel as a prop).
+              if (forgotFrom === "orgSignup") setOrgAuthMode("signin");
+              setRoute(forgotFrom);
+              window.scrollTo({ top: 0 });
+            },
             onComplete: () => {
               // updatePassword left us with a real session — let the shared
               // hydration helper route us (student → discover, org → dashboard).
@@ -915,34 +934,30 @@ import { connectionService } from '../services/connectionService'
 
     // ---------- ORG SIGN-UP / SIGN-IN (separate auth path) ----------
     if (route === "orgSignup") {
+      // Any successful auth here routes by what the ACCOUNT is, not by which
+      // door was used: hydrateSession sends org owners to their dashboard,
+      // org_admin signups without an org row to orgOnboarding, and a student
+      // who wandered in (or got their account confirmed here) to the STUDENT
+      // side — never into org creation.
+      const orgAuthDone = () => {
+        setOrgAuthMode("signup");
+        hydrateSession();
+        window.scrollTo({ top: 0 });
+      };
       return (
         React.createElement("div", { className: rootClass, style: rootStyle },
           React.createElement(OrgSignup, {
-            onBack: () => setRoute("onboarding"),
+            initialMode: orgAuthMode,
+            initialEmail: forgotFrom === "orgSignup" ? forgotEmailSeed : "",
+            onBack: () => { setOrgAuthMode("signup"); setRoute("onboarding"); },
             onForgot: (seedEmail) => {
               setForgotEmailSeed(seedEmail || "");
               setForgotFrom("orgSignup");
               setRoute("forgot");
               window.scrollTo({ top: 0 });
             },
-            onSignedUp: () => {
-              setRoute("orgOnboarding");
-              window.scrollTo({ top: 0 });
-            },
-            onSignedIn: async () => {
-              // Re-run the same getMyOrgs logic the session hydration uses, so
-              // a returning org owner lands on their dashboard directly.
-              const { data } = await orgService.getMyOrgs();
-              const ownedOrg = (data && data[0]) || null;
-              if (ownedOrg) {
-                setOrgAccount(ownedOrg);
-                setRoute("orgDashboard");
-              } else {
-                // Signed in but no org row yet — finish org onboarding.
-                setRoute("orgOnboarding");
-              }
-              window.scrollTo({ top: 0 });
-            },
+            onSignedUp: orgAuthDone,
+            onSignedIn: orgAuthDone,
           }),
           React.createElement(Toasts, { items: toasts }),
           React.createElement(StyleTweaks, { t, setTweak })
