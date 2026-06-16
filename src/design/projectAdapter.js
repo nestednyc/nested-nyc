@@ -38,24 +38,51 @@ export function toDbProject(p, ownerId) {
   };
 }
 
-// Identity for a single `team_members` row that carries an embedded `profiles`
-// join (the shape pending join-request reads use). Prefers the LIVE profile
-// over the denormalised snapshot the row captured at request time, so a
-// requester who only ever had a username — and was snapshotted as the literal
-// "Team Member" placeholder — renders as their @handle instead.
-//   name   = live full name → "@username" → row.name snapshot → "Team Member"
-//   handle = the requester's current username (for an @-mention line)
+// ---- Member identity: the ONE rule for "DB row → how we name a person" -------
+// Everything that turns a team_members-shaped row (with an embedded `profiles`
+// join) into a display identity routes through here, so the precedence lives in
+// a single place instead of being recopied into every read.
+
+// The live full name, collapsing the trailing/double whitespace some first/last
+// fields carry. The single name-builder shared by every identity path.
+function fullNameOf(first, last) {
+  return ((first || "") + " " + (last || "")).replace(/\s+/g, " ").trim();
+}
+
+// Older creates persisted the literal placeholder "you" as a name (when the
+// creator had no username yet). Never show it — treat it as empty. Applied to
+// EVERY denormalised snapshot so it can't leak on one surface but not another.
+function cleanName(s) {
+  return s && s.trim().toLowerCase() === "you" ? "" : (s || "");
+}
+
+// Canonical identity for a team_members-shaped row carrying an embedded
+// `profiles` join. Prefers the LIVE profile over the denormalised snapshot the
+// row captured at request/create time:
+//   name   = live full name → "@username" (always present) → cleaned snapshot → fallback
+//   handle = the person's current username (for the @-mention sub-line); "" if unknown
 //   image  = live first photo / avatar → row.image snapshot
-export function requestIdentity(row) {
+// `fallback` is the neutral last resort ("Lead" / "Member" / "Team Member"),
+// reached only when the join delivered no profile at all. `snapshots` are extra
+// denormalised name sources (e.g. projects.author_name) tried before row.name.
+export function memberIdentity(row, { fallback = "Member", snapshots = [] } = {}) {
   const pr = (row && row.profiles) || null;
-  const full = pr ? ((pr.first_name || "") + " " + (pr.last_name || "")).replace(/\s+/g, " ").trim() : "";
+  const full = pr ? fullNameOf(pr.first_name, pr.last_name) : "";
   const handle = (pr && pr.username) || "";
+  const snap = [...snapshots, row && row.name].map(cleanName).find((s) => s) || "";
   const photo = pr && ((Array.isArray(pr.photos) && pr.photos[0]) || pr.avatar);
   return {
-    name: full || (handle ? "@" + handle : "") || (row && row.name) || "Team Member",
+    name: full || (handle ? "@" + handle : "") || snap || fallback,
     handle,
     image: photo || (row && row.image) || null,
   };
+}
+
+// Join-request rows (the Notifications inbox + a project's "Requests to join"
+// card). Thin wrapper over memberIdentity — kept as a named export so the
+// services that read requests don't need to know the fallback word.
+export function requestIdentity(row) {
+  return memberIdentity(row, { fallback: "Team Member" });
 }
 
 // Supabase `projects` row (+ joined `team_members`) → cork-board project shape.
@@ -67,36 +94,11 @@ export function fromDbProject(row) {
   const members = Array.isArray(row.team_members) ? row.team_members : [];
   const ownerMember = members.find((m) => m.user_id === row.owner_id) || null;
   const crew = members.filter((m) => m.user_id !== row.owner_id);
-  // The live full name from the embedded profiles join (preferred — always
-  // current), collapsing the trailing/double whitespace some fields carry.
-  const fullName = (m) => {
-    const pr = m && m.profiles;
-    if (!pr) return "";
-    return ((pr.first_name || "") + " " + (pr.last_name || "")).replace(/\s+/g, " ").trim();
-  };
-  // Every user always has a username — surface it as the @handle identity.
-  const handleOf = (m) => (m && m.profiles && m.profiles.username) || "";
-  // Older creates persisted the literal placeholder "you" as a name (when the
-  // creator had no username yet). Never show it — treat it as empty.
-  const notYou = (s) => (s && s.trim().toLowerCase() === "you" ? "" : (s || ""));
-  // Identity precedence: live full name → @username (always present) → the
-  // denormalised snapshots (author_name, then the team_members row) → a neutral
-  // "Lead", which now only fires if the profile join delivered nothing at all
-  // (ancient project missing its owner row, or a failed anon backfill).
-  const leadHandle = handleOf(ownerMember);
-  const leadName = fullName(ownerMember) || (leadHandle ? "@" + leadHandle : "") || notYou(row.author_name) || notYou(ownerMember && ownerMember.name) || "Lead";
-  // Avatar for a team_members row. Prefer the member's first live profile photo
-  // (via the embedded `profiles` join); fall back to the denormalised
-  // team_members.image snapshot taken at request/create time.
-  const memberPhoto = (m) => {
-    if (!m) return null;
-    const pr = m.profiles;
-    if (pr) {
-      if (Array.isArray(pr.photos) && pr.photos[0]) return pr.photos[0];
-      if (pr.avatar) return pr.avatar;
-    }
-    return m.image || null;
-  };
+  // Lead + crew identities both come from the one canonical resolver
+  // (memberIdentity), so the flyer, the facepile, and the request inbox can't
+  // drift. The lead additionally checks the projects.author_name snapshot
+  // (before the owner's own team_members row) and falls back to "Lead".
+  const leadId = memberIdentity(ownerMember, { fallback: "Lead", snapshots: [row.author_name] });
   return {
     id: row.id,
     cat: row.category || "side",
@@ -116,16 +118,16 @@ export function fromDbProject(row) {
     // 20260609000000). Server-computed — deliberately absent from toDbProject.
     views: row.view_count || 0,
     ownerId: row.owner_id || null,
-    ownerName: leadName,
+    ownerName: leadId.name,
     admins: Array.isArray(row.admins) && row.admins.length
       ? row.admins
       : (row.owner_id ? [row.owner_id] : []),
-    lead: { name: leadName, handle: leadHandle, role: "Project lead", bio: "", userId: row.owner_id || null, image: memberPhoto(ownerMember) },
+    lead: { name: leadId.name, handle: leadId.handle, role: "Project lead", bio: "", userId: row.owner_id || null, image: leadId.image },
     // memberId = the team_members row id, so owner actions that target the
     // row itself (kick) don't have to re-query by project+user.
     team: crew.map((m) => {
-      const h = handleOf(m);
-      return { name: fullName(m) || (h ? "@" + h : "") || notYou(m.name) || "Member", handle: h, role: m.role || "Member", userId: m.user_id || null, memberId: m.id || null, image: memberPhoto(m) };
+      const id = memberIdentity(m, { fallback: "Member" });
+      return { name: id.name, handle: id.handle, role: m.role || "Member", userId: m.user_id || null, memberId: m.id || null, image: id.image };
     }),
     event: row.timeline || "",
     place: row.place || "",
@@ -149,7 +151,7 @@ export function creatorTeamMember(profile, ownerId) {
   const photoUrl = (firstPhoto && (firstPhoto.src || firstPhoto)) || null;
   // Build a real display name; NEVER persist the old "you" placeholder, which
   // leaked into the DB and showed every viewer "led by you".
-  const fullName = profile ? ((profile.firstName || "") + " " + (profile.lastName || "")).replace(/\s+/g, " ").trim() : "";
+  const fullName = profile ? fullNameOf(profile.firstName, profile.lastName) : "";
   return {
     user_id: ownerId,
     name: (profile && profile.username) || fullName || "Lead",
