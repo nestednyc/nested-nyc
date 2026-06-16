@@ -67,20 +67,24 @@ export function fromDbProject(row) {
   const members = Array.isArray(row.team_members) ? row.team_members : [];
   const ownerMember = members.find((m) => m.user_id === row.owner_id) || null;
   const crew = members.filter((m) => m.user_id !== row.owner_id);
-  // A live name from the embedded profiles join (preferred — always current),
-  // collapsing the trailing/double whitespace some first/last fields carry.
-  const liveName = (m) => {
+  // The live full name from the embedded profiles join (preferred — always
+  // current), collapsing the trailing/double whitespace some fields carry.
+  const fullName = (m) => {
     const pr = m && m.profiles;
     if (!pr) return "";
-    const full = ((pr.first_name || "") + " " + (pr.last_name || "")).replace(/\s+/g, " ").trim();
-    return full || pr.username || "";
+    return ((pr.first_name || "") + " " + (pr.last_name || "")).replace(/\s+/g, " ").trim();
   };
+  // Every user always has a username — surface it as the @handle identity.
+  const handleOf = (m) => (m && m.profiles && m.profiles.username) || "";
   // Older creates persisted the literal placeholder "you" as a name (when the
   // creator had no username yet). Never show it — treat it as empty.
   const notYou = (s) => (s && s.trim().toLowerCase() === "you" ? "" : (s || ""));
-  // Prefer the live profile name; fall back to the denormalised snapshots
-  // (author_name, then the team_members row), then a neutral "Lead".
-  const leadName = liveName(ownerMember) || notYou(row.author_name) || notYou(ownerMember && ownerMember.name) || "Lead";
+  // Identity precedence: live full name → @username (always present) → the
+  // denormalised snapshots (author_name, then the team_members row) → a neutral
+  // "Lead", which now only fires if the profile join delivered nothing at all
+  // (ancient project missing its owner row, or a failed anon backfill).
+  const leadHandle = handleOf(ownerMember);
+  const leadName = fullName(ownerMember) || (leadHandle ? "@" + leadHandle : "") || notYou(row.author_name) || notYou(ownerMember && ownerMember.name) || "Lead";
   // Avatar for a team_members row. Prefer the member's first live profile photo
   // (via the embedded `profiles` join); fall back to the denormalised
   // team_members.image snapshot taken at request/create time.
@@ -116,10 +120,13 @@ export function fromDbProject(row) {
     admins: Array.isArray(row.admins) && row.admins.length
       ? row.admins
       : (row.owner_id ? [row.owner_id] : []),
-    lead: { name: leadName, role: "Project lead", bio: "", userId: row.owner_id || null, image: memberPhoto(ownerMember) },
+    lead: { name: leadName, handle: leadHandle, role: "Project lead", bio: "", userId: row.owner_id || null, image: memberPhoto(ownerMember) },
     // memberId = the team_members row id, so owner actions that target the
     // row itself (kick) don't have to re-query by project+user.
-    team: crew.map((m) => ({ name: liveName(m) || notYou(m.name) || "Member", role: m.role || "Member", userId: m.user_id || null, memberId: m.id || null, image: memberPhoto(m) })),
+    team: crew.map((m) => {
+      const h = handleOf(m);
+      return { name: fullName(m) || (h ? "@" + h : "") || notYou(m.name) || "Member", handle: h, role: m.role || "Member", userId: m.user_id || null, memberId: m.id || null, image: memberPhoto(m) };
+    }),
     event: row.timeline || "",
     place: row.place || "",
     stage: row.stage || "",

@@ -1035,7 +1035,7 @@ import { parse as parseLocation, build as buildPath, accessOf, validateNext, tit
       // crew-manager features key off (promote needs userId, kick needs
       // memberId) so the fresh member is manageable without a reload.
       if (req) setProjects((arr) => arr.map((p) => p.id === req.project_id
-        ? { ...p, joinedCount: (p.joinedCount || 0) + 1, roles: closeRole(p.roles, req.role), team: [...(p.team || []), { name: req.name, role: req.role || "Member", userId: req.user_id || null, memberId: req.id || null }] }
+        ? { ...p, joinedCount: (p.joinedCount || 0) + 1, roles: closeRole(p.roles, req.role), team: [...(p.team || []), { name: req.name, handle: req.handle, role: req.role || "Member", userId: req.user_id || null, memberId: req.id || null }] }
         : p));
       toast("Added to the crew", "check");
     }
