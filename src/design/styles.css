@@ -1661,7 +1661,7 @@ input, textarea, select { font-family: inherit; }
    ============================================================ */
 
 /* New mobile-only elements: inert on desktop, revealed in the block below. */
-.onb-mobhead, .onb-card-pin, .onb-peek, .onb-orgline, .onb-mobback { display: none; }
+.onb-mobhead, .onb-orgline, .onb-mobback { display: none; }
 
 @media (max-width: 880px) {
   /* Re-hide the desktop pitch/preview aside on mobile for EVERY .onb screen
@@ -1678,8 +1678,8 @@ input, textarea, select { font-family: inherit; }
 
   /* The right pane becomes the cork board itself (replicates .corkbg so the
      desktop pane, which is var(--paper), is untouched). overflow-x:clip (NOT
-     hidden) clips the peeking flyer WITHOUT turning this into a scroll
-     container — that keeps the sticky CTA resolving against the viewport. */
+     hidden) guards against horizontal overflow WITHOUT turning this into a
+     scroll container — that keeps the sticky CTA resolving against the viewport. */
   .onb-signup .onb-main {
     justify-content: flex-start;
     overflow-x: clip;
@@ -1726,25 +1726,12 @@ input, textarea, select { font-family: inherit; }
   }
   .onb-signup .onb-orgline span { text-decoration: underline; text-underline-offset: 3px; font-weight: 700; }
 
-  /* The form: a sheet of paper pinned to the board. */
+  /* The form: a sheet of paper laid on the board. */
   .onb-signup .onb-card {
     position: relative; z-index: 1;
     background: var(--paper); border: 1px solid var(--paper-edge);
     border-radius: var(--radius); box-shadow: var(--shadow-card);
     padding: 24px 20px 20px;
-  }
-  .onb-signup .onb-card-pin {
-    display: block; position: absolute; z-index: 3;
-    top: -13px; left: 50%; transform: translateX(-50%);
-    width: 26px; height: 26px;
-    filter: drop-shadow(0 3px 3px oklch(0.2 0.02 60 / 0.4));
-  }
-
-  /* One flyer peeking from behind the card — decorative, clipped by the pane. */
-  .onb-signup .onb-peek {
-    display: block; position: absolute; z-index: 0;
-    top: 160px; right: -10px; transform: rotate(7deg);
-    opacity: .92; pointer-events: none;
   }
 
   /* Sticky Continue — always above the keyboard / home indicator. Bleeds to the
