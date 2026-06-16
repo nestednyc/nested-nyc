@@ -38,6 +38,26 @@ export function toDbProject(p, ownerId) {
   };
 }
 
+// Identity for a single `team_members` row that carries an embedded `profiles`
+// join (the shape pending join-request reads use). Prefers the LIVE profile
+// over the denormalised snapshot the row captured at request time, so a
+// requester who only ever had a username — and was snapshotted as the literal
+// "Team Member" placeholder — renders as their @handle instead.
+//   name   = live full name → "@username" → row.name snapshot → "Team Member"
+//   handle = the requester's current username (for an @-mention line)
+//   image  = live first photo / avatar → row.image snapshot
+export function requestIdentity(row) {
+  const pr = (row && row.profiles) || null;
+  const full = pr ? ((pr.first_name || "") + " " + (pr.last_name || "")).replace(/\s+/g, " ").trim() : "";
+  const handle = (pr && pr.username) || "";
+  const photo = pr && ((Array.isArray(pr.photos) && pr.photos[0]) || pr.avatar);
+  return {
+    name: full || (handle ? "@" + handle : "") || (row && row.name) || "Team Member",
+    handle,
+    image: photo || (row && row.image) || null,
+  };
+}
+
 // Supabase `projects` row (+ joined `team_members`) → cork-board project shape.
 // Reproduces EXACTLY the object create.jsx builds, so ProjectCard / ProjectDetail
 // render an API-backed project identically to a freshly-pinned one. Defaults are

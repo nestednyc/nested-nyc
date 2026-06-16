@@ -348,6 +348,7 @@ import { CatTag, Av, Facepile, ConfirmModal } from './shared'
                         React.createElement(Av, { name: req.name, img: req.image }),
                         React.createElement("span", { className: "t-who", style: { flex: 1 } },
                           React.createElement("b", null, req.name),
+                          (req.handle && req.name !== "@" + req.handle) && React.createElement("small", { style: { display: "block", color: "var(--ink-soft)" } }, "@" + req.handle),
                           req.role && React.createElement("small", { style: { display: "block", color: "var(--accent-ink)", fontWeight: 600 } }, "for " + req.role),
                           React.createElement("small", null, req.message || req.school || "wants to join")
                         ),

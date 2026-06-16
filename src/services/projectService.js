@@ -4,6 +4,7 @@
  */
 
 import { supabase, isSupabaseConfigured } from '../lib/supabase'
+import { requestIdentity } from '../design/projectAdapter'
 
 /**
  * Backfill team-member public profiles the embed couldn't return.
@@ -485,12 +486,17 @@ export const projectService = {
 
     const { data, error } = await supabase
       .from('team_members')
-      .select('*')
+      .select('*, profiles(username, first_name, last_name, avatar, photos)')
       .eq('project_id', projectId)
       .eq('status', 'pending')
       .order('joined_at', { ascending: false })
+    if (error) return { data: [], error }
 
-    return { data: data || [], error }
+    // Prefer the requester's LIVE identity (full name → @username → snapshot)
+    // over the stale team_members.name, so a nameless requester shows their
+    // @handle instead of the "Team Member" placeholder.
+    const rows = (data || []).map((m) => ({ ...m, ...requestIdentity(m) }))
+    return { data: rows, error: null }
   },
 
   /**
@@ -586,15 +592,19 @@ export const projectService = {
 
     const { data, error } = await supabase
       .from('team_members')
-      .select('*')
+      .select('*, profiles(username, first_name, last_name, avatar, photos)')
       .in('project_id', owned.map((p) => p.id))
       .eq('status', 'pending')
       .order('joined_at', { ascending: false })
     if (error) return { data: [], error }
 
-    // Attach the project context the Notifications UI reads as req.project.
+    // Attach the project context the Notifications UI reads as req.project, and
+    // override the snapshot name/handle/image with the requester's LIVE identity
+    // (full name → @username → snapshot) so nameless requesters show their
+    // @handle instead of the "Team Member" placeholder.
     const rows = (data || []).map((m) => ({
       ...m,
+      ...requestIdentity(m),
       project: { id: m.project_id, title: titleById[m.project_id] || '' },
     }))
     return { data: rows, error: null }
