@@ -53,6 +53,14 @@ import { parse as parseLocation, build as buildPath, accessOf, validateNext, tit
     return null;
   }
 
+  // Avatar initials for the signed-in user's own handle. Usernames currently
+  // carry a leading "@", so the generic word-split initials would surface that
+  // "@" — strip it and take the first two real letters (the 2nd/3rd characters
+  // while the "@" prefix exists). Stays correct if the "@" is ever dropped.
+  function handleInitials(username) {
+    return String(username || "").replace(/^@+/, "").slice(0, 2).toUpperCase();
+  }
+
   const ACCENTS = [
     { v: "oklch(0.60 0.185 30)",  ink: "oklch(0.42 0.16 32)",  wash: "oklch(0.60 0.185 30 / 0.12)" },
     { v: "oklch(0.55 0.13 255)",  ink: "oklch(0.40 0.11 255)", wash: "oklch(0.55 0.13 255 / 0.12)" },
@@ -1648,7 +1656,7 @@ import { parse as parseLocation, build as buildPath, accessOf, validateNext, tit
               title: "@" + profile.username + " · verified .edu student",
             }, React.createElement(Stamp, { size: 44 })),
             profile && React.createElement("button", { className: "me-chip", onClick: () => { setRoute("profile"); window.scrollTo({ top: 0 }); } },
-              React.createElement(Av, { name: profile.username, img: firstPhotoUrl(profile.photos) }),
+              React.createElement(Av, { name: profile.username, img: firstPhotoUrl(profile.photos), label: handleInitials(profile.username) }),
               React.createElement("span", { className: "who" },
                 React.createElement("b", null, "@" + profile.username),
                 React.createElement("small", null, (NestedData.UNI[profile.uni] || {}).name)
@@ -1664,7 +1672,7 @@ import { parse as parseLocation, build as buildPath, accessOf, validateNext, tit
             React.createElement("button", { className: "iconbtn", onClick: () => setMSearchOpen((v) => !v), title: "Search", "aria-expanded": mSearchOpen ? "true" : "false" },
               React.createElement(Icon, { name: mSearchOpen ? "x" : "search", size: 20 })),
             profile && React.createElement("button", { className: "mob-avatar", onClick: () => setSheetOpen(true), title: "Account" },
-              React.createElement(Av, { name: profile.username, img: firstPhotoUrl(profile.photos) }),
+              React.createElement(Av, { name: profile.username, img: firstPhotoUrl(profile.photos), label: handleInitials(profile.username) }),
               (incomingPending.length + projectRequests.length) > 0 && React.createElement("span", { className: "dot" })
             ),
             !profile && React.createElement("button", { className: "btn btn-primary", onClick: () => goAuth("signup"), title: "Create your account" }, "Sign up")
@@ -1835,7 +1843,7 @@ import { parse as parseLocation, build as buildPath, accessOf, validateNext, tit
         sheetOpen && profile && React.createElement("div", { className: "sheet-scrim", onClick: () => setSheetOpen(false) },
           React.createElement("div", { className: "acct-sheet", onClick: (e) => e.stopPropagation() },
             React.createElement("div", { className: "acct-head" },
-              React.createElement(Av, { name: profile.username, img: firstPhotoUrl(profile.photos) }),
+              React.createElement(Av, { name: profile.username, img: firstPhotoUrl(profile.photos), label: handleInitials(profile.username) }),
               React.createElement("div", { className: "acct-id" },
                 React.createElement("b", null, "@" + profile.username),
                 React.createElement("small", null, (NestedData.UNI[profile.uni] || {}).name)
