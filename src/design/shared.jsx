@@ -7,7 +7,7 @@ import { avColor, initials, UNI, ORG_TYPES } from './data'
 
   const { useState, useRef } = React;
 
-  function Av({ name, color, size, img }) {
+  function Av({ name, color, size, img, label }) {
     const style = { background: color || avColor(name) };
     if (size) { style.width = size; style.height = size; style.fontSize = Math.round(size * 0.36); }
     if (img) {
@@ -17,7 +17,7 @@ import { avColor, initials, UNI, ORG_TYPES } from './data'
           style: { width: "100%", height: "100%", objectFit: "cover", borderRadius: "inherit", display: "block" },
         }));
     }
-    return React.createElement("span", { className: "av", style }, initials(name));
+    return React.createElement("span", { className: "av", style }, label || initials(name));
   }
 
   function Facepile({ names, extra }) {

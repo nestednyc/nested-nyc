@@ -221,7 +221,7 @@ import { CatTag, Av, Facepile, ConfirmModal } from './shared'
     // Crew + lead rows deep-link to each person's real profile when we know
     // their user id (carried through from team_members.user_id / owner_id).
     const canOpen = typeof onOpenProfile === "function";
-    function personRow(name, sub, userId, key, img) {
+    function personRow(name, sub, userId, key, img, handle) {
       const clickable = canOpen && !!userId;
       return React.createElement("div", {
         className: "team-row" + (clickable ? " clickable" : ""), key,
@@ -231,6 +231,7 @@ import { CatTag, Av, Facepile, ConfirmModal } from './shared'
         React.createElement(Av, { name, img }),
         React.createElement("span", { className: "t-who" },
           React.createElement("b", null, name),
+          (handle && name !== "@" + handle) && React.createElement("small", { style: { display: "block", color: "var(--ink-soft)" } }, "@" + handle),
           React.createElement("small", null, sub))
       );
     }
@@ -348,6 +349,7 @@ import { CatTag, Av, Facepile, ConfirmModal } from './shared'
                         React.createElement(Av, { name: req.name, img: req.image }),
                         React.createElement("span", { className: "t-who", style: { flex: 1 } },
                           React.createElement("b", null, req.name),
+                          (req.handle && req.name !== "@" + req.handle) && React.createElement("small", { style: { display: "block", color: "var(--ink-soft)" } }, "@" + req.handle),
                           req.role && React.createElement("small", { style: { display: "block", color: "var(--accent-ink)", fontWeight: 600 } }, "for " + req.role),
                           React.createElement("small", null, req.message || req.school || "wants to join")
                         ),
@@ -380,11 +382,11 @@ import { CatTag, Av, Facepile, ConfirmModal } from './shared'
                     React.createElement("span", { style: { fontFamily: "var(--mono)", fontSize: 11, fontWeight: 700, letterSpacing: "0.04em", background: "linear-gradient(90deg, #8b0000, #9a5b00, #6b6b00, #0b5a0b, #0b3d6b, #2a1a6b, #5a0b5a)", WebkitBackgroundClip: "text", backgroundClip: "text", WebkitTextFillColor: "transparent", color: "transparent" } }, "the crew")
                   ),
                   React.createElement("div", { className: "team-pile" },
-                    personRow(p.lead.name, p.lead.role, p.lead.userId, "lead", p.lead.image),
+                    personRow(p.lead.name, p.lead.role, p.lead.userId, "lead", p.lead.image, p.lead.handle),
                     p.team.map((t, i) => personRow(
                       t.name,
                       (t.userId && adminSet.has(t.userId)) ? "Co-lead" : t.role,
-                      t.userId, i, t.image
+                      t.userId, i, t.image, t.handle
                     ))
                   ),
                   // Annotation doubles as the feature's trigger: owners see an

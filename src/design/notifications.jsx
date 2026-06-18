@@ -50,6 +50,9 @@ import { ContactLinks } from './people'
         React.createElement(Av, { name: req.name, img: req.image }),
         React.createElement("span", { className: "t-who", style: { flex: 1 } },
           React.createElement("b", null, req.name),
+          (req.handle && req.name !== "@" + req.handle)
+            ? React.createElement("small", { style: { display: "block", color: "var(--ink-soft)" } }, "@" + req.handle)
+            : null,
           React.createElement("small", null,
             "wants to join ",
             proj.title

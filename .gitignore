@@ -49,6 +49,9 @@ social/
 insta/
 insta-reel/
 
+# Local outreach lists + DMs (contains lead contact data) — not in the repo
+outreach/
+
 # Local browser-verification probes (Playwright) — not part of the codebase
 .verify/
 

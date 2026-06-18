@@ -291,32 +291,18 @@ import { Facepile, CatTag, Pin, Skeleton } from './shared'
       return c;
     }, [projects]);
 
-    // Build the discovery shelves from the live projects. "Popular now" gets the
-    // top 5 (most-joined; a fresh dataset with 0 joins just yields the first 5
-    // pinned). Every other project is shuffled and dealt across the remaining
-    // shelves round-robin, so NO project appears on more than one shelf — with a
-    // small launch dataset you simply see fewer shelves instead of the same
-    // project repeated in Popular + Featured + Beginner.
+    // Build the discovery shelves from the live projects. With a small launch
+    // dataset we deal projects across just two shelves: the four most-joined go
+    // to "Popular now", the next four to "Featured". NO project repeats across
+    // shelves, and empty shelves drop out via the filter below.
     const feeds = useMemo(() => {
       const byJoined = [...projects].sort((a, b) => b.joinedCount - a.joinedCount);
-      const popular = byJoined.slice(0, 5);
-
-      // The rest, Fisher-Yates shuffled (recomputed only when projects change),
-      // then dealt out across Featured / New / Beginner.
-      const rest = byJoined.slice(5);
-      for (let i = rest.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [rest[i], rest[j]] = [rest[j], rest[i]];
-      }
-      const featured = [], newest = [], beginner = [];
-      const buckets = [featured, newest, beginner];
-      rest.forEach((p, i) => buckets[i % buckets.length].push(p));
+      const popular = byJoined.slice(0, 4);
+      const featured = byJoined.slice(4, 8);
 
       return [
-        { id: "popular",  label: "Popular now",       sub: "most students joining",    color: "var(--c-startup)", cols: 4, rows: 1, items: popular },
-        { id: "featured", label: "Featured",          sub: "editors' picks this week", color: "var(--c-hack)",    cols: 4, rows: 2, items: featured.slice(0, 8) },
-        { id: "new",      label: "New on Nested",      sub: "just pinned",              color: "var(--c-side)",    cols: 4, rows: 1, items: newest.slice(0, 8) },
-        { id: "beginner", label: "Beginner-friendly", sub: "great first projects",     color: "var(--c-class)",   cols: 4, rows: 1, items: beginner.slice(0, 8) },
+        { id: "popular",  label: "Popular now", sub: "most students joining",    color: "var(--c-startup)", cols: 4, rows: 1, items: popular },
+        { id: "featured", label: "Featured",    sub: "editors' picks this week", color: "var(--c-hack)",    cols: 4, rows: 1, items: featured },
       ].filter((f) => f.items.length > 0);
     }, [projects]);
 

@@ -70,7 +70,16 @@
     "var(--c-research)", "oklch(0.55 0.13 200)", "oklch(0.55 0.14 350)", "oklch(0.5 0.12 130)",
   ];
   const avColor = (name) => AV_COLORS[(name.charCodeAt(0) + (name.charCodeAt(1) || 0)) % AV_COLORS.length];
-  const initials = (name) => name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase();
+  // Strip a leading "@" (usernames carry one) before deriving initials. Real
+  // names ("Eddie Rossi") yield first-of-each-word ("ER"); a single token —
+  // e.g. a handle like "@eddierossi" — yields its first two letters ("ED")
+  // instead of surfacing the "@".
+  const initials = (name) => {
+    const parts = String(name || "").replace(/^@+/, "").trim().split(/\s+/).filter(Boolean);
+    if (parts.length === 0) return "";
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return (parts[0][0] + parts[1][0]).toUpperCase();
+  };
 
   const EVENT_TYPES = [
     { id: "hack",       label: "Hackathon",  icon: "hack",    color: "var(--c-hack)",     wash: "oklch(0.66 0.13 78 / .20)",  ink: "oklch(0.42 0.1 78)" },
