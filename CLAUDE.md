@@ -107,6 +107,18 @@ Migrations live in `supabase/migrations/`, applied in order. ⚠️ Prod migrati
 - **RLS posture**: anon can read published projects, approved team members, the `public_profiles` view, and verified orgs/events. Authenticated profile reads are relationship-scoped (self, connections, teammates). Writes are self-scoped; event creation requires verified-org membership.
 - **Realtime publication**: `team_members` only.
 
+### Email notifications (transactional)
+
+Row changes fan out to transactional emails via **Supabase Database Webhooks** — pg_net triggers all named `zz_email_notify` on `team_members`, `connections`, and `organizations` — which POST a `{type, table, record, old_record}` payload to **`/api/notify`** (a Vercel function; `api/notify.js`). It renders the shared template (`api/_email/template.js`) and sends through **Resend**. Recipient addresses come from `auth.users` via a service-role lookup (not `profiles`); `profiles.email_opt_out` suppresses delivery. One-click unsubscribe is `/api/unsubscribe` (GET is read-only so `.edu` link-prefetch scanners can't opt people out; POST applies). The trigger fn is exception-wrapped, so a webhook failure can never break the underlying write. Setup + the Vercel env vars it needs: **`EMAIL_NOTIFICATIONS.md`**.
+
+The four sends and the exact event each requires:
+- `team_members` INSERT with `status='pending'` → "join request" → project owner + co-leads (`projects.admins`)
+- `team_members` UPDATE to `status='approved'` → "you're in" → the requester
+- `connections` INSERT → "new connection" → the target
+- `organizations` UPDATE flipping `verified` false→true → "you're verified" → the owner (`owner_user_id`)
+
+> ⚠️ **Never bulk-update `team_members`, `connections`, or `organizations` without first disabling `zz_email_notify`.** The triggers react to the *event*, not the row's age, so any backfill / admin script that matches a guard sends one real email per affected row — e.g. mass-setting `organizations.verified = true` emails every owner; bulk-flipping `team_members` to `approved` emails every requester. Recipe: `ALTER TABLE public.<table> DISABLE TRIGGER zz_email_notify;` → run the batch → `… ENABLE TRIGGER zz_email_notify;`. (Pre-existing rows are always safe — triggers only fire on DML made *after* they were created, so there is no retroactive blast.)
+
 ## Design language — "cork board"
 
 Physical pinboard vocabulary: paper flyers pinned/taped to cork, slight per-card rotation (`rot` × `--tilt`), grain textures, category color coding.
