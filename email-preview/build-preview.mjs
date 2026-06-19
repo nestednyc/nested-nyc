@@ -26,7 +26,7 @@ const samples = {
   "4-org-verified": emails.orgVerified({ orgName: "Columbia Entrepreneurship" }),
 };
 
-for (const [name, html] of Object.entries(samples)) {
+for (const [name, { html }] of Object.entries(samples)) {
   await writeFile(join(outDir, name + ".html"), html, "utf8");
 }
 console.log("wrote", Object.keys(samples).length, "HTML files →", outDir);

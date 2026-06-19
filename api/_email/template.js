@@ -29,7 +29,7 @@ const FONT_BODY = "'Hanken Grotesk',-apple-system,BlinkMacSystemFont,'Segoe UI',
 const FONT_DISP = "'Bricolage Grotesque'," + FONT_BODY;
 const FONT_MONO = "'Spline Sans Mono',ui-monospace,'SF Mono',Menlo,Consolas,monospace";
 
-const SITE = "https://nested.social";
+const SITE = "https://www.nested.social";
 const FONT_LINK = "https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Hanken+Grotesk:wght@400;500;600;700;800&family=Spline+Sans+Mono:wght@400;500;600&display=swap";
 
 // User-supplied strings (names, titles, messages) are untrusted — escape them.
@@ -119,52 +119,71 @@ export function renderEmail(o) {
 
 const url = (path) => SITE + path;
 
-/* The four Phase-1 notifications. Each is just a thin filler over the one
-   shell above — add the next trigger by adding a function here, nothing else. */
+/* The four Phase-1 notifications. Each is a thin filler over the one shell
+   above and returns { subject, html } — add the next trigger by adding a
+   function here, nothing else. The sender (api/notify.js) passes a
+   per-recipient `unsubUrl` so the footer link + List-Unsubscribe header point
+   at that person's own one-click opt-out. */
 export const emails = {
   // → project owner (+ co-leads): someone asked to join their project
-  joinRequest: ({ requesterName, school, role, projectTitle, projectId, message }) => renderEmail({
-    preheader: `${requesterName} wants to join ${projectTitle}`,
-    eyebrow: "someone wants to build with you",
-    heading: `${requesterName} wants to join ${projectTitle}`,
-    body: `${requesterName}${school ? ` from ${school}` : ""} asked to join${role ? ` as ${role}` : ""}. Take a look and bring them on board if it's a fit.`,
-    note: message,
-    ctaLabel: "Review the request",
-    ctaUrl: url(`/projects/${projectId}`),
-    footerNote: "You're getting this because you lead a project on Nested.",
+  joinRequest: ({ requesterName, school, role, projectTitle, projectId, message, unsubUrl }) => ({
+    subject: `${requesterName} wants to join ${projectTitle}`,
+    html: renderEmail({
+      preheader: `${requesterName} wants to join ${projectTitle}`,
+      eyebrow: "someone wants to build with you",
+      heading: `${requesterName} wants to join ${projectTitle}`,
+      body: `${requesterName}${school ? ` from ${school}` : ""} asked to join${role ? ` as ${role}` : ""}. Take a look and bring them on board if it's a fit.`,
+      note: message,
+      ctaLabel: "Review the request",
+      ctaUrl: url(`/projects/${projectId}`),
+      footerNote: "You're getting this because you lead a project on Nested.",
+      unsubUrl,
+    }),
   }),
 
   // → requester: their join request was approved
-  joinApproved: ({ ownerName, role, projectTitle, projectId }) => renderEmail({
-    preheader: `You're on the team for ${projectTitle}`,
-    eyebrow: "you're in",
-    heading: `You're on the team for ${projectTitle}`,
-    body: `${ownerName} approved your request to join${role ? ` as ${role}` : ""}. Time to start building.`,
-    ctaLabel: "Open the project",
-    ctaUrl: url(`/projects/${projectId}`),
-    footerNote: "You're getting this because you asked to join a project on Nested.",
+  joinApproved: ({ ownerName, role, projectTitle, projectId, unsubUrl }) => ({
+    subject: `You're on the team for ${projectTitle}`,
+    html: renderEmail({
+      preheader: `You're on the team for ${projectTitle}`,
+      eyebrow: "you're in",
+      heading: `You're on the team for ${projectTitle}`,
+      body: `${ownerName} approved your request to join${role ? ` as ${role}` : ""}. Time to start building.`,
+      ctaLabel: "Open the project",
+      ctaUrl: url(`/projects/${projectId}`),
+      footerNote: "You're getting this because you asked to join a project on Nested.",
+      unsubUrl,
+    }),
   }),
 
   // → target: another student connected with them
-  newConnection: ({ sourceName, school, sourceUsername }) => renderEmail({
-    preheader: `${sourceName} connected with you on Nested`,
-    eyebrow: "new connection",
-    heading: `${sourceName} connected with you`,
-    body: `${sourceName}${school ? ` from ${school}` : ""} just connected with you on Nested. Check out their profile and connect back if you'd like to build together.`,
-    ctaLabel: "View their profile",
-    ctaUrl: url(`/u/${sourceUsername}`),
-    footerNote: "You're getting this because someone connected with you on Nested.",
+  newConnection: ({ sourceName, school, sourceUsername, unsubUrl }) => ({
+    subject: `${sourceName} connected with you on Nested`,
+    html: renderEmail({
+      preheader: `${sourceName} connected with you on Nested`,
+      eyebrow: "new connection",
+      heading: `${sourceName} connected with you`,
+      body: `${sourceName}${school ? ` from ${school}` : ""} just connected with you on Nested. Check out their profile and connect back if you'd like to build together.`,
+      ctaLabel: "View their profile",
+      ctaUrl: url(sourceUsername ? `/u/${sourceUsername}` : `/people`),
+      footerNote: "You're getting this because someone connected with you on Nested.",
+      unsubUrl,
+    }),
   }),
 
   // → org owner: their organization was verified
-  orgVerified: ({ orgName }) => renderEmail({
-    preheader: `${orgName} is verified on Nested`,
-    eyebrow: "you're verified",
-    heading: `${orgName} is verified on Nested`,
-    body: `Your organization is verified. You can now post events to the Nested board and reach students across NYC.`,
-    ctaLabel: "Post your first event",
-    ctaUrl: url(`/dashboard/events/new`),
-    footerNote: "You're getting this because you manage an org on Nested.",
+  orgVerified: ({ orgName, unsubUrl }) => ({
+    subject: `${orgName} is verified on Nested`,
+    html: renderEmail({
+      preheader: `${orgName} is verified on Nested`,
+      eyebrow: "you're verified",
+      heading: `${orgName} is verified on Nested`,
+      body: `Your organization is verified. You can now post events to the Nested board and reach students across NYC.`,
+      ctaLabel: "Post your first event",
+      ctaUrl: url(`/dashboard/events/new`),
+      footerNote: "You're getting this because you manage an org on Nested.",
+      unsubUrl,
+    }),
   }),
 };
 
