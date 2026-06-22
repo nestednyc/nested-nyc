@@ -1,6 +1,13 @@
 {
+  "functions": {
+    "api/prerender.js": { "includeFiles": "dist/index.html" }
+  },
   "rewrites": [
-    { "source": "/(.*)", "destination": "/" }
+    { "source": "/sitemap.xml",  "destination": "/api/sitemap" },
+    { "source": "/projects/:id", "destination": "/api/prerender?type=project&id=:id" },
+    { "source": "/events/:id",   "destination": "/api/prerender?type=event&id=:id" },
+    { "source": "/org/:slug",    "destination": "/api/prerender?type=org&slug=:slug" },
+    { "source": "/((?!api/).*)", "destination": "/" }
   ],
   "headers": [
     {

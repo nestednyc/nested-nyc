@@ -33,6 +33,11 @@ coverage
 supabase/.temp/
 supabase/.branches/
 
+# Local Supabase CLI binaries (the SUPABASE_GO_BINARY shim) — local tooling, not the codebase
+supabase.exe
+supabase-go.exe
+supabase.tar.gz
+
 .cursor/plans/username_system_implementation_4128bb72.plan.md
 .vercel
 

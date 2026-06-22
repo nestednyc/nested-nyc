@@ -17,7 +17,7 @@ import { fromDbMessage, fromDbInboxRow, toDbMessage } from '../design/messageAda
 // Generic client-side idempotency key for a send. The DB PK (messages.id) is the
 // real dedupe; this just gives a retried send the SAME id so it lands on the
 // idempotency branch instead of minting a new row.
-function newId() {
+export function newId() {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID()
   // RFC-4122 v4 fallback for environments without crypto.randomUUID.
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
@@ -194,6 +194,35 @@ export const messageService = {
     } catch (err) {
       console.error('unblockUser exception:', err)
       return { error: { message: 'Unable to unblock user' } }
+    }
+  },
+
+  /**
+   * The peer ids the caller has blocked. A direct RLS-scoped read — the "View
+   * own blocks" policy already restricts the table to blocker_id = auth.uid() —
+   * so no RPC is needed (mirrors connectionService.getMyConnections). Loaded at
+   * hydration into a Set so any surface can render Block vs Unblock; only the
+   * caller's OWN blocks are ever exposed (never "who blocked me").
+   * @returns {Promise<{data: string[], error: object|null}>}
+   */
+  async getMyBlocks() {
+    if (!isSupabaseConfigured() || !supabase) return { data: [], error: null }
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { data: [], error: null }
+
+    try {
+      const { data, error } = await supabase
+        .from('blocks')
+        .select('blocked_id')
+        .eq('blocker_id', user.id)
+      if (error) {
+        console.error('getMyBlocks error:', error)
+        return { data: [], error }
+      }
+      return { data: (data || []).map((r) => r.blocked_id).filter(Boolean), error: null }
+    } catch (err) {
+      console.error('getMyBlocks exception:', err)
+      return { data: [], error: { message: 'Unable to load blocks' } }
     }
   },
 }

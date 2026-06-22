@@ -14,6 +14,8 @@ import Matches from './matches'
 import People, { ContactLinks } from './people'
 import UserProfile from './userProfile'
 import Notifications from './notifications'
+import Messages from './messages'
+import MessageThread from './messageThread'
 import { NotifPanel, AccountPanel } from './headerMenus'
 import ProjectDetail from './detail'
 import Profile from './profile'
@@ -36,8 +38,10 @@ import { toDbProfile, fromDbProfile, dataUrlToFile } from './profileAdapter'
 import { projectService, closeRole } from '../services/projectService'
 import { toDbProject, fromDbProject, creatorTeamMember } from './projectAdapter'
 import { toPerson } from './peopleAdapter'
+import { enrichConversations, upsertMessage, mergeThread, bumpInboxRow } from './messageAdapter'
 import { connectionService } from '../services/connectionService'
-import { parse as parseLocation, build as buildPath, accessOf, validateNext, titleFor } from './router'
+import { messageService, newId } from '../services/messageService'
+import { parse as parseLocation, build as buildPath, accessOf, validateNext, titleFor, describeFor } from './router'
 
   const { useState, useEffect, useRef } = React;
 
@@ -52,6 +56,23 @@ import { parse as parseLocation, build as buildPath, accessOf, validateNext, tit
       if (url) return url;
     }
     return null;
+  }
+
+  // Head sync helpers — the client mirror of api/prerender.js. The URL-mirror
+  // effect calls these every commit (next to document.title) so Googlebot's JS
+  // render and in-app navigations keep a correct description / canonical. They
+  // patch tags that already exist in index.html, and create them if missing.
+  function setHeadMeta(selector, attr, key, content) {
+    let el = document.head.querySelector(selector);
+    if (!el) { el = document.createElement("meta"); el.setAttribute(attr, key); document.head.appendChild(el); }
+    el.setAttribute("content", content);
+  }
+  function setMetaName(name, content) { setHeadMeta('meta[name="' + name + '"]', "name", name, content); }
+  function setMetaProp(prop, content) { setHeadMeta('meta[property="' + prop + '"]', "property", prop, content); }
+  function setCanonical(href) {
+    let el = document.head.querySelector('link[rel="canonical"]');
+    if (!el) { el = document.createElement("link"); el.setAttribute("rel", "canonical"); document.head.appendChild(el); }
+    el.setAttribute("href", href);
   }
 
   // Avatar initials for the signed-in user's own handle. Usernames currently
@@ -136,10 +157,23 @@ import { parse as parseLocation, build as buildPath, accessOf, validateNext, tit
     const [people, setPeople] = useState([]);
     const [incoming, setIncoming] = useState([]);
     const [projectRequests, setProjectRequests] = useState([]);
+    const [inbox, setInbox] = useState([]);
+    // Peers I've blocked (id Set), hydrated from messageService.getMyBlocks().
+    // Block is DM-only — it gates new DMs both ways but keeps the connection +
+    // profile; the thread/profile read this to render Block vs Unblock.
+    const [blocked, setBlocked] = useState(new Set());
+    // Open DM thread: messages for the active peer (chronological), its load
+    // status, and the peer's display identity (name/avatar/handle).
+    const [thread, setThread] = useState([]);
+    const [threadStatus, setThreadStatus] = useState("loading");
+    const [threadPeer, setThreadPeer] = useState(null);
     const [pendingRequests, setPendingRequests] = useState([]);
     // /u/:username — the handle on the userProfile route. Set by openProfile
     // (in-app navigation) or the boot/popstate URL parse (deep link).
     const [profileViewUsername, setProfileViewUsername] = useState(bootParams.profileViewUsername || null);
+    // /messages/:username — the peer handle on the open thread. Set by openThread
+    // (in-app) or the boot/popstate URL parse (deep link), mirrors profileViewUsername.
+    const [messageThreadHandle, setMessageThreadHandle] = useState(bootParams.messageThreadHandle || null);
     // One-shot: set when a student finishes onboarding so we land on their own
     // profile in edit mode (to nudge them to fill it out). Profile clears it via
     // onAutoEditConsumed, so a normal later visit stays read-only. Not persisted.
@@ -218,6 +252,7 @@ import { parse as parseLocation, build as buildPath, accessOf, validateNext, tit
     const [notifOpen, setNotifOpen] = useState(false);
     const [acctOpen, setAcctOpen] = useState(false);
     const [confirmSignOut, setConfirmSignOut] = useState(false);
+    const [confirmBlock, setConfirmBlock] = useState(null); // {id, handle, name} pending block, or null
     // Dismiss whichever dropdown is open on outside-click / Escape.
     useEffect(() => {
       if (!notifOpen && !acctOpen) return;
@@ -278,20 +313,33 @@ import { parse as parseLocation, build as buildPath, accessOf, validateNext, tit
       applyingPopRef.current = false;
 
       const dp = detailId ? projects.find((p) => p.id === detailId) : null;
-      document.title = titleFor(route, {
+      const headCtx = {
         authMode,
         detailTitle: dp && dp.title ? dp.title.split(" — ")[0] : null,
+        detailBlurb: dp && dp.blurb ? dp.blurb : null,
         username: profileViewUsername,
         orgSlug: orgViewSlug,
-      });
+        threadName: messageThreadHandle,
+      };
+      const pageTitle = titleFor(route, headCtx);
+      const pageDesc = describeFor(route, headCtx);
+      document.title = pageTitle;
+      setMetaName("description", pageDesc);
+      setMetaProp("og:title", pageTitle);
+      setMetaProp("og:description", pageDesc);
       // Booted on a Supabase email link: supabase-js owns the URL (it strips
       // its #access_token hash) until hydrateSession routes us and clears this.
       if (authCallbackRef.current) return;
       const path = buildPath(route, {
         detailId, editId, eventViewId, orgViewSlug, profileViewUsername,
         eventDraftId, authMode, orgSlug: orgAccount && orgAccount.slug,
+        messageThreadHandle,
       });
       if (path === null) return; // soon / params not ready — leave the URL alone
+      // Canonical + og:url mirror the path the effect just built — correct for
+      // every route at zero extra cost (set before popstate's early return).
+      setCanonical(window.location.origin + path);
+      setMetaProp("og:url", window.location.origin + path);
       if (popApplying) return;   // the URL already shows this state
       const stateObj = { nested: { eventViewFrom } };
       if (path === window.location.pathname) {
@@ -366,7 +414,7 @@ import { parse as parseLocation, build as buildPath, accessOf, validateNext, tit
         stashReturnTo(buildPath(target, {
           detailId: params.detailId, editId: params.editId, eventViewId: params.eventViewId,
           orgViewSlug: params.orgViewSlug, profileViewUsername: params.profileViewUsername,
-          eventDraftId: params.eventDraftId,
+          eventDraftId: params.eventDraftId, messageThreadHandle: params.messageThreadHandle,
         }));
         toast("Sign in to see that page", "sparkle");
         setAuthMode("signup");
@@ -397,6 +445,7 @@ import { parse as parseLocation, build as buildPath, accessOf, validateNext, tit
       if (target === "eventDetail") setEventViewId(params.eventViewId);
       if (target === "orgView") setOrgViewSlug(params.orgViewSlug);
       if (target === "userProfile") setProfileViewUsername(params.profileViewUsername);
+      if (target === "messageThread") setMessageThreadHandle(params.messageThreadHandle);
       if (target === "eventEdit") setEventDraftId(params.eventDraftId);
       if (p.state && p.state.authMode) setAuthMode(p.state.authMode);
       if (opts && opts.replace) replaceNextRef.current = true;
@@ -489,7 +538,7 @@ import { parse as parseLocation, build as buildPath, accessOf, validateNext, tit
       setLoadErrors(null);
       (async () => {
         try {
-          const [disc, savedRes, joinedRes, requestedRes, rejRes, rsvpRes, peopleRes, connRes, incomingRes, reqInboxRes] = await Promise.all([
+          const [disc, savedRes, joinedRes, requestedRes, rejRes, rsvpRes, peopleRes, connRes, incomingRes, reqInboxRes, inboxRes, blocksRes] = await Promise.all([
             projectService.getDiscoverProjects(),
             projectService.getSavedProjects(),
             projectService.getJoinedProjects(),
@@ -500,6 +549,8 @@ import { parse as parseLocation, build as buildPath, accessOf, validateNext, tit
             connectionService.getMyConnections(),
             connectionService.getIncomingConnections(),
             projectService.getMyPendingRequests(),
+            messageService.getInbox(),
+            messageService.getMyBlocks(),
           ]);
           if (cancelled) return;
           setProjects(((disc && disc.data) || []).map(fromDbProject));
@@ -516,19 +567,22 @@ import { parse as parseLocation, build as buildPath, accessOf, validateNext, tit
             .filter((r) => r.account_type !== "org_admin")
             .map(toPerson));
           setProjectRequests((reqInboxRes && reqInboxRes.data) || []);
+          setInbox((inboxRes && inboxRes.data) || []);
+          setBlocked(new Set(((blocksRes && blocksRes.data) || [])));
           // Surface per-page load errors so each page can show its own retry.
           setLoadErrors({
             discover: disc && disc.error,
             people: (peopleRes && peopleRes.error) || (incomingRes && incomingRes.error),
             saved: (savedRes && savedRes.error) || (joinedRes && joinedRes.error) || (requestedRes && requestedRes.error) || (rejRes && rejRes.error),
             notifications: (incomingRes && incomingRes.error) || (reqInboxRes && reqInboxRes.error),
+            messages: inboxRes && inboxRes.error,
           });
         } catch (err) {
           // A thrown (rejected) service strands no state: log it and mark every
           // surface errored so the user gets a retry instead of a blank page.
           if (!cancelled) {
             console.error('Project surface hydration failed:', err);
-            setLoadErrors({ discover: err, people: err, saved: err, notifications: err });
+            setLoadErrors({ discover: err, people: err, saved: err, notifications: err, messages: err });
           }
         } finally {
           if (!cancelled) setProjectsLoading(false);
@@ -563,6 +617,14 @@ import { parse as parseLocation, build as buildPath, accessOf, validateNext, tit
     // session and must read the current projects without re-binding the channel.
     const projectsRef = useRef([]);
     useEffect(() => { projectsRef.current = projects; }, [projects]);
+
+    // Which peer's DM thread is open right now (or null). The realtime handler +
+    // resync below subscribe once per session, so they read the open peer from
+    // this ref rather than re-binding the channel. Driven imperatively by the
+    // thread-fetch effect (not a [route, threadPeer] sync effect) so it never
+    // lags the open conversation — a one-tick lag would let a ping splice the
+    // previous peer's messages into the new thread.
+    const openPeerIdRef = useRef(null);
 
     // ─── REALTIME: requester side ───────────────────────────────────────────
     // When a project owner approves (or declines / I withdraw) my join request,
@@ -612,6 +674,98 @@ import { parse as parseLocation, build as buildPath, accessOf, validateNext, tit
       return () => { cancelled = true; if (channel) supabase.removeChannel(channel); };
     }, [profile && profile.id]);
 
+    // ─── REALTIME: direct messages ──────────────────────────────────────────
+    // A second self-scoped channel for DMs. The INSERT row's body is ciphertext
+    // (Option B — encrypted at rest), so realtime is only a PING: we never read
+    // the payload body, we refetch through the decrypting RPC, which is the
+    // source of truth. If the sender's thread is open we merge the message in;
+    // otherwise we refresh the inbox (unread badge + decrypted preview). On a
+    // reconnect (a repeat SUBSCRIBED after a drop) or tab refocus we resync both,
+    // so anything missed while the socket was down isn't lost. Self-sends never
+    // echo here (the filter is recipient_id=me), and the refetches dedup by id,
+    // so there are no duplicate bubbles. No-op in mock mode.
+    useEffect(() => {
+      if (!profile || !profile.id || !isSupabaseConfigured() || !supabase) return;
+      let channel;
+      let cancelled = false;
+      let subscribedOnce = false;
+      // Coalesce bursts: while a refetch is in flight, mark it dirty and fire
+      // exactly once more on completion — N rapid pings collapse to ≤2 RPCs per
+      // stream, and the last (freshest) fetch always wins.
+      let inboxInFlight = false, inboxDirty = false;
+      let threadInFlight = false, threadDirty = false;
+
+      async function refetchInbox() {
+        if (inboxInFlight) { inboxDirty = true; return; }
+        inboxInFlight = true;
+        try {
+          const { data } = await messageService.getInbox();
+          if (cancelled || !data) return;
+          const open = openPeerIdRef.current;   // never resurrect the badge on the thread you're reading
+          setInbox(open ? data.map((r) => (r.peerId === open ? { ...r, unreadCount: 0 } : r)) : data);
+        } finally {
+          inboxInFlight = false;
+          if (inboxDirty && !cancelled) { inboxDirty = false; refetchInbox(); }
+        }
+      }
+
+      async function refetchOpenThread() {
+        const pid = openPeerIdRef.current;
+        if (!pid) return;
+        if (threadInFlight) { threadDirty = true; return; }
+        threadInFlight = true;
+        try {
+          const { data } = await messageService.getThread(pid);
+          if (cancelled || !data) return;
+          if (openPeerIdRef.current !== pid) return;   // switched threads mid-fetch → drop this result
+          setThread((cur) => mergeThread(cur, data.slice().reverse()));
+          messageService.markThreadRead(pid);
+          const newest = data[0];   // get_thread is newest-first
+          if (newest) setInbox((rows) => bumpInboxRow(rows, pid,
+            { lastBody: newest.body, lastAt: newest.createdAt, lastFromMe: newest.fromMe, read: true }));
+        } finally {
+          threadInFlight = false;
+          // Re-fire for whichever thread is open now (not the stale pid): a ping
+          // that landed mid-fetch — possibly after a peer switch — must still be
+          // serviced. refetchOpenThread re-reads the peer and re-guards post-await.
+          if (threadDirty && !cancelled && openPeerIdRef.current) { threadDirty = false; refetchOpenThread(); }
+        }
+      }
+
+      async function resync() { await refetchInbox(); await refetchOpenThread(); }
+      function onVisible() { if (document.visibilityState === "visible") resync(); }
+
+      (async () => {
+        const { data } = await authService.getSession();
+        if (cancelled) return;
+        const token = data && data.session && data.session.access_token;
+        if (token) await supabase.realtime.setAuth(token);
+        if (cancelled) return;
+        channel = supabase
+          .channel("dm-self-" + profile.id)
+          .on("postgres_changes", {
+            event: "INSERT", schema: "public", table: "messages",
+            filter: "recipient_id=eq." + profile.id,
+          }, (payload) => {
+            const senderId = payload.new && payload.new.sender_id;   // body_enc is ciphertext — never read it
+            if (senderId && senderId === openPeerIdRef.current) refetchOpenThread();
+            else refetchInbox();
+          })
+          .subscribe((status) => {
+            // A repeat SUBSCRIBED = the socket dropped and rejoined → resync to
+            // pull anything missed. Errors/timeouts: let the client auto-rejoin.
+            if (status === "SUBSCRIBED") { if (subscribedOnce) resync(); subscribedOnce = true; }
+          });
+      })();
+
+      document.addEventListener("visibilitychange", onVisible);
+      return () => {
+        cancelled = true;
+        document.removeEventListener("visibilitychange", onVisible);
+        if (channel) supabase.removeChannel(channel);
+      };
+    }, [profile && profile.id]);
+
     // Owner-only: load pending join requests for the project being viewed, so
     // the owner can approve/decline from the project page.
     useEffect(() => {
@@ -627,6 +781,44 @@ import { parse as parseLocation, build as buildPath, accessOf, validateNext, tit
       });
       return () => { cancelled = true; };
     }, [route, detailId, profile && profile.id, projects]);
+
+    // Load the open thread on /messages/:username: resolve the handle to a peer
+    // (in-memory People list first, else fetch by username), fetch the
+    // conversation (get_thread is newest-first → reverse to chronological), then
+    // mark it read and clear this peer's unread from the inbox badge.
+    useEffect(() => {
+      openPeerIdRef.current = null;   // no thread open until one resolves below (also clears on nav away)
+      if (route !== "messageThread" || !messageThreadHandle || !profile || !profile.id) return;
+      if (!isSupabaseConfigured()) { setThreadStatus("error"); return; }
+      const wanted = messageThreadHandle.toLowerCase();
+      let cancelled = false;
+      (async () => {
+        setThreadStatus("loading");
+        setThread([]);   // drop the previous peer's bubbles before merging this one's (URL/popstate path doesn't clear)
+        let peer = (threadPeer && threadPeer.handle && threadPeer.handle.toLowerCase() === wanted) ? threadPeer : null;
+        if (!peer) {
+          const found = people.find((p) => p.handle && p.handle.toLowerCase() === wanted);
+          if (found) peer = { id: found.id, handle: found.handle, name: found.name, avatar: found.avatar };
+        }
+        if (!peer) {
+          const { data } = await profileService.getByUsername(messageThreadHandle);
+          if (cancelled) return;
+          if (data) { const p = toPerson(data); peer = { id: p.id, handle: p.handle, name: p.name, avatar: p.avatar }; }
+        }
+        if (cancelled) return;
+        if (!peer || !peer.id) { setThreadStatus("missing"); return; }
+        setThreadPeer(peer);
+        openPeerIdRef.current = peer.id;   // realtime pings for this peer now refetch into the open thread
+        const { data: msgs, error } = await messageService.getThread(peer.id);
+        if (cancelled) return;
+        if (error) { setThreadStatus("error"); return; }
+        setThread((cur) => mergeThread(cur, (msgs || []).slice().reverse()));   // merge, not replace — a ping mid-load isn't clobbered
+        setThreadStatus("ready");
+        messageService.markThreadRead(peer.id);
+        setInbox((rows) => rows.map((r) => (r.peerId === peer.id ? { ...r, unreadCount: 0 } : r)));
+      })();
+      return () => { cancelled = true; };
+    }, [route, messageThreadHandle, profile && profile.id]);
 
     // ─── Session hydration ──────────────────────────────────────
     // Called on mount AND after the forgot-password flow completes, so a
@@ -761,8 +953,16 @@ import { parse as parseLocation, build as buildPath, accessOf, validateNext, tit
       let cancelled = false;
       hydrateSession(() => cancelled);
 
-      // React to sign-out events fired from anywhere
-      const sub = authService.onAuthStateChange((event) => {
+      // React to auth changes fired from anywhere.
+      const sub = authService.onAuthStateChange((event, session) => {
+        // Keep the Realtime socket's JWT fresh. A channel sets it once when it
+        // subscribes, but the token expires (~1h) while the socket is long-lived,
+        // so on every refresh we re-push it — otherwise live delivery (DMs,
+        // join approvals) goes quiet on a long-open tab until the next
+        // reconnect/refocus resync. App-wide: one call covers every channel.
+        if (session && session.access_token && supabase) {
+          supabase.realtime.setAuth(session.access_token);
+        }
         if (event === "SIGNED_OUT") {
           setProfile(null);
           try { localStorage.removeItem(LS); } catch (e) {}
@@ -1125,6 +1325,39 @@ import { parse as parseLocation, build as buildPath, accessOf, validateNext, tit
         toast("Couldn't disconnect — " + (error.message || "try again"), "x");
       }
     }
+    // Block is DM-only: the server gate stops new DMs both ways, but the
+    // connection + profile stay and unblock fully restores messaging. Optimistic
+    // Set update with revert-on-failure (mirrors onConnect). Block runs behind a
+    // confirm; unblock is non-destructive, so it's immediate.
+    function requestBlock(peer) {
+      if (!profile) return requireAuth("Sign in to manage messages");
+      if (!peer || !peer.id) return;
+      setConfirmBlock({ id: peer.id, handle: peer.handle, name: peer.name });
+    }
+    async function blockPeerNow() {
+      const peer = confirmBlock;
+      setConfirmBlock(null);
+      if (!peer || !peer.id) return;
+      setBlocked((s) => new Set(s).add(peer.id));
+      toast("Blocked" + (peer.handle ? " @" + peer.handle : ""), "block");
+      if (!isSupabaseConfigured()) return;
+      const { error } = await messageService.blockUser(peer.id);
+      if (error) {
+        setBlocked((s) => { const n = new Set(s); n.delete(peer.id); return n; });
+        toast("Couldn't block — " + (error.message || "try again"), "x");
+      }
+    }
+    async function unblockPeer(peer) {
+      if (!peer || !peer.id) return;
+      setBlocked((s) => { const n = new Set(s); n.delete(peer.id); return n; });
+      toast("Unblocked" + (peer.handle ? " @" + peer.handle : ""), "check");
+      if (!isSupabaseConfigured()) return;
+      const { error } = await messageService.unblockUser(peer.id);
+      if (error) {
+        setBlocked((s) => new Set(s).add(peer.id));
+        toast("Couldn't unblock — " + (error.message || "try again"), "x");
+      }
+    }
     function goNav(id) {
       // People & Saved need an account — nudge guests to sign in instead.
       if (!profile && (id === "people" || id === "saved")) {
@@ -1192,6 +1425,58 @@ import { parse as parseLocation, build as buildPath, accessOf, validateNext, tit
       openPerson(row.username);
     }
 
+    // Open a 1:1 thread. `target` is an inbox conversation ({peerId,handle,…}) or
+    // a person ({id,handle,…}); both normally carry a handle (peers are
+    // connections → in the People list). The handle drives the URL; the thread
+    // effect resolves it to the peer id for get_thread. The rare no-handle case
+    // (peer absent from People) resolves via getPublicProfile first.
+    function openThread(target) {
+      if (!profile) return requireAuth("Sign in to message");
+      if (!target) return;
+      const pid = target.id || target.peerId;
+      if (!pid) return;
+      const go = (peer) => {
+        setThreadPeer(peer);
+        setMessageThreadHandle(peer.handle);
+        setThread([]);
+        setThreadStatus("loading");
+        setRoute("messageThread");
+        window.scrollTo({ top: 0 });
+      };
+      if (target.handle) {
+        go({ id: pid, handle: target.handle, name: target.name || "Student", avatar: target.avatar || null });
+        return;
+      }
+      if (!isSupabaseConfigured()) { toast("Couldn't open that conversation", "x"); return; }
+      profileService.getPublicProfile(pid).then(({ data }) => {
+        if (!data || !data.username) { toast("Couldn't open that conversation", "x"); return; }
+        const p = toPerson(data);
+        go({ id: p.id, handle: p.handle, name: p.name, avatar: p.avatar });
+      });
+    }
+
+    // Optimistic send: append a pending bubble immediately (client-supplied id),
+    // then reconcile it with the stored row on confirm (same id) or drop it on
+    // failure. Also refresh this peer's inbox row so the list stays correct
+    // without a refetch (live sync is S6).
+    async function sendThreadMessage(body) {
+      const peer = threadPeer;
+      const text = (body || "").trim();
+      if (!peer || !peer.id || !text) return;
+      const id = newId();
+      const at = new Date().toISOString();
+      setThread((t) => upsertMessage(t, { id, peerId: peer.id, fromMe: true, body: text, createdAt: at, readAt: null, pending: true }));
+      if (!isSupabaseConfigured()) return;
+      const { data, error } = await messageService.sendMessage(peer.id, text, id);
+      if (error) {
+        setThread((t) => t.filter((m) => m.id !== id));
+        toast(error.message || "Couldn't send message", "x");
+        return;
+      }
+      setThread((t) => upsertMessage(t, { ...data, pending: false }));
+      setInbox((rows) => bumpInboxRow(rows, peer.id, { lastBody: text, lastAt: data.createdAt, lastFromMe: true, read: true }));
+    }
+
     async function submitModal(text, role) {
       if (!modal) return;
       // Only the join flow submits; the contact modal just surfaces real links.
@@ -1216,6 +1501,11 @@ import { parse as parseLocation, build as buildPath, accessOf, validateNext, tit
     const projectsList = projects;
     // Incoming connections the user hasn't reciprocated yet — drives the bell dot.
     const incomingPending = incoming.filter((p) => !connected.includes(p.id));
+    // Inbox rows joined with the People list for each peer's display identity
+    // (see enrichConversations in messageAdapter). unreadMessages drives the
+    // header chat dot + mobile badge.
+    const conversations = enrichConversations(inbox, people);
+    const unreadMessages = inbox.reduce((n, r) => n + (r.unreadCount || 0), 0);
     // "My projects" = the ones I own OR co-lead (a promoted co-lead runs the
     // flyer too), derived from the discover list (all my flyers publish to
     // discover). Drives the profile's pinned-projects rail.
@@ -1243,7 +1533,7 @@ import { parse as parseLocation, build as buildPath, accessOf, validateNext, tit
     // skeleton instead — hydration then either fills the identity or
     // applyParsed corrects the position (replaceState, sub-second).
     const needsStudent = route === "profile" || route === "create" || route === "edit" ||
-      route === "userProfile" || route === "notifications";
+      route === "userProfile" || route === "notifications" || route === "messages" || route === "messageThread";
     const needsOrg = route === "orgDashboard" || route === "orgEditMe" ||
       route === "eventCreate" || route === "eventEdit";
     if (sessionPending && ((needsStudent && !profile) || (needsOrg && !orgAccount))) {
@@ -1672,6 +1962,12 @@ import { parse as parseLocation, build as buildPath, accessOf, validateNext, tit
             ),
             profile && React.createElement("button", { className: "iconbtn", onClick: () => goNav("saved"), title: "Saved projects" },
               React.createElement(Icon, { name: "bookmark", size: 20 })),
+            profile && React.createElement("button", {
+              className: "iconbtn", onClick: () => { setRoute("messages"); window.scrollTo({ top: 0 }); }, title: "Messages",
+            },
+              React.createElement(Icon, { name: "chat", size: 20 }),
+              unreadMessages > 0 && React.createElement("span", { className: "dot" })
+            ),
             profile && React.createElement("div", { className: "hdr-anchor" },
               React.createElement("button", {
                 className: "iconbtn" + (notifOpen ? " on" : ""),
@@ -1735,7 +2031,7 @@ import { parse as parseLocation, build as buildPath, accessOf, validateNext, tit
               React.createElement(Icon, { name: mSearchOpen ? "x" : "search", size: 20 })),
             profile && React.createElement("button", { className: "mob-avatar", onClick: () => setSheetOpen(true), title: "Account" },
               React.createElement(Av, { name: profile.username, img: firstPhotoUrl(profile.photos), label: handleInitials(profile.username) }),
-              (incomingPending.length + projectRequests.length) > 0 && React.createElement("span", { className: "dot" })
+              (incomingPending.length + projectRequests.length + unreadMessages) > 0 && React.createElement("span", { className: "dot" })
             ),
             !profile && React.createElement("button", { className: "btn btn-primary", onClick: () => goAuth("signup"), title: "Create your account" }, "Sign up")
           )
@@ -1814,8 +2110,12 @@ import { parse as parseLocation, build as buildPath, accessOf, validateNext, tit
           connected,
           onConnect,
           onDisconnect,
+          onMessage: (person) => openThread(person),
           onBack: () => goNav("people"),
           viewerId: profile && profile.id,
+          blocked,
+          onBlock: requestBlock,
+          onUnblock: unblockPeer,
         }),
 
         route === "notifications" && React.createElement(Notifications, {
@@ -1832,6 +2132,26 @@ import { parse as parseLocation, build as buildPath, accessOf, validateNext, tit
           loading: projectsLoading,
           error: loadErrors && loadErrors.notifications,
           onRetry: retrySurface,
+        }),
+
+        route === "messages" && React.createElement(Messages, {
+          conversations,
+          loading: projectsLoading,
+          error: loadErrors && loadErrors.messages,
+          onRetry: retrySurface,
+          onOpenThread: openThread,
+        }),
+
+        route === "messageThread" && React.createElement(MessageThread, {
+          peer: threadPeer,
+          messages: thread,
+          status: threadStatus,
+          onSend: sendThreadMessage,
+          onBack: () => { setRoute("messages"); window.scrollTo({ top: 0 }); },
+          onOpenProfile: () => { if (threadPeer && threadPeer.handle) openPerson(threadPeer.handle); },
+          isBlocked: threadPeer ? blocked.has(threadPeer.id) : false,
+          onBlock: () => requestBlock(threadPeer),
+          onUnblock: () => unblockPeer(threadPeer),
         }),
 
         route === "saved" && React.createElement(Matches, {
@@ -1918,6 +2238,9 @@ import { parse as parseLocation, build as buildPath, accessOf, validateNext, tit
             React.createElement("button", { className: "acct-item", onClick: () => { setSheetOpen(false); setRoute("notifications"); window.scrollTo({ top: 0 }); } },
               React.createElement(Icon, { name: "bell", size: 19 }), "Notifications",
               (incomingPending.length + projectRequests.length) > 0 && React.createElement("span", { className: "acct-badge" }, incomingPending.length + projectRequests.length)),
+            React.createElement("button", { className: "acct-item", onClick: () => { setSheetOpen(false); setRoute("messages"); window.scrollTo({ top: 0 }); } },
+              React.createElement(Icon, { name: "chat", size: 19 }), "Messages",
+              unreadMessages > 0 && React.createElement("span", { className: "acct-badge" }, unreadMessages)),
             React.createElement("button", { className: "acct-item danger", onClick: requestSignOut },
               React.createElement(Icon, { name: "external", size: 19 }), "Sign out")
           )
@@ -1931,6 +2254,16 @@ import { parse as parseLocation, build as buildPath, accessOf, validateNext, tit
           danger: true,
           onCancel: () => setConfirmSignOut(false),
           onConfirm: confirmSignOutNow,
+        }),
+        confirmBlock && React.createElement(ConfirmModal, {
+          accent: "var(--c-startup)",
+          title: "Block" + (confirmBlock.handle ? " @" + confirmBlock.handle : " this person") + "?",
+          body: "New messages stop both ways until you unblock. You'll stay connected and your conversation history stays.",
+          ctaLabel: "Block",
+          ctaIcon: "block",
+          danger: true,
+          onCancel: () => setConfirmBlock(null),
+          onConfirm: blockPeerNow,
         }),
         React.createElement(Toasts, { items: toasts }),
         React.createElement(StyleTweaks, { t, setTweak })

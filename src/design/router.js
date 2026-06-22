@@ -34,6 +34,8 @@ const ROUTES = [
   { route: "people",        path: "/people",                    access: "student" },
   { route: "saved",         path: "/saved",                     access: "student" },
   { route: "notifications", path: "/notifications",             access: "student" },
+  { route: "messages",      path: "/messages",                  access: "student" },
+  { route: "messageThread", path: "/messages/:username",         access: "student", params: { username: "messageThreadHandle" } },
   { route: "profile",       path: "/profile",                   access: "student" },
   { route: "userProfile",   path: "/u/:username",               access: "student", params: { username: "profileViewUsername" } },
   { route: "onboarding",    path: "/login",                     access: "anon",    state: { authMode: "signin" } },
@@ -113,6 +115,8 @@ const BUILD = {
   people:        () => "/people",
   saved:         () => "/saved",
   notifications: () => "/notifications",
+  messages:      () => "/messages",
+  messageThread: (s) => (s.messageThreadHandle ? "/messages/" + enc(s.messageThreadHandle) : null),
   profile:       () => "/profile",
   userProfile:   (s) => (s.profileViewUsername ? "/u/" + enc(s.profileViewUsername) : null),
   orgView:       (s) => (s.orgViewSlug ? "/org/" + enc(s.orgViewSlug) : null),
@@ -160,6 +164,8 @@ export function titleFor(route, ctx) {
     case "people":        return "People · " + SITE;
     case "saved":         return "Saved · " + SITE;
     case "notifications": return "Notifications · " + SITE;
+    case "messages":      return "Messages · " + SITE;
+    case "messageThread": return c.threadName ? "@" + c.threadName + " · " + SITE : "Messages · " + SITE;
     case "profile":       return "Your profile · " + SITE;
     case "userProfile":   return c.username ? "@" + c.username + " · " + SITE : SITE;
     case "orgView":       return c.orgSlug ? c.orgSlug + " · " + SITE : SITE;
@@ -172,5 +178,24 @@ export function titleFor(route, ctx) {
     case "eventCreate":   return "Pin an event · " + SITE;
     case "eventEdit":     return "Edit event · " + SITE;
     default:              return SITE;
+  }
+}
+
+// Per-route meta description — the companion to titleFor, fed the SAME ctx by
+// the URL-mirror effect. Only the project `detail` route carries entity data
+// synchronously (the project blurb); eventDetail / orgView self-fetch in their
+// own components, so client-side they fall back to the site description — the
+// server prerender (api/prerender.js) supplies their real per-entity meta for
+// crawlers and social unfurlers.
+const SITE_DESC =
+  "Nested is a student-only project network for NYC universities. Discover projects, find teammates, and see what's happening on campus.";
+export function describeFor(route, ctx) {
+  const c = ctx || {};
+  switch (route) {
+    case "discover":    return SITE_DESC;
+    case "events":      return "Browse upcoming events across NYC campuses — talks, hackathons, mixers, and workshops — on Nested.";
+    case "detail":      return c.detailBlurb || (c.detailTitle ? c.detailTitle + " — a student project on Nested." : SITE_DESC);
+    case "userProfile": return c.username ? "@" + c.username + " on Nested — the student-only project network for NYC universities." : SITE_DESC;
+    default:            return SITE_DESC;
   }
 }

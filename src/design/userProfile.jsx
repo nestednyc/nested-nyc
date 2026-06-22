@@ -32,7 +32,7 @@ import { isSupabaseConfigured } from '../lib/supabase'
     );
   }
 
-  function UserProfile({ username, initialPerson, connected = [], onConnect, onDisconnect, onBack, viewerId }) {
+  function UserProfile({ username, initialPerson, connected = [], blocked = new Set(), onConnect, onDisconnect, onMessage, onBlock, onUnblock, onBack, viewerId }) {
     const seeded = initialPerson && initialPerson.handle && username &&
       initialPerson.handle.toLowerCase() === String(username).toLowerCase();
     const [person, setPerson] = useState(seeded ? initialPerson : null);
@@ -86,9 +86,13 @@ import { isSupabaseConfigured } from '../lib/supabase'
             person,
             connected: connected.includes(person.id),
             showConnect: !isSelf,
+            onMessage: () => onMessage && onMessage(person),
             onConnect: (id) => (connected.includes(id)
               ? onDisconnect && onDisconnect(id)
               : onConnect && onConnect(id)),
+            isBlocked: !!(person && blocked && blocked.has(person.id)),
+            onBlock,
+            onUnblock,
           })
         )
       )

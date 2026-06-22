@@ -48,6 +48,8 @@ import React from 'react'
     heart: `<path d="M12 20.5 4.2 12.8a4.6 4.6 0 0 1 6.5-6.5l1.3 1.3 1.3-1.3a4.6 4.6 0 0 1 6.5 6.5Z"/>`,
     undo: `<path d="M9 7 4 12l5 5"/><path d="M4 12h11a5 5 0 0 1 0 10h-1"/>`,
     share: `<circle cx="6" cy="12" r="2.6"/><circle cx="17" cy="5.5" r="2.6"/><circle cx="17" cy="18.5" r="2.6"/><path d="M8.3 10.8 14.7 6.7M8.3 13.2l6.4 4.1"/>`,
+    block: `<circle cx="12" cy="12" r="8.5"/><path d="m6 6 12 12"/>`,
+    ellipsis: `<path d="M6 12h.01"/><path d="M12 12h.01"/><path d="M18 12h.01"/>`,
   };
 
   function Icon({ name, size = 22, stroke = "currentColor", width = 1.8, fill = "none", style, className }) {

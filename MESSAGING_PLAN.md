@@ -70,7 +70,7 @@ blocks
 ```
 
 **RPC surface (the stable client contract):**
-`send_message(p_id, p_recipient, p_body)` · `get_inbox()` · `get_thread(p_peer, p_since, p_limit)` · `mark_thread_read(p_peer)` · `block_user(p_target)` / `unblock_user(p_target)` · `report_user(...)` (S7)
+`send_message(p_id, p_recipient, p_body)` · `get_inbox()` · `get_thread(p_peer, p_since, p_limit)` · `mark_thread_read(p_peer)` · `block_user(p_target)` / `unblock_user(p_target)` · `get_my_blocks` (S7, client-side via RLS select) · `report_user(...)` (planned — deferred)
 
 ---
 
@@ -156,17 +156,26 @@ blocks
 - [ ] No duplicate bubbles for self-sent messages.
 
 ### Sprint 7 — Trust & Safety + privacy hardening
+**Status (2026-06-22):** Block/unblock UI + privacy hardening shipped — **block is DM-only** (locked decision: gates new DMs both ways, leaves the connection + profile, reversible). **Report deferred** to a later sprint; **"delete conversation" deferred to Sprint 8.**
 **Deliverables:**
-- **Report** flow (`reports` table or route into existing tooling) + block/unblock UI.
-- Rate-limit tuning + a basic abuse test.
-- **Deletion** path: account-deletion cascade verified; optional "delete conversation."
-- **Don't-log-bodies** audit; retention stance documented here.
-- Mobile (860px), empty/error states, a11y pass.
+- **Block/unblock UI** (DM-only): `messageService.getMyBlocks()` hydrates a `blocked` Set (mirrors `connected`); Block/Unblock from the **thread overflow menu** (with a blocked-composer "Unblock to message" bar) and from the **profile** (`PersonProfile`, covering the People grid + `/u/:username`). Confirm-on-block via `ConfirmModal`; optimistic + revert. New `block` / `ellipsis` icons.
+- Rate-limit: **kept at 10 sends / 10s / sender**; abuse test added.
+- **Deletion**: account-deletion cascade **verified via SQL** (there is no in-app account-deletion feature — that's an auth-wide concern; S7 only proves DM rows cascade). "Delete conversation" → S8.
+- **Don't-log-bodies** audit: **clean** (see below). **a11y + mobile** pass on both message screens (semantic conversation rows w/ keyboard open; aria-labels on thread controls/bubbles/badges; `:focus-visible` rings; 860px verified).
+- ~~**Report** flow~~ → deferred.
+- Tests: `supabase/tests/dm_s7_safety.sql` — block symmetry + unblock-restore, rate-limit, deletion cascade.
+
+**Privacy, logging & retention (audited 2026-06-22):**
+- Bodies are encrypted at rest (`pgp_sym_encrypt`, Vault key `dm_body_key`), decrypted only inside the SECURITY DEFINER RPCs — a raw `SELECT body_enc` or a Realtime payload is ciphertext.
+- **No message body is logged anywhere:** the RPCs raise only keyed errors (`not_connected` / `blocked` / `rate_limited`), and `messageService` / `messageAdapter` log error objects, never bodies.
+- **No database webhook/trigger on `messages`** — the bulk-email hazard (`EMAIL_NOTIFICATIONS.md`) is avoided by construction.
+- **Retention:** messages persist until account deletion, then cascade away (`auth.users → profiles → messages + blocks`, all `ON DELETE CASCADE`).
+
 **Acceptance:**
-- [ ] Block hides the blocker from the blocked and prevents new DMs (both directions).
-- [ ] Report produces an actionable record.
-- [ ] Deleting an account removes its messages (cascade verified).
-- [ ] No message body appears in any server log.
+- [x] Prevents new DMs both directions + reversible; the blocked party can't tell (vague PT403). *Block is DM-only per the locked decision — it does not hide the blocker's profile.* — code + `dm_s7_safety.sql` T1.
+- [ ] Report produces an actionable record. — **deferred** (Report not in this sprint).
+- [x] Deleting an account removes its messages (cascade verified). — `dm_s7_safety.sql` T3.
+- [x] No message body appears in any server log. — audited above; clean.
 
 ---
 

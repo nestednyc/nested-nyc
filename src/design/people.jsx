@@ -1,7 +1,7 @@
 /* ============================================================
    NESTED NYC — People (discover collaborators)
-   Browse student profiles. Reach out through the
-   links people post — there is no in-app messaging.
+   Browse student profiles, connect, and message the students
+   you've connected with (or reach out via the links they post).
    ============================================================ */
 import React from 'react'
 import Icon from './icons'
@@ -61,7 +61,7 @@ import { Av, Skeleton } from './shared'
       : Object.entries(raw).filter(([, v]) => v).map(([kind, label]) => ({ kind, label }));
     return (
       React.createElement("div", null,
-        React.createElement("div", { className: "contact-note" }, React.createElement(Icon, { name: "link", size: 14 }), "Reach out through their links \u2014 Nested has no DMs"),
+        React.createElement("div", { className: "contact-note" }, React.createElement(Icon, { name: "link", size: 14 }), "Reach out through their links"),
         React.createElement("div", { className: "links" }, links.map((l, i) => React.createElement(LinkPill, { key: i, link: l })))
       )
     );
@@ -97,7 +97,7 @@ import { Av, Skeleton } from './shared'
   // The card's inner content, shared by the /u/:username page (userProfile.jsx)
   // which wraps it in a backbar + paper shell. Pass showConnect:false to hide
   // the action row (e.g. viewing yourself).
-  function PersonProfile({ person, connected, onConnect, showConnect = true }) {
+  function PersonProfile({ person, connected, onConnect, onMessage, isBlocked = false, onBlock, onUnblock, showConnect = true }) {
     return (
       React.createElement("div", { className: "pm-inner" },
         React.createElement("div", { className: "pm-photos" }, person.photos.slice(0, 3).map((p, i) => React.createElement(Polaroid, { key: i, label: p.l, src: p.src }))),
@@ -132,7 +132,18 @@ import { Av, Skeleton } from './shared'
           React.createElement("button", { className: "btn " + (connected ? "btn-primary done" : "btn-primary"), style: { flex: 1, padding: 13 }, onClick: () => onConnect(person.id) },
             connected
               ? [React.createElement(Icon, { name: "check", size: 17, stroke: "var(--paper)", key: "i" }), "Connected"]
-              : [React.createElement(Icon, { name: "heart", size: 17, stroke: "var(--paper)", key: "i" }), "Connect"])
+              : [React.createElement(Icon, { name: "heart", size: 17, stroke: "var(--paper)", key: "i" }), "Connect"]),
+          // Connection-gated: only people you're connected to can be messaged.
+          connected && onMessage && React.createElement("button", { className: "btn btn-ghost", style: { flex: 1, padding: 13 }, onClick: () => onMessage(person) },
+            React.createElement(Icon, { name: "chat", size: 17, key: "i" }), "Message")
+        ),
+        // Block is DM-only and rare — a quiet link under the actions, not a button.
+        showConnect && onBlock && React.createElement("div", { className: "pm-block" },
+          isBlocked
+            ? React.createElement("button", { className: "blocklink blocked", onClick: () => onUnblock && onUnblock(person), title: "Unblock @" + person.handle },
+                React.createElement(Icon, { name: "block", size: 14 }), "Unblock @" + person.handle)
+            : React.createElement("button", { className: "blocklink", onClick: () => onBlock && onBlock(person), title: "Block @" + person.handle },
+                React.createElement(Icon, { name: "block", size: 14 }), "Block @" + person.handle)
         )
       )
     );
@@ -199,7 +210,7 @@ import { Av, Skeleton } from './shared'
         React.createElement("div", { className: "disco-head" },
           React.createElement("div", { className: "head-txt" },
             React.createElement("h1", null, "Find your ", React.createElement("em", null, "people")),
-            React.createElement("p", { className: "sub" }, "Students across NYC looking to build with someone. Browse, then reach out through the links they posted \u2014 no DMs here, just real connections.")
+            React.createElement("p", { className: "sub" }, "Students across NYC looking to build with someone. Browse, connect, and message the people you click with.")
           )
         ),
         React.createElement("div", { className: "match-tabs" },
