@@ -87,6 +87,17 @@ import { toDbProfile, fromDbProfile } from './profileAdapter'
     const codeString = code.join("");
     const codeReady = codeString.length === 6;
 
+    // Auto-submit the instant all six digits are present (typed or pasted) — no
+    // button press, like a 2FA prompt. The ref guards against re-firing a code
+    // the server just rejected and against double-submitting mid-verify.
+    const autoVerifiedRef = useRef("");
+    useEffect(() => {
+      if (codeReady && !submitting && autoVerifiedRef.current !== codeString) {
+        autoVerifiedRef.current = codeString;
+        verifyCodeAndFinish();
+      }
+    }, [codeReady, submitting, codeString]);
+
     // Resend cooldown ticker for the code step.
     useEffect(() => {
       if (resendCooldown <= 0) return;

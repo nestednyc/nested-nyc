@@ -13,7 +13,7 @@ import { Stamp, Pin, CodeBoxes } from './shared'
 import { authService, isSupabaseConfigured, getErrorMessage } from '../lib/supabase'
 import { lookupService } from '../services/lookupService'
 
-  const { useState, useEffect } = React;
+  const { useState, useEffect, useRef } = React;
 
   function OrgSignup({ onBack, onSignedUp, onSignedIn, onForgot, onToast, initialMode, initialEmail }) {
     const [mode, setMode] = useState(initialMode || 'signup'); // 'signup' | 'signin'
@@ -40,6 +40,16 @@ import { lookupService } from '../services/lookupService'
     const canSubmit = emailValid && passwordValid && confirmValid && !submitting;
     const codeString = code.join('');
     const codeReady = codeString.length === 6;
+
+    // Auto-submit once all six digits are present (typed or pasted). Ref guards
+    // re-firing a rejected code / double-submitting while a verify is in flight.
+    const autoVerifiedRef = useRef("");
+    useEffect(() => {
+      if (codeReady && !submitting && autoVerifiedRef.current !== codeString) {
+        autoVerifiedRef.current = codeString;
+        verifyCode();
+      }
+    }, [codeReady, submitting, codeString]);
 
     // Resend cooldown ticker (mirrors forgot.jsx / onboarding.jsx)
     useEffect(() => {

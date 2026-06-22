@@ -42,6 +42,16 @@ import { authService, isSupabaseConfigured, getErrorMessage } from '../lib/supab
     const confirmValid = !!confirm && confirm === password;
     const canSubmitPassword = passwordValid && confirmValid;
 
+    // Auto-submit once all six digits are present (typed or pasted). Ref guards
+    // re-firing a rejected code / double-submitting while a verify is in flight.
+    const autoVerifiedRef = useRef("");
+    useEffect(() => {
+      if (codeReady && !submitting && autoVerifiedRef.current !== codeString) {
+        autoVerifiedRef.current = codeString;
+        submitCode();
+      }
+    }, [codeReady, submitting, codeString]);
+
     // Resend cooldown ticker
     useEffect(() => {
       if (resendCooldown <= 0) return;
@@ -81,7 +91,7 @@ import { authService, isSupabaseConfigured, getErrorMessage } from '../lib/supab
     }
 
     async function submitCode() {
-      if (!codeReady) return;
+      if (!codeReady || submitting) return;
       setSubmitting(true);
       setSubmitError("");
       const { error } = await authService.verifyPasswordResetOtp(email.trim(), codeString);
