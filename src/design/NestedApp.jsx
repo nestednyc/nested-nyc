@@ -4,7 +4,7 @@
 import React from 'react'
 import Icon from './icons'
 import { NestedData, CAT, isProjectAdmin, isProjectOwner } from './data'
-import { Av, Toasts, Stamp, Skeleton } from './shared'
+import { Av, Toasts, Stamp, Skeleton, ConfirmModal } from './shared'
 import { useTweaks, TweaksPanel, TweakSection, TweakColor, TweakRadio, TweakToggle } from './tweaks-panel'
 import Onboarding from './onboarding'
 import ForgotPassword from './forgot'
@@ -14,6 +14,7 @@ import Matches from './matches'
 import People, { ContactLinks } from './people'
 import UserProfile from './userProfile'
 import Notifications from './notifications'
+import { NotifPanel, AccountPanel } from './headerMenus'
 import ProjectDetail from './detail'
 import Profile from './profile'
 import Create from './create'
@@ -210,6 +211,23 @@ import { parse as parseLocation, build as buildPath, accessOf, validateNext, tit
     // the breakpoint — so this state never changes the desktop view.
     const [sheetOpen, setSheetOpen] = useState(false);
     const [mSearchOpen, setMSearchOpen] = useState(false);
+
+    // Desktop header dropdowns (topbar bell + account chip) and the sign-out
+    // confirm. Inert on mobile — the triggers live in .topbar-desk (display:none
+    // ≤860px); mobile uses the account sheet instead.
+    const [notifOpen, setNotifOpen] = useState(false);
+    const [acctOpen, setAcctOpen] = useState(false);
+    const [confirmSignOut, setConfirmSignOut] = useState(false);
+    // Dismiss whichever dropdown is open on outside-click / Escape.
+    useEffect(() => {
+      if (!notifOpen && !acctOpen) return;
+      const close = () => { setNotifOpen(false); setAcctOpen(false); };
+      const onDown = (e) => { if (!(e.target.closest && e.target.closest(".hdr-anchor"))) close(); };
+      const onKey = (e) => { if (e.key === "Escape") close(); };
+      document.addEventListener("mousedown", onDown);
+      document.addEventListener("keydown", onKey);
+      return () => { document.removeEventListener("mousedown", onDown); document.removeEventListener("keydown", onKey); };
+    }, [notifOpen, acctOpen]);
     // Which form the auth screen opens on. "Sign up" / gated actions → signup;
     // the guest "Log in" button → signin (a returning user shouldn't see signup).
     // /login and /signup pin it from the URL.
@@ -886,6 +904,11 @@ import { parse as parseLocation, build as buildPath, accessOf, validateNext, tit
       try { localStorage.removeItem(LS); } catch (e) {}
       toast("Signed out", "check");
     }
+
+    // Sign-out runs behind a confirm — the header chip and the mobile sheet both
+    // route here instead of calling signOut() directly.
+    function requestSignOut() { setNotifOpen(false); setAcctOpen(false); setSheetOpen(false); setConfirmSignOut(true); }
+    function confirmSignOutNow() { setConfirmSignOut(false); signOut(); }
 
     function sessionViewed() {
       if (!viewedThisSession.current) {
@@ -1649,18 +1672,57 @@ import { parse as parseLocation, build as buildPath, accessOf, validateNext, tit
             ),
             profile && React.createElement("button", { className: "iconbtn", onClick: () => goNav("saved"), title: "Saved projects" },
               React.createElement(Icon, { name: "bookmark", size: 20 })),
-            profile && React.createElement("button", { className: "iconbtn", onClick: () => { setRoute("notifications"); window.scrollTo({ top: 0 }); }, title: "Notifications" },
-              React.createElement(Icon, { name: "bell", size: 20 }), (incomingPending.length + projectRequests.length) > 0 && React.createElement("span", { className: "dot" })),
+            profile && React.createElement("div", { className: "hdr-anchor" },
+              React.createElement("button", {
+                className: "iconbtn" + (notifOpen ? " on" : ""),
+                onClick: () => { setAcctOpen(false); setNotifOpen((v) => !v); },
+                title: "Notifications", "aria-haspopup": "menu", "aria-expanded": notifOpen ? "true" : "false",
+              },
+                React.createElement(Icon, { name: "bell", size: 20 }),
+                (incomingPending.length + projectRequests.length) > 0 && React.createElement("span", { className: "dot" })
+              ),
+              React.createElement(NotifPanel, {
+                open: notifOpen,
+                count: incomingPending.length + projectRequests.length,
+                incoming: incomingPending,
+                projectRequests,
+                loading: projectsLoading,
+                onApprove: approveRequest,
+                onReject: rejectRequest,
+                onConnect,
+                onOpenProfile: (p) => openPerson(p.handle),
+                onOpenProject: openProject,
+                onViewAll: () => { setRoute("notifications"); window.scrollTo({ top: 0 }); },
+                onClose: () => setNotifOpen(false),
+              })
+            ),
             profile && justVerified && React.createElement("span", {
               className: "corner-stamp enter",
               title: "@" + profile.username + " · verified .edu student",
             }, React.createElement(Stamp, { size: 44 })),
-            profile && React.createElement("button", { className: "me-chip", onClick: () => { setRoute("profile"); window.scrollTo({ top: 0 }); } },
-              React.createElement(Av, { name: profile.username, img: firstPhotoUrl(profile.photos), label: handleInitials(profile.username) }),
-              React.createElement("span", { className: "who" },
-                React.createElement("b", null, "@" + profile.username),
-                React.createElement("small", null, (NestedData.UNI[profile.uni] || {}).name)
-              )
+            profile && React.createElement("div", { className: "hdr-anchor" },
+              React.createElement("button", {
+                className: "me-chip" + (acctOpen ? " on" : ""),
+                onClick: () => { setNotifOpen(false); setAcctOpen((v) => !v); },
+                "aria-haspopup": "menu", "aria-expanded": acctOpen ? "true" : "false",
+              },
+                React.createElement(Av, { name: profile.username, img: firstPhotoUrl(profile.photos), label: handleInitials(profile.username) }),
+                React.createElement("span", { className: "who" },
+                  React.createElement("b", null, "@" + profile.username),
+                  React.createElement("small", null, (NestedData.UNI[profile.uni] || {}).name)
+                )
+              ),
+              React.createElement(AccountPanel, {
+                open: acctOpen,
+                profile,
+                photoUrl: firstPhotoUrl(profile.photos),
+                avLabel: handleInitials(profile.username),
+                uniName: (NestedData.UNI[profile.uni] || {}).name,
+                onViewProfile: () => { setRoute("profile"); window.scrollTo({ top: 0 }); },
+                onEditProfile: () => { setProfileEditOnArrive(true); setRoute("profile"); window.scrollTo({ top: 0 }); },
+                onSignOut: requestSignOut,
+                onClose: () => setAcctOpen(false),
+              })
             ),
             // Guest: no account chip — offer Log in (signin) / Sign up (signup).
             !profile && React.createElement("button", { className: "btn btn-ghost", onClick: () => goAuth("signin"), title: "Log in" }, "Log in"),
@@ -1856,10 +1918,20 @@ import { parse as parseLocation, build as buildPath, accessOf, validateNext, tit
             React.createElement("button", { className: "acct-item", onClick: () => { setSheetOpen(false); setRoute("notifications"); window.scrollTo({ top: 0 }); } },
               React.createElement(Icon, { name: "bell", size: 19 }), "Notifications",
               (incomingPending.length + projectRequests.length) > 0 && React.createElement("span", { className: "acct-badge" }, incomingPending.length + projectRequests.length)),
-            React.createElement("button", { className: "acct-item danger", onClick: () => { setSheetOpen(false); signOut(); } },
+            React.createElement("button", { className: "acct-item danger", onClick: requestSignOut },
               React.createElement(Icon, { name: "external", size: 19 }), "Sign out")
           )
         ),
+        confirmSignOut && React.createElement(ConfirmModal, {
+          accent: "var(--c-startup)",
+          title: "Sign out?",
+          body: "You'll need your .edu email and password to get back to your board.",
+          ctaLabel: "Sign out",
+          ctaIcon: "external",
+          danger: true,
+          onCancel: () => setConfirmSignOut(false),
+          onConfirm: confirmSignOutNow,
+        }),
         React.createElement(Toasts, { items: toasts }),
         React.createElement(StyleTweaks, { t, setTweak })
       )

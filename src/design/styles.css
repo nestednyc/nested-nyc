@@ -171,6 +171,86 @@ input, textarea, select { font-family: inherit; }
 .me-chip .who b { font-weight: 700; font-size: 13.5px; display: block; }
 .me-chip .who small { font-family: var(--mono); font-size: 10px; color: var(--ink-faint); }
 
+/* header dropdowns (desktop) — the bell + account chip open these popovers.
+   Live inside .topbar-desk, so they're hidden ≤860px along with their triggers. */
+.hdr-anchor { position: relative; display: inline-flex; }
+.iconbtn.on, .me-chip.on { border-color: var(--accent); color: var(--accent-ink); background: var(--accent-wash); }
+.hdr-menu {
+  position: absolute; top: calc(100% + 10px); right: 0; z-index: 60;
+  background: var(--paper); border: 1.5px solid var(--paper-edge); border-radius: 14px;
+  box-shadow: var(--shadow-lift); overflow: hidden;
+  animation: menuPop .16s cubic-bezier(.2,1.1,.4,1) both;
+}
+@keyframes menuPop { from { opacity: 0; transform: translateY(-6px) scale(.985); } to { opacity: 1; transform: none; } }
+.acct-menu { width: 246px; padding: 7px; }
+.notif-menu { width: 366px; }
+
+.menu-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 13px 16px 11px; border-bottom: 1.5px solid var(--paper-edge);
+  font-family: var(--disp); font-weight: 800; font-size: 15px; color: var(--ink);
+}
+.menu-count { font-family: var(--mono); font-size: 11px; font-weight: 700; color: var(--paper); background: var(--accent); border-radius: 999px; padding: 1px 8px; }
+
+.menu-rows { max-height: 366px; overflow-y: auto; padding: 6px; }
+.notif-row {
+  display: flex; align-items: flex-start; gap: 8px; padding: 9px 10px; border-radius: 10px;
+  transition: opacity .18s, background .12s;
+}
+.notif-row:hover { background: var(--accent-wash); }
+.notif-row.busy { opacity: .5; pointer-events: none; }
+.nr-main {
+  display: flex; align-items: flex-start; gap: 11px; flex: 1 1 auto; min-width: 0;
+  background: none; border: 0; padding: 0; cursor: pointer; text-align: left;
+}
+.nr-main .av { width: 36px; height: 36px; font-size: 13px; flex: none; }
+.nr-txt { min-width: 0; line-height: 1.25; padding-top: 1px; }
+.nr-txt b { display: block; font-weight: 600; font-size: 13.5px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nr-txt small { display: block; font-family: var(--mono); font-size: 10.5px; color: var(--ink-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nr-actions { display: flex; gap: 6px; flex: none; align-items: center; padding-top: 1px; }
+.nr-ico {
+  width: 34px; height: 34px; display: grid; place-items: center; flex: none;
+  border-radius: 9px; border: 1.5px solid var(--paper-edge); background: var(--paper-2);
+  color: var(--ink-soft); cursor: pointer; transition: border-color .12s, background .12s, color .12s;
+}
+.nr-ico svg { width: 17px; height: 17px; }
+.nr-ico:hover { border-color: var(--accent); background: var(--accent-wash); color: var(--accent-ink); }
+.nr-ico.approve:hover { border-color: var(--c-side); background: oklch(0.56 0.12 152 / .16); color: oklch(0.44 0.12 152); }
+.nr-ico.reject:hover { border-color: var(--c-startup); background: oklch(0.62 0.17 33 / .12); color: var(--c-startup); }
+.nr-ico:disabled { cursor: default; opacity: .55; }
+
+.menu-empty {
+  display: flex; flex-direction: column; align-items: center; gap: 9px;
+  padding: 30px 18px; color: var(--ink-faint); font-size: 13.5px; text-align: center;
+}
+
+.menu-foot {
+  display: flex; align-items: center; justify-content: center; gap: 7px; width: 100%;
+  padding: 13px; border: 0; border-top: 1.5px solid var(--paper-edge); background: none;
+  font-family: var(--mono); font-size: 12px; font-weight: 600; color: var(--accent-ink); cursor: pointer;
+  transition: background .12s;
+}
+.menu-foot:hover { background: var(--accent-wash); }
+.menu-foot svg { width: 15px; height: 15px; }
+
+.menu-id { display: flex; align-items: center; gap: 10px; padding: 8px 10px 10px; }
+.menu-id .av { width: 38px; height: 38px; font-size: 14px; flex: none; }
+.menu-id-txt { min-width: 0; line-height: 1.2; }
+.menu-id-txt b { display: block; font-weight: 700; font-size: 14px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.menu-id-txt small { display: block; font-family: var(--mono); font-size: 10.5px; color: var(--ink-faint); }
+.menu-div { height: 1.5px; background: var(--paper-edge); margin: 4px 6px; }
+.menu-item {
+  display: flex; align-items: center; gap: 11px; width: 100%; text-align: left;
+  padding: 10px 11px; border: 0; background: none; border-radius: 9px; cursor: pointer;
+  font-size: 14px; font-weight: 600; color: var(--ink); transition: background .12s, color .12s;
+}
+.menu-item svg { width: 18px; height: 18px; color: var(--ink-soft); flex: none; transition: color .12s; }
+.menu-item:hover { background: var(--accent-wash); color: var(--accent-ink); }
+.menu-item:hover svg { color: var(--accent-ink); }
+.menu-item.danger { color: oklch(0.55 0.19 28); }
+.menu-item.danger svg { color: currentColor; }
+.menu-item.danger:hover { background: oklch(0.55 0.19 28 / 0.1); color: oklch(0.5 0.2 28); }
+
 /* ============================================================
    AVATARS / FACEPILE
    ============================================================ */
