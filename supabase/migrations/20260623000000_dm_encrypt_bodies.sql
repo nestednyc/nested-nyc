@@ -20,6 +20,18 @@
 -- The key: read once near the top of each fn from vault.decrypted_secrets (which
 -- the DEFINER owner can read), and fail loud if it's missing. vault.* is always
 -- schema-qualified regardless of search_path.
+--
+-- PRECONDITION — public.messages MUST be empty when this applies. There is NO
+-- data migration here: this only swaps the read/write path to pgp_sym_*. Any row
+-- already holding S2 PLAINTEXT bytes (convert_to) becomes permanently
+-- undecryptable — pgp_sym_decrypt raises 'Wrong key or corrupt data' and aborts
+-- the whole get_thread/get_inbox/idempotency read for that participant. This holds
+-- by construction in prod (the DM UI ships in S4, so prod `messages` is empty when
+-- S3 applies) and the migration touches zero rows on an empty table. On a DEV/branch
+-- DB that exercised S2-era sends, TRUNCATE public.messages before applying (the S2
+-- acceptance suite self-cleans, so the standard test flow leaves none). The guard is
+-- deliberately a comment, not a hard RAISE, so re-applying S3 on an already-encrypted
+-- table stays a no-op (CREATE OR REPLACE is idempotent).
 -- ============================================================
 
 -- ---------------- KEY — idempotent, random, never in git ----------------

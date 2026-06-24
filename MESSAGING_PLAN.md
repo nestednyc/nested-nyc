@@ -46,6 +46,8 @@ DMs are **purely additive** to the existing shell: new state + new renders, no e
 | 8 | Auth gate | `requireAuth` 435–441; `applyParsed` access check 349–404 | routes `access:"student"` (deep-link → returnTo → onboarding); gated action → `requireAuth("Sign in to message")` | 4–5 |
 | 9 | Entry points | `people.jsx` PersonProfile ~130–136, `userProfile.jsx` ~85–92 | a "Message" button → open that user's thread | 5 |
 
+> **Line numbers above are PRE-S4 and now stale** — `NestedApp.jsx` grew past 2400 lines as S4–S8 landed (the doc warns "re-grep before trusting"). Current DM integration points (as of the S8 commit, 2026-06-23): hydration `Promise.all` ~541–553 (`getInbox()`+`getMyBlocks()`); `dm-self` realtime ~687–767; thread loader ~789–821; block/unblock + **delete-conversation** handlers ~1330–1395; optimistic `sendThreadMessage` ~1462–1485; header chat icon + unread dot ~1965–1970; route renders (`messages`/`messageThread`) ~2137–2160; mobile sheet row ~2241–2243; Block/Delete `ConfirmModal`s ~2258–2280. **Re-grep by identifier (`dm-self`, `sendThreadMessage`, `confirmDelete`) rather than trusting these.**
+
 ## Data model (target)
 
 ```
@@ -67,10 +69,30 @@ blocks
   created_at  timestamptz DEFAULT now()
   PRIMARY KEY (blocker_id, blocked_id)
   CHECK (blocker_id <> blocked_id)
+
+conversation_clears                                  -- S8: per-user "delete chat" watermark
+  user_id     uuid REFERENCES profiles(id) ON DELETE CASCADE
+  peer_id     uuid REFERENCES profiles(id) ON DELETE CASCADE
+  cleared_at  timestamptz DEFAULT now()              -- caller's get_inbox/get_thread hide created_at <= this
+  PRIMARY KEY (user_id, peer_id)
+  CHECK (user_id <> peer_id)
+
+message_attachments                                  -- S10: files on a message (docs/images)
+  id           uuid PRIMARY KEY DEFAULT gen_random_uuid()
+  message_id   uuid REFERENCES messages(id) ON DELETE CASCADE   -- cascades with the message/account
+  storage_path text  NOT NULL                        -- <sender_uid>/<message_id>/<file> in the dm-attachments bucket
+  mime_type    text  NOT NULL
+  size_bytes   bigint
+  file_name    text
+  created_at   timestamptz DEFAULT now()
+  -- writes via send_message only; participant-read RLS; bodies are encrypted at
+  -- rest but Storage BLOBS are not — they're a private bucket gated by RLS (see S10).
 ```
 
+**Storage:** bucket `dm-attachments` (private, 10 MB/file + mime allowlist). RLS on `storage.objects`: own-folder write (`<uid>/…`), participant read (the `message_id` in the path is a participant of the caller). Reads use short-lived signed URLs minted client-side.
+
 **RPC surface (the stable client contract):**
-`send_message(p_id, p_recipient, p_body)` · `get_inbox()` · `get_thread(p_peer, p_since, p_limit)` · `mark_thread_read(p_peer)` · `block_user(p_target)` / `unblock_user(p_target)` · `get_my_blocks` (S7, client-side via RLS select) · `report_user(...)` (planned — deferred)
+`send_message(p_id, p_recipient, p_body, p_attachments)` (S10 adds `p_attachments jsonb`, default `[]`; body cap 4000) · `get_inbox()` (S10 adds `last_has_attachment`) · `get_thread(p_peer, p_since, p_limit)` (S10 adds an `attachments` column) · `mark_thread_read(p_peer)` · `block_user(p_target)` / `unblock_user(p_target)` · `get_my_blocks` (S7, client-side via RLS select) · `delete_conversation(p_peer)` (S8, clear-for-me watermark) · `report_user(...)` (planned — deferred)
 
 ---
 
@@ -85,6 +107,9 @@ blocks
 | 5 | Thread screen + send (optimistic) | `/messages/:id`, two-way chat | 4 |
 | 6 | Realtime delivery + reconnect-resync | live messages, no drops/dupes | 5 |
 | 7 | Trust & Safety + privacy hardening | report, deletion, rate-limit, mobile/polish | 6 |
+| 8 | Delete conversation (delete-for-me) | per-user clear watermark; thread reappears on new msg | 7 |
+| 9 | Chat polish | delivery status (Sending/Delivered/Seen) + live receipts, load-older pagination, date dividers, failed-send retry, body length cap | 6 |
+| 10 | Attachments (docs + images) | private Storage bucket, 10 MB/file + mime allowlist, per-message files | 2 |
 
 > **Why encryption is Sprint 3 (before any UI):** the RPC seam means flipping encryption on touches only the function bodies — the client never changes. Landing it before the Messages UI is reachable means **no plaintext-DM window ever exists in prod**. The Sprint 2 "plaintext checkpoint" lives only at the SQL level during dev.
 
@@ -109,10 +134,12 @@ blocks
 - `src/services/messageService.js` (`{data,error}`, never throws; calls `.rpc()`).
 - `src/design/messageAdapter.js` (`toDbMessage`/`fromDbMessage`).
 **Acceptance:**
-- [ ] Send/list/read/block all work from a console/scratch harness against local Supabase.
-- [ ] Re-sending the same `p_id` does **not** create a duplicate (idempotency).
-- [ ] Exceeding the rate limit is rejected with a clear error.
-- [ ] Service returns `{data,error}` and never throws.
+- [x] Send/list/read/block all work from a console/scratch harness against local Supabase. — `supabase/tests/dm_s2_acceptance.sql` (run against post-S3 schema).
+- [x] Re-sending the same `p_id` does **not** create a duplicate (idempotency). — `dm_s2_acceptance.sql` TEST 4 + the cross-user-leak regression.
+- [x] Exceeding the rate limit is rejected with a clear error. — `dm_s2_acceptance.sql` TEST 6 (PT429); also `dm_s7_safety.sql` TEST 2.
+- [x] Service returns `{data,error}` and never throws. — `src/services/messageService.js` (try/caught RPC, error.code → copy).
+
+> Code-complete & code-reviewed 2026-06-23. SQL boxes are proven by the committed `dm_s2_acceptance.sql`; re-run it against a local post-S3 Supabase for a fresh machine-local PASS.
 
 ### Sprint 3 — Option B: encryption at rest
 **Goal:** bodies are ciphertext at rest; authorized reads return plaintext; client/service untouched.
@@ -121,10 +148,12 @@ blocks
 - Swap RPC internals to `pgp_sym_encrypt`/`pgp_sym_decrypt`. (Dev: truncate test rows; prod has none.)
 - Confirm no plaintext bodies in logs / error messages.
 **Acceptance:**
-- [ ] A raw `SELECT body_enc FROM messages` returns ciphertext bytes.
-- [ ] `get_thread` returns correct plaintext to a participant.
-- [ ] The realtime→refetch path returns decrypted text (verified in S6).
-- [ ] No code change required in `messageService.js`.
+- [x] A raw `SELECT body_enc FROM messages` returns ciphertext bytes. — `dm_s3_acceptance.sql` TEST 1 (+ TEST 4 wrong-key decrypt fails).
+- [x] `get_thread` returns correct plaintext to a participant. — `dm_s3_acceptance.sql` TEST 3 (pgp_sym_decrypt round-trip).
+- [x] The realtime→refetch path returns decrypted text (verified in S6). — the `dm-self` ping refetches via the decrypting `get_thread`/`get_inbox` (NestedApp realtime block); browser-confirm in the S6 two-tab check.
+- [x] No code change required in `messageService.js`. — confirmed: the S3 migration touched only the RPC bodies; `messageService.js`/`messageAdapter.js` are byte-identical, and `dm_s2_acceptance.sql` still passes through the seam unchanged (the transparency proof).
+
+> Encryption is live (`pgp_sym_encrypt`, Vault key `dm_body_key`). **Precondition:** `messages` must be empty when the S3 migration applies — see the migration header. Re-run `dm_s3_acceptance.sql` on a local stack for a machine-local PASS.
 
 ### Sprint 4 — Inbox screen + routing + header badge
 **Deliverables:**
@@ -132,8 +161,8 @@ blocks
 - Router: ROUTES/BUILD/titleFor for `/messages` (`access:"student"`).
 - NestedApp: `inbox`/`unreadCount` state, `get_inbox()` in hydration, conditional render, **header "Messages" icon + unread dot**. (`feat/header-dropdowns` has merged to `main` — 909dff3 — so this is unblocked. Render the `chat` icon + `.dot` inline at `NestedApp.jsx:1675–1698`; add a `MessagesPanel` to `headerMenus.jsx` mirroring `NotifPanel`; mirror it into the mobile account sheet 1905–1924. See seams #5.)
 **Acceptance:**
-- [ ] Signed-in user sees their conversations + unread badge; guest is gated (returnTo stash).
-- [ ] Deep-link to `/messages` works; tab title correct.
+- [x] Signed-in user sees their conversations + unread badge; guest is gated (returnTo stash). — `messages.jsx` + `getInbox()` hydration; `unreadMessages` → header `chat` dot + mobile badge; `/messages` is `access:"student"` so guests hit the auth wall via `applyParsed`/returnTo. (Browser-confirm the returnTo round-trip.)
+- [x] Deep-link to `/messages` works; tab title correct. — `router.js` ROUTES/BUILD + `titleFor` ("Messages · Nested NYC"); covered by `router.test.js`.
 
 ### Sprint 5 — Thread screen + send (optimistic)
 **Deliverables:**
@@ -141,9 +170,9 @@ blocks
 - Router: `/messages/:id` + `messageThreadId` param state.
 - NestedApp: open handler, **optimistic send** (client-generated `id`, append, reconcile/dedup on confirm), mark-read on open. "Message" entry points on people grid + `userProfile` (buttons: `people.jsx` ~130–136, `userProfile.jsx` ~85–92; seams #9).
 **Acceptance:**
-- [ ] A and B exchange messages (manual refetch ok — realtime is S6).
-- [ ] Optimistic message appears instantly; reconciles on server confirm; failure reverts + toasts.
-- [ ] Opening a thread clears its unread count.
+- [x] A and B exchange messages (manual refetch ok — realtime is S6). — `messageThread.jsx` (bubbles + composer) + the `get_thread` loader + `/messages/:username`.
+- [x] Optimistic message appears instantly; reconciles on server confirm; failure reverts + toasts. — `sendThreadMessage` (pending row → `{...data, pending:false}` on confirm; revert + toast on error); reconcile-by-id in `messageAdapter.upsertMessage`/`mergeThread` (covered by `messageAdapter.test.js`). **Hardened 2026-06-23:** reconcile is now guarded by `openPeerIdRef` so a mid-send peer switch can't splice the bubble into the wrong thread.
+- [x] Opening a thread clears its unread count. — `markThreadRead` + inbox-row zeroing on thread open.
 
 ### Sprint 6 — Realtime delivery + reconnect-resync
 **Deliverables:**
@@ -151,16 +180,18 @@ blocks
 - **Reconnect/visibility resync:** on resubscribe-after-drop or tab focus, refetch open thread since last id + refresh inbox.
 - Dedup live arrivals against optimistic copies via `id`.
 **Acceptance:**
-- [ ] Live delivery across two browsers within ~1s.
-- [ ] Messages sent while a tab was disconnected appear after reconnect (no loss).
-- [ ] No duplicate bubbles for self-sent messages.
+- [ ] Live delivery across two browsers within ~1s. — implemented (`dm-self` `postgres_changes` INSERT on `recipient_id=eq.<me>` → refetch); **transport/timing, so verify in a two-browser test.**
+- [ ] Messages sent while a tab was disconnected appear after reconnect (no loss). — implemented (repeat-SUBSCRIBED + `visibilitychange` resync); **verify in the same two-browser test (disconnect a tab, send, reconnect).**
+- [x] No duplicate bubbles for self-sent messages. — code-verified: the channel filters `recipient_id=eq.<me>` (self-sends never echo) and refetches dedup by id via `mergeThread`/`upsertMessage` (`messageAdapter.test.js`).
+
+> S6 code is complete; the two transport/timing boxes above are the only items that genuinely require a live two-browser check before final sign-off.
 
 ### Sprint 7 — Trust & Safety + privacy hardening
-**Status (2026-06-22):** Block/unblock UI + privacy hardening shipped — **block is DM-only** (locked decision: gates new DMs both ways, leaves the connection + profile, reversible). **Report deferred** to a later sprint; **"delete conversation" deferred to Sprint 8.**
+**Status (2026-06-22):** Block/unblock UI + privacy hardening shipped — **block is DM-only** (locked decision: gates new DMs both ways, leaves the connection + profile, reversible). **Report deferred** to a later sprint; **"delete conversation" shipped in Sprint 8** (delete-for-me).
 **Deliverables:**
 - **Block/unblock UI** (DM-only): `messageService.getMyBlocks()` hydrates a `blocked` Set (mirrors `connected`); Block/Unblock from the **thread overflow menu** (with a blocked-composer "Unblock to message" bar) and from the **profile** (`PersonProfile`, covering the People grid + `/u/:username`). Confirm-on-block via `ConfirmModal`; optimistic + revert. New `block` / `ellipsis` icons.
-- Rate-limit: **kept at 10 sends / 10s / sender**; abuse test added.
-- **Deletion**: account-deletion cascade **verified via SQL** (there is no in-app account-deletion feature — that's an auth-wide concern; S7 only proves DM rows cascade). "Delete conversation" → S8.
+- Rate-limit: **kept at 10 sends / 10s / sender**; abuse test added. *Best-effort:* the count-then-insert is non-atomic under READ COMMITTED, so a parallel burst can slightly exceed the cap (bounded — every row still needs a connection + no block + the real `auth.uid()`). Harden with a per-sender `pg_advisory_xact_lock` only if abuse warrants it.
+- **Deletion**: account-deletion cascade **verified via SQL** (there is no in-app account-deletion feature — that's an auth-wide concern; S7 only proves DM rows cascade). In-app "delete conversation" (delete-for-me) → shipped in **S8**.
 - **Don't-log-bodies** audit: **clean** (see below). **a11y + mobile** pass on both message screens (semantic conversation rows w/ keyboard open; aria-labels on thread controls/bubbles/badges; `:focus-visible` rings; 860px verified).
 - ~~**Report** flow~~ → deferred.
 - Tests: `supabase/tests/dm_s7_safety.sql` — block symmetry + unblock-restore, rate-limit, deletion cascade.
@@ -177,16 +208,59 @@ blocks
 - [x] Deleting an account removes its messages (cascade verified). — `dm_s7_safety.sql` T3.
 - [x] No message body appears in any server log. — audited above; clean.
 
+### Sprint 8 — Delete conversation (delete-for-me)
+**Status (2026-06-23):** Built. **Locked decision:** delete is **delete-for-me only** — every message is one shared row read by both participants and *delete-for-everyone* is out of scope, so a hard delete is impossible without destroying the peer's copy. v1 is the familiar **"delete chat" clear watermark**: clearing hides the thread up to *now()* for the caller only; the peer is unaffected, and the thread reappears (with just the new messages) if they message again.
+**Deliverables:**
+- Migration `20260624000000_dm_delete_conversation.sql`: `conversation_clears(user_id, peer_id, cleared_at, PK(user_id,peer_id))` + self-scoped RLS (writes only via the RPC; `REVOKE INSERT/UPDATE/DELETE`); `delete_conversation(p_peer)` DEFINER RPC (upserts the watermark to `now()`, `PT401`/`PT422` guards); `CREATE OR REPLACE get_inbox`/`get_thread` to hide messages with `created_at <= cleared_at` **for the caller only** (encryption + paging + ordering unchanged).
+- Service: `messageService.deleteConversation(peerId)`.
+- UI: "Delete conversation" (danger) in the **thread overflow menu** beside Block, behind a `ConfirmModal`; optimistic inbox-row removal + leave-the-thread, revert-on-failure. New `trash` icon.
+- Out of scope: per-message delete; deleting from the inbox list (overflow-menu-only for v1); **Report** (still a later sprint).
+**Acceptance:**
+- [x] Deleting a conversation removes it from the caller's inbox + thread; the peer still sees everything. — `supabase/tests/dm_s8_acceptance.sql` TEST 1–3.
+- [x] A new message after a delete reappears for the caller (clear is a watermark, not a tombstone). — `dm_s8_acceptance.sql` TEST 5 (+ TEST 1 shows the post-watermark message).
+- [x] `delete_conversation` is caller-scoped + idempotent; self-delete → PT422, unauthenticated → PT401. — `dm_s8_acceptance.sql` TEST 4/6.
+- [x] Unread recomputes over only the still-visible messages. — `dm_s8_acceptance.sql` TEST 2.
+
+> Code-complete & code-reviewed 2026-06-23. Re-run `dm_s8_acceptance.sql` on a local post-S3 Supabase for a machine-local PASS.
+
+### Sprint 9 — Chat polish (status, receipts, pagination, dividers, retry, length cap)
+**Status (2026-06-23):** Built + verified. The "essential chat things" gap-fill. Kept modular — each piece is a localized add (pure helpers in `messageAdapter`, a self-contained receipts channel).
+**Deliverables:**
+- **Delivery status** under the latest sent message: Sending… → Delivered → Seen (pure `messageStatus()` from the existing `pending`/`read_at`). **Always-on** read receipts.
+- **Live "Seen" (+ a home for typing later):** a per-conversation Realtime **broadcast** channel (`dm-receipts:<sorted-pair>`) carries an ephemeral "read up to <t>" ping so the sender flips to Seen instantly — the `messages` publication stays INSERT-only; `read_at` remains the unread source of truth. Removing the block degrades Seen to "updates on next refetch", nothing breaks.
+- **Load-older pagination** via `get_thread(p_since)` keyset; "Load earlier" control with scroll-anchoring (no jump).
+- **Date dividers** (Today/Yesterday/date) via pure `dayKey`/`dayLabel`.
+- **Failed-send retry**: a failed send stays as a red bubble with tap-to-retry (re-sends the same id — idempotent), instead of vanishing.
+- **Body length cap (found gap):** `send_message` rejects > 4000 chars (PT422) + client guard + composer counter.
+**Acceptance:**
+- [x] Sender sees Sending/Delivered/Seen; recipient reading flips it live. — `messageStatus` (unit-tested) + the dm-receipts broadcast; live path is browser-verifiable.
+- [x] Older messages load on demand without losing scroll position. — `loadEarlierThread` + `get_thread` keyset; scroll-anchor `useLayoutEffect`.
+- [x] Day dividers + retry render correctly. — `dayKey`/`dayLabel`/`mergeThread`(failed) unit-tested (`messageAdapter.test.js`).
+- [x] Over-length body rejected server-side. — `dm_chat_features_acceptance.sql` TEST 1.
+
+### Sprint 10 — Attachments (documents + images)
+**Status (2026-06-23):** Built + verified. **Modular**: a separate `message_attachments` table + the `dm-attachments` bucket + a `messageAttachments.jsx` UI module + the `send_message p_attachments` arg — removable as a unit.
+**Privacy note (locked tradeoff):** message **bodies** are encrypted at rest (pgcrypto); **attachment blobs are NOT** — they live in a *private* Storage bucket gated by RLS (own-folder write, participant read) with short-lived signed-URL reads. Full at-rest blob encryption would require client-side crypto that fights preview/download; deferred. Orphaned blobs on message delete are left for a later cleanup job (rows cascade).
+**Deliverables:**
+- Bucket `dm-attachments` (private, **10 MB/file**, mime allowlist: images + pdf/office/text) + `storage.objects` RLS.
+- `message_attachments` table (cascades with the message) + `send_message(p_attachments jsonb)` inserting them atomically; `get_thread` returns an `attachments` array; `get_inbox` returns `last_has_attachment`.
+- Service: `uploadAttachment()` + signed-URL hydration; composer attach control (≤5 files, client size/type validation) + image/doc rendering.
+**Acceptance:**
+- [x] Send/receive image + document attachments; participant-only access. — `dm_chat_features_acceptance.sql` TEST 2b/3 + Storage RLS.
+- [x] Attachment metadata persists, returns, and surfaces in inbox/thread. — TEST 3a/3b/3c, TEST 4.
+- [x] Limits enforced (size/type by the bucket; ≤5 + length by the RPC). — TEST 1/5; bucket `file_size_limit`/`allowed_mime_types`.
+- [x] Deleting a message/account cascades attachment rows. — TEST 6.
+
 ---
 
 ## Cross-cutting requirements (mapped to sprints)
 - Idempotency keys → **S2** · Rate-limit → **S2** (tune S7) · Connection gate → **S1**+**S2**
-- Block → **S1** (table/RLS) + **S2** (RPC) + **S7** (UI) · Report → **S7**
+- Block → **S1** (table/RLS) + **S2** (RPC) + **S7** (UI) · Report → *deferred* (later sprint)
 - Ordering/dedup → **S5** · Reconnect-resync → **S6** · Encryption (Option B) → **S3**
-- Don't-log-bodies → **S3**+**S7** · Deletion/retention → **S7**
+- Don't-log-bodies → **S3**+**S7** · Account-deletion cascade → **S7** · Delete conversation (delete-for-me) → **S8**
 
 ## Out of scope (v1 / deferred)
-- Group chats, attachments/images, typing indicators, edit/delete-for-everyone, read receipts beyond unread counts.
+- Group chats, edit/delete-for-everyone. ~~attachments/images~~ shipped in **S10**; ~~read receipts~~ shipped in **S9** (always-on Seen). Still deferred: **typing indicators** (the dm-receipts broadcast channel is the place to add them), **online/last-active presence**, and a **per-user read-receipt privacy toggle**.
 - **Message email notifications** — deferred *and* must be throttled/offline-only when built. **Do NOT** add a per-row email webhook on `messages` (bulk-email + spam hazard; see `EMAIL_NOTIFICATIONS.md`). The webhook/trigger layer (`zz_email_notify` etc.) is applied **out-of-band**, not in `supabase/migrations/`; none references `messages` today, and "do not add" means at the Supabase dashboard / prod-SQL level.
 - App-server write-path; message-requests gating; E2EE.
 

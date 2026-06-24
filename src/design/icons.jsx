@@ -50,6 +50,11 @@ import React from 'react'
     share: `<circle cx="6" cy="12" r="2.6"/><circle cx="17" cy="5.5" r="2.6"/><circle cx="17" cy="18.5" r="2.6"/><path d="M8.3 10.8 14.7 6.7M8.3 13.2l6.4 4.1"/>`,
     block: `<circle cx="12" cy="12" r="8.5"/><path d="m6 6 12 12"/>`,
     ellipsis: `<path d="M6 12h.01"/><path d="M12 12h.01"/><path d="M18 12h.01"/>`,
+    trash: `<path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/><path d="M6 7l1 12.2A2 2 0 0 0 9 21h6a2 2 0 0 0 2-1.8L18 7"/><path d="M10 11v6M14 11v6"/>`,
+    paperclip: `<path d="M20 11.5 11.4 20a4.5 4.5 0 0 1-6.4-6.4l8.5-8.5a3 3 0 0 1 4.3 4.3l-8.5 8.5a1.5 1.5 0 0 1-2.2-2.1l7.6-7.7"/>`,
+    file: `<path d="M13 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5Z"/><path d="M13 3v5h5"/>`,
+    image: `<rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><circle cx="9" cy="10" r="1.8"/><path d="m5 18 5-5 4 4 2-2 3 3"/>`,
+    download: `<path d="M12 4v11M7.5 11 12 15.5 16.5 11"/><path d="M5 20h14"/>`,
   };
 
   function Icon({ name, size = 22, stroke = "currentColor", width = 1.8, fill = "none", style, className }) {

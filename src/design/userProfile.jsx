@@ -32,7 +32,7 @@ import { isSupabaseConfigured } from '../lib/supabase'
     );
   }
 
-  function UserProfile({ username, initialPerson, connected = [], blocked = new Set(), onConnect, onDisconnect, onMessage, onBlock, onUnblock, onBack, viewerId }) {
+  function UserProfile({ username, initialPerson, connected = [], incoming = [], blocked = new Set(), onConnect, onDisconnect, onMessage, onBlock, onUnblock, onBack, viewerId }) {
     const seeded = initialPerson && initialPerson.handle && username &&
       initialPerson.handle.toLowerCase() === String(username).toLowerCase();
     const [person, setPerson] = useState(seeded ? initialPerson : null);
@@ -78,6 +78,11 @@ import { isSupabaseConfigured } from '../lib/supabase'
 
     const r = ROLE[person.role];
     const isSelf = viewerId && person.id === viewerId;
+    // The DM gate is an either-direction connection edge (locked rule + server
+    // RPC): you can message anyone connected to you, even if you never connected
+    // back. `connected` (outgoing only) still drives the Connect/Disconnect
+    // toggle; `canMessage` ORs in incoming edges so the Message button matches.
+    const canMessage = connected.includes(person.id) || incoming.some((p) => p && p.id === person.id);
     return (
       React.createElement(PageShell, { onBack },
         React.createElement("article", { className: "profile-modal" },
@@ -85,6 +90,7 @@ import { isSupabaseConfigured } from '../lib/supabase'
           React.createElement(PersonProfile, {
             person,
             connected: connected.includes(person.id),
+            canMessage,
             showConnect: !isSelf,
             onMessage: () => onMessage && onMessage(person),
             onConnect: (id) => (connected.includes(id)

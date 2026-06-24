@@ -19,7 +19,11 @@
 --   should print PASS. Any FAIL (or an uncaught ERROR) means the contract is wrong.
 --
 -- Depends on: migration 20260622000000_dm_rpcs.sql (the six RPCs + REVOKE INSERT)
---             applied on top of 20260621000000_add_messages_and_blocks.sql (S1).
+--             applied on top of 20260621000000_add_messages_and_blocks.sql (S1),
+--             AND 20260623000000_dm_encrypt_bodies.sql (S3) — the fixtures seed
+--             bodies via pgp_sym_encrypt(..., vault key 'dm_body_key'), which only
+--             exists after S3. So run this against the post-S3 schema; it doubles
+--             as S3's "encryption is transparent to the RPC contract" proof.
 --
 -- Fixtures:  A — connected to B AND to C   (aaaaaaaa…)
 --            B — connected to A             (bbbbbbbb…)

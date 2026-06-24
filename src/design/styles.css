@@ -960,6 +960,47 @@ input, textarea, select { font-family: inherit; }
 .blocklink.blocked { color: var(--c-startup); }
 .msg-row:focus-visible, .thread-peer:focus-visible, .thread-more .iconbtn:focus-visible, .thread-menu-item:focus-visible, .blocklink:focus-visible, .composer-send:focus-visible, .back:focus-visible { outline: 2.5px solid var(--accent); outline-offset: 2px; }
 
+/* ---- DM chat features: status / date dividers / retry / pagination / attachments ---- */
+/* delivery status line under the latest sent message */
+.bubble-status { align-self: flex-end; font-family: var(--mono); font-size: 10.5px; color: var(--ink-faint); margin: -3px 5px 3px 0; }
+/* date divider */
+.thread-day { text-align: center; margin: 12px 0 4px; }
+.thread-day span { font-family: var(--mono); font-size: 11px; color: var(--ink-soft); background: color-mix(in oklch, var(--ink) 9%, transparent); padding: 3px 11px; border-radius: 999px; }
+/* failed send + retry */
+.bubble.me.failed { background: color-mix(in oklch, var(--c-startup) 18%, var(--paper)); color: var(--ink); border: 1.5px solid var(--c-startup); }
+.bubble.me.failed .bubble-time { color: var(--ink-soft); }
+.bubble-retry { display: inline-flex; align-items: center; gap: 5px; margin-top: 3px; padding: 0; border: none; background: none; cursor: pointer; font-family: var(--mono); font-size: 10.5px; color: var(--c-startup); align-self: flex-end; }
+.bubble-retry:hover { text-decoration: underline; }
+/* load earlier */
+.thread-loadmore { display: flex; justify-content: center; padding: 4px 0 10px; }
+.thread-loadmore .btn { font-family: var(--mono); font-size: 12px; }
+/* composer additions */
+.composer-wrap { position: sticky; bottom: 12px; margin-top: 16px; }
+.composer-wrap .composer { position: static; margin-top: 0; }
+.composer-attach { flex: none; width: 38px; height: 38px; border-radius: 10px; display: grid; place-items: center; background: none; border: none; cursor: pointer; color: var(--ink-soft); }
+.composer-attach:hover { background: var(--accent-wash); color: var(--accent); }
+.composer-count { font-family: var(--mono); font-size: 10.5px; color: var(--ink-faint); align-self: flex-end; padding-bottom: 11px; }
+.composer-count.at-max { color: var(--c-startup); }
+/* attachments inside a bubble */
+.att-list { display: flex; flex-direction: column; gap: 6px; }
+.att-img { display: block; }
+.att-img img { max-width: min(260px, 60vw); max-height: 280px; border-radius: 11px; display: block; }
+.att-doc { display: flex; align-items: center; gap: 9px; padding: 8px 11px; border-radius: 10px; text-decoration: none; color: inherit; background: color-mix(in oklch, var(--ink) 7%, transparent); }
+.bubble.me .att-doc { background: rgba(255,255,255,.2); }
+.att-doc-meta { display: flex; flex-direction: column; line-height: 1.25; min-width: 0; }
+.att-doc-meta b { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 190px; }
+.att-doc-meta small { opacity: .72; font-family: var(--mono); font-size: 10.5px; }
+.att-doc[aria-disabled="true"] { opacity: .6; pointer-events: none; }
+/* pre-send picked-file tray */
+.att-tray { display: flex; flex-wrap: wrap; gap: 8px; padding: 8px 4px 0; }
+.att-chip { display: flex; align-items: center; gap: 7px; background: var(--paper); border: 1.5px solid var(--paper-edge); border-radius: 9px; padding: 5px 8px; max-width: 190px; }
+.att-chip-thumb { width: 26px; height: 26px; border-radius: 6px; object-fit: cover; flex: none; }
+.att-chip-name { font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.att-chip-x { flex: none; border: none; background: none; cursor: pointer; display: grid; place-items: center; color: var(--ink-faint); padding: 2px; border-radius: 5px; }
+.att-chip-x:hover { color: var(--c-startup); background: color-mix(in oklch, var(--c-startup) 10%, transparent); }
+.att-tray-note { width: 100%; font-size: 12px; color: var(--c-startup); }
+.composer-attach:focus-visible, .att-chip-x:focus-visible, .bubble-retry:focus-visible, .thread-loadmore .btn:focus-visible, .att-img:focus-visible, .att-doc:focus-visible { outline: 2.5px solid var(--accent); outline-offset: 2px; }
+
 /* ---- full profile modal ---- */
 .profile-modal { background: var(--paper); border-radius: 16px; max-width: 540px; width: 100%; box-shadow: var(--shadow-lift); position: relative; animation: pop .26s cubic-bezier(.2,1.2,.4,1) both; max-height: 92vh; overflow-y: auto; }
 .profile-modal .cat-bar { height: 9px; position: sticky; top: 0; }

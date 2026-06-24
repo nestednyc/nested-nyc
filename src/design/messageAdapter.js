@@ -21,6 +21,21 @@ export function fromDbMessage(row, myId) {
     body: row.body || "",
     createdAt: row.created_at,
     readAt: row.read_at || null,
+    attachments: Array.isArray(row.attachments) ? row.attachments.map(fromDbAttachment) : [],
+  };
+}
+
+// One stored attachment row (from the get_thread attachments jsonb / send_message
+// return) → the UI shape. `url` is filled in later by the service (signed Storage
+// URL); the path is the source of truth. Pure.
+export function fromDbAttachment(a) {
+  if (!a) return null;
+  return {
+    path: a.storage_path || a.path || null,
+    mime: a.mime_type || a.mime || "",
+    name: a.file_name || a.name || "file",
+    size: Number(a.size_bytes != null ? a.size_bytes : a.size) || 0,
+    url: a.url || null,
   };
 }
 
@@ -35,6 +50,7 @@ export function fromDbInboxRow(row, myId) {
     lastAt: row.last_at,
     lastFromMe: row.last_sender === myId,
     unreadCount: Number(row.unread_count) || 0,
+    lastHasAttachment: !!row.last_has_attachment,   // drives the "📎 Attachment" preview for an attachment-only last message
   };
 }
 
@@ -43,6 +59,48 @@ export function fromDbInboxRow(row, myId) {
 // applies on every send path.
 export function toDbMessage(body) {
   return { body: (body || "").trim() };
+}
+
+// ── Delivery status (Module: message-status) ────────────────────────────────
+// The delivery state of a message *I* sent, for the status line under my latest
+// outgoing bubble: 'sending' = optimistic/unconfirmed, 'failed' = the send errored
+// (offer retry), 'seen' = the recipient has read it (read_at set), else 'delivered'
+// (server has it, not yet read). null for incoming messages (no status shown).
+// Pure — self-contained so the whole feature is a localized add/remove.
+export function messageStatus(m) {
+  if (!m || !m.fromMe) return null;
+  if (m.failed) return "failed";
+  if (m.pending) return "sending";
+  if (m.readAt) return "seen";
+  return "delivered";
+}
+
+// ── Date grouping (Module: date-separators) ─────────────────────────────────
+function _dayKeyFromDate(d) {
+  const y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, "0"), day = String(d.getDate()).padStart(2, "0");
+  return y + "-" + m + "-" + day;
+}
+// Local calendar-day key (YYYY-MM-DD) for grouping messages under date dividers.
+// Pure; "" for bad input. A divider renders wherever consecutive keys differ.
+export function dayKey(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  return _dayKeyFromDate(d);
+}
+// Human label for a date divider: "Today" / "Yesterday" / "Mar 5" (same year) or
+// "Mar 5, 2024" (other year). Pure; nowMs injectable for tests. "" for bad input.
+export function dayLabel(iso, nowMs = Date.now()) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  const today = new Date(nowMs);
+  const yest = new Date(nowMs); yest.setDate(yest.getDate() - 1);
+  const k = _dayKeyFromDate(d);
+  if (k === _dayKeyFromDate(today)) return "Today";
+  if (k === _dayKeyFromDate(yest)) return "Yesterday";
+  const sameYear = d.getFullYear() === today.getFullYear();
+  return d.toLocaleDateString("en-US", sameYear ? { month: "short", day: "numeric" } : { month: "short", day: "numeric", year: "numeric" });
 }
 
 // Compact "time since" for a conversation's last message: just now → Nm → Nh →
@@ -112,9 +170,12 @@ export function mergeThread(existing, fetchedChrono) {
     a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1
       : a.id < b.id ? -1 : a.id > b.id ? 1 : 0   // stable id tiebreak for equal timestamps
   );
-  const confirmed = merged.filter((m) => !m.pending).sort(cmp);
-  const pending = merged.filter((m) => m.pending);   // insertion order, always last
-  return [...confirmed, ...pending];
+  // Pending AND failed sends carry a CLIENT clock (no server created_at yet), so
+  // they're pinned last in insertion order — sorting them by their client time
+  // would make the bubble hop when the server's (smaller) created_at lands.
+  const confirmed = merged.filter((m) => !m.pending && !m.failed).sort(cmp);
+  const unsettled = merged.filter((m) => m.pending || m.failed);   // insertion order, always last
+  return [...confirmed, ...unsettled];
 }
 
 // Update-or-insert a peer's inbox row from a single thread message, keeping the
@@ -124,13 +185,13 @@ export function mergeThread(existing, fetchedChrono) {
 // general capability (the not-open realtime path refreshes the whole inbox via
 // get_inbox instead). Pure; replaces the inline idiom send used before so the
 // send and realtime paths stay in sync.
-export function bumpInboxRow(rows, peerId, { lastBody, lastAt, lastFromMe, read }) {
+export function bumpInboxRow(rows, peerId, { lastBody, lastAt, lastFromMe, read, lastHasAttachment = false }) {
   let seen = false;
   let next = (rows || []).map((r) => {
     if (r.peerId !== peerId) return r;
     seen = true;
-    return { ...r, lastBody, lastAt, lastFromMe, unreadCount: read ? 0 : (r.unreadCount || 0) + 1 };
+    return { ...r, lastBody, lastAt, lastFromMe, lastHasAttachment, unreadCount: read ? 0 : (r.unreadCount || 0) + 1 };
   });
-  if (!seen) next = [{ peerId, lastBody, lastAt, lastFromMe, unreadCount: read ? 0 : 1 }, ...next];
+  if (!seen) next = [{ peerId, lastBody, lastAt, lastFromMe, lastHasAttachment, unreadCount: read ? 0 : 1 }, ...next];
   return next.sort((a, b) => (a.lastAt < b.lastAt ? 1 : a.lastAt > b.lastAt ? -1 : 0));
 }

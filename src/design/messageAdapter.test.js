@@ -16,6 +16,9 @@ import {
   upsertMessage,
   mergeThread,
   bumpInboxRow,
+  messageStatus,
+  dayKey,
+  dayLabel,
 } from './messageAdapter.js';
 
 const ME = 'me-id';
@@ -234,4 +237,49 @@ test('bumpInboxRow keeps the list sorted newest-first by lastAt', () => {
   ];
   const out = bumpInboxRow(rows, 'B', { lastBody: 'z', lastAt: 't5', lastFromMe: true, read: true });
   assert.deepEqual(out.map((r) => r.peerId), ['B', 'A']); // B now carries the newest lastAt
+});
+
+// ── messageStatus (Sending / Delivered / Seen / Failed) ──────────────────────
+test('messageStatus: only outgoing messages get a status (incoming → null)', () => {
+  assert.equal(messageStatus({ fromMe: false, readAt: '2026-01-01T00:00:00Z' }), null);
+  assert.equal(messageStatus(null), null);
+});
+
+test('messageStatus: sending → delivered → seen progression for my message', () => {
+  assert.equal(messageStatus({ fromMe: true, pending: true }), 'sending');
+  assert.equal(messageStatus({ fromMe: true, pending: false, readAt: null }), 'delivered');
+  assert.equal(messageStatus({ fromMe: true, pending: false, readAt: '2026-01-01T00:00:00Z' }), 'seen');
+});
+
+test('messageStatus: a failed send reports failed (takes precedence over pending)', () => {
+  assert.equal(messageStatus({ fromMe: true, failed: true, pending: true }), 'failed');
+});
+
+// ── dayKey / dayLabel (date separators) ──────────────────────────────────────
+test('dayKey is a stable YYYY-MM-DD local key; "" for bad input', () => {
+  assert.equal(dayKey('2026-03-05T15:00:00Z').length, 10);
+  assert.equal(dayKey('not-a-date'), '');
+  assert.equal(dayKey(null), '');
+  // two instants on the same local day share a key
+  assert.equal(dayKey('2026-03-05T08:00:00Z'), dayKey('2026-03-05T09:00:00Z'));
+});
+
+test('dayLabel: Today / Yesterday relative to an injected now, else a date', () => {
+  const now = new Date('2026-03-05T12:00:00Z').getTime();
+  assert.equal(dayLabel('2026-03-05T09:00:00Z', now), 'Today');
+  assert.equal(dayLabel('2026-03-04T09:00:00Z', now), 'Yesterday');
+  // an older date in the same year shows month + day (no year)
+  assert.match(dayLabel('2026-01-02T09:00:00Z', now), /Jan 2/);
+  // a different year includes the year
+  assert.match(dayLabel('2025-12-31T09:00:00Z', now), /2025/);
+  assert.equal(dayLabel(null, now), '');
+});
+
+// ── mergeThread keeps failed sends pinned last (alongside pending) ───────────
+test('mergeThread pins a failed send last and never sorts it by its client clock', () => {
+  const failed = { id: 'f1', fromMe: true, failed: true, createdAt: '2026-01-01T00:00:00.000Z', body: 'oops' };
+  const confirmed = { id: 'c1', fromMe: false, createdAt: '2026-06-01T00:00:00.000Z', body: 'later' };
+  const out = mergeThread([failed], [confirmed]);
+  assert.deepEqual(out.map((m) => m.id), ['c1', 'f1']); // failed stays last despite older client time
+  assert.equal(out[1].failed, true);
 });

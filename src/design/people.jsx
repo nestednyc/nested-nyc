@@ -97,7 +97,11 @@ import { Av, Skeleton } from './shared'
   // The card's inner content, shared by the /u/:username page (userProfile.jsx)
   // which wraps it in a backbar + paper shell. Pass showConnect:false to hide
   // the action row (e.g. viewing yourself).
-  function PersonProfile({ person, connected, onConnect, onMessage, isBlocked = false, onBlock, onUnblock, showConnect = true }) {
+  function PersonProfile({ person, connected, canMessage, onConnect, onMessage, isBlocked = false, onBlock, onUnblock, showConnect = true }) {
+    // `connected` drives the Connect/Disconnect toggle (the viewer's OUTGOING
+    // edge). Messaging is allowed on an edge in EITHER direction, so the Message
+    // button is gated on `canMessage` (falls back to `connected` if not passed).
+    const messageable = canMessage === undefined ? connected : canMessage;
     return (
       React.createElement("div", { className: "pm-inner" },
         React.createElement("div", { className: "pm-photos" }, person.photos.slice(0, 3).map((p, i) => React.createElement(Polaroid, { key: i, label: p.l, src: p.src }))),
@@ -133,8 +137,8 @@ import { Av, Skeleton } from './shared'
             connected
               ? [React.createElement(Icon, { name: "check", size: 17, stroke: "var(--paper)", key: "i" }), "Connected"]
               : [React.createElement(Icon, { name: "heart", size: 17, stroke: "var(--paper)", key: "i" }), "Connect"]),
-          // Connection-gated: only people you're connected to can be messaged.
-          connected && onMessage && React.createElement("button", { className: "btn btn-ghost", style: { flex: 1, padding: 13 }, onClick: () => onMessage(person) },
+          // Connection-gated (either direction): anyone connected to you can be messaged.
+          messageable && onMessage && React.createElement("button", { className: "btn btn-ghost", style: { flex: 1, padding: 13 }, onClick: () => onMessage(person) },
             React.createElement(Icon, { name: "chat", size: 17, key: "i" }), "Message")
         ),
         // Block is DM-only and rare — a quiet link under the actions, not a button.

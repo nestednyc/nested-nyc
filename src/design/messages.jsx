@@ -16,7 +16,9 @@ import { relativeTime } from './messageAdapter'
   // `peerId` keys the row; `fromMe` prefixes the preview with "You: " so the
   // list reads like a chat client.
   function ConvRow({ c, onOpen }) {
-    const preview = c.lastFromMe ? "You: " + (c.lastBody || "") : (c.lastBody || "");
+    // Attachment-only last message has no body → show a "📎 Attachment" preview.
+    const base = c.lastBody || (c.lastHasAttachment ? "📎 Attachment" : "");
+    const preview = (c.lastFromMe && base) ? "You: " + base : base;
     const open = () => onOpen && onOpen(c);
     const label = "Conversation with " + (c.name || "student") + (c.unreadCount > 0 ? ", " + c.unreadCount + " unread" : "");
     return (

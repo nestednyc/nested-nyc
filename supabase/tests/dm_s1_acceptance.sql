@@ -3,6 +3,11 @@
 -- Seeds auth.users directly (the on-signup trigger then creates profiles),
 -- so NEVER run this against prod. Idempotent: re-running re-seeds cleanly.
 --
+-- ⚠️ S1-STATE PROOF ONLY — run this against the schema BEFORE 20260622000000.
+-- S2 does `REVOKE INSERT ON public.messages FROM authenticated`, so on the post-S2
+-- schema TEST 1's direct INSERT raises insufficient_privilege as an uncaught ERROR
+-- (not a clean FAIL). The RPC seam (dm_s2/s3 suites) is the proof from S2 onward.
+--
 -- Run:  supabase start
 --       psql "$(supabase status -o env 2>/dev/null | sed -n 's/^DB_URL=//p' | tr -d '\"')" \
 --            -f supabase/tests/dm_s1_acceptance.sql

@@ -167,6 +167,12 @@ import { parse as parseLocation, build as buildPath, accessOf, validateNext, tit
     const [thread, setThread] = useState([]);
     const [threadStatus, setThreadStatus] = useState("loading");
     const [threadPeer, setThreadPeer] = useState(null);
+    // Load-older pagination: whether an older page may exist + an in-flight flag.
+    const [threadHasMore, setThreadHasMore] = useState(false);
+    const [loadingEarlier, setLoadingEarlier] = useState(false);
+    // The per-conversation Realtime broadcast channel for live read receipts (and
+    // a natural home for typing later). { ch, peerId } — see the dm-receipts effect.
+    const dmReceiptRef = useRef(null);
     const [pendingRequests, setPendingRequests] = useState([]);
     // /u/:username — the handle on the userProfile route. Set by openProfile
     // (in-app navigation) or the boot/popstate URL parse (deep link).
@@ -253,6 +259,7 @@ import { parse as parseLocation, build as buildPath, accessOf, validateNext, tit
     const [acctOpen, setAcctOpen] = useState(false);
     const [confirmSignOut, setConfirmSignOut] = useState(false);
     const [confirmBlock, setConfirmBlock] = useState(null); // {id, handle, name} pending block, or null
+    const [confirmDelete, setConfirmDelete] = useState(null); // {id, handle, name} pending delete-conversation, or null
     // Dismiss whichever dropdown is open on outside-click / Escape.
     useEffect(() => {
       if (!notifOpen && !acctOpen) return;
@@ -720,9 +727,10 @@ import { parse as parseLocation, build as buildPath, accessOf, validateNext, tit
           if (openPeerIdRef.current !== pid) return;   // switched threads mid-fetch → drop this result
           setThread((cur) => mergeThread(cur, data.slice().reverse()));
           messageService.markThreadRead(pid);
+          signalRead(pid);   // live "Seen" to the sender on realtime-driven reads too
           const newest = data[0];   // get_thread is newest-first
           if (newest) setInbox((rows) => bumpInboxRow(rows, pid,
-            { lastBody: newest.body, lastAt: newest.createdAt, lastFromMe: newest.fromMe, read: true }));
+            { lastBody: newest.body, lastAt: newest.createdAt, lastFromMe: newest.fromMe, read: true, lastHasAttachment: !!(newest.attachments && newest.attachments.length) }));
         } finally {
           threadInFlight = false;
           // Re-fire for whichever thread is open now (not the stale pid): a ping
@@ -795,6 +803,7 @@ import { parse as parseLocation, build as buildPath, accessOf, validateNext, tit
       (async () => {
         setThreadStatus("loading");
         setThread([]);   // drop the previous peer's bubbles before merging this one's (URL/popstate path doesn't clear)
+        setThreadHasMore(false);   // reset pagination for the new peer
         let peer = (threadPeer && threadPeer.handle && threadPeer.handle.toLowerCase() === wanted) ? threadPeer : null;
         if (!peer) {
           const found = people.find((p) => p.handle && p.handle.toLowerCase() === wanted);
@@ -814,11 +823,36 @@ import { parse as parseLocation, build as buildPath, accessOf, validateNext, tit
         if (error) { setThreadStatus("error"); return; }
         setThread((cur) => mergeThread(cur, (msgs || []).slice().reverse()));   // merge, not replace — a ping mid-load isn't clobbered
         setThreadStatus("ready");
+        setThreadHasMore((msgs || []).length >= 50);   // a full page back → there may be older messages
         messageService.markThreadRead(peer.id);
+        signalRead(peer.id);   // tell the peer their messages are now seen (live)
         setInbox((rows) => rows.map((r) => (r.peerId === peer.id ? { ...r, unreadCount: 0 } : r)));
       })();
       return () => { cancelled = true; };
     }, [route, messageThreadHandle, profile && profile.id]);
+
+    // ─── Live read receipts (broadcast) ─────────────────────────────────────
+    // A per-conversation broadcast channel carries an ephemeral "I've read up to
+    // <t>" ping so the SENDER's bubbles flip to "Seen" instantly — without
+    // streaming DB UPDATEs (the messages publication stays INSERT-only). The
+    // persistent read_at remains the source of truth for unread counts; this is
+    // purely live UI. Keyed to the sorted id-pair so both participants share one
+    // channel. Modular: delete this block and "Seen" simply falls back to
+    // updating on the next thread refetch — nothing else breaks.
+    useEffect(() => {
+      if (route !== "messageThread" || !threadPeer || !threadPeer.id || !profile || !profile.id || !isSupabaseConfigured() || !supabase) return;
+      const peerId = threadPeer.id;
+      const pair = [profile.id, peerId].slice().sort().join(":");
+      const ch = supabase.channel("dm-receipts:" + pair, { config: { broadcast: { self: false } } });
+      ch.on("broadcast", { event: "read" }, ({ payload }) => {
+        if (!payload || payload.by !== peerId) return;
+        const at = payload.at;
+        setThread((t) => t.map((m) => (m.fromMe && !m.readAt && (!at || m.createdAt <= at)) ? { ...m, readAt: at || new Date().toISOString() } : m));
+      });
+      ch.subscribe();
+      dmReceiptRef.current = { ch, peerId };
+      return () => { dmReceiptRef.current = null; supabase.removeChannel(ch); };
+    }, [route, threadPeer && threadPeer.id, profile && profile.id]);
 
     // ─── Session hydration ──────────────────────────────────────
     // Called on mount AND after the forgot-password flow completes, so a
@@ -1358,6 +1392,30 @@ import { parse as parseLocation, build as buildPath, accessOf, validateNext, tit
         toast("Couldn't unblock — " + (error.message || "try again"), "x");
       }
     }
+    // Delete conversation (S8) is delete-FOR-ME: the server sets a per-user clear
+    // watermark, so the thread leaves my inbox/thread while the peer keeps their
+    // copy, and it reappears if they message me again. Behind a confirm (it hides
+    // history); optimistic inbox removal + leave the thread, revert on failure.
+    function requestDeleteConversation(peer) {
+      if (!profile) return requireAuth("Sign in to manage messages");
+      if (!peer || !peer.id) return;
+      setConfirmDelete({ id: peer.id, handle: peer.handle, name: peer.name });
+    }
+    async function deleteConversationNow() {
+      const peer = confirmDelete;
+      setConfirmDelete(null);
+      if (!peer || !peer.id) return;
+      const prevInbox = inbox;   // snapshot for revert-on-failure
+      setInbox((rows) => rows.filter((r) => r.peerId !== peer.id));
+      if (route === "messageThread") { setThread([]); setRoute("messages"); window.scrollTo({ top: 0 }); }
+      toast("Conversation deleted", "check");
+      if (!isSupabaseConfigured()) return;
+      const { error } = await messageService.deleteConversation(peer.id);
+      if (error) {
+        setInbox(prevInbox);
+        toast("Couldn't delete — " + (error.message || "try again"), "x");
+      }
+    }
     function goNav(id) {
       // People & Saved need an account — nudge guests to sign in instead.
       if (!profile && (id === "people" || id === "saved")) {
@@ -1459,22 +1517,77 @@ import { parse as parseLocation, build as buildPath, accessOf, validateNext, tit
     // then reconcile it with the stored row on confirm (same id) or drop it on
     // failure. Also refresh this peer's inbox row so the list stays correct
     // without a refetch (live sync is S6).
-    async function sendThreadMessage(body) {
+    function sendThreadMessage(body, files = []) {
       const peer = threadPeer;
       const text = (body || "").trim();
-      if (!peer || !peer.id || !text) return;
-      const id = newId();
+      const list = Array.isArray(files) ? files : [];
+      if (!peer || !peer.id || (!text && !list.length)) return;
+      deliverThreadMessage(newId(), peer, text, list);
+    }
+    // Mark a failed optimistic message so the bubble offers retry (kept in place,
+    // not removed — removing would lose the user's text/files).
+    function markSendFailed(id) {
+      setThread((t) => t.map((m) => (m.id === id ? { ...m, pending: false, failed: true } : m)));
+    }
+    // Re-send a failed message with the SAME id (idempotent server-side). Reuses
+    // the original File objects stashed on the optimistic row.
+    function retryThreadMessage(m) {
+      if (!m || !m.id || !threadPeer) return;
+      setThread((t) => t.map((x) => (x.id === m.id ? { ...x, failed: false, pending: true } : x)));
+      deliverThreadMessage(m.id, threadPeer, m.body || "", m._files || []);
+    }
+    // Shared send pipeline (first attempt + retry): optimistic pending bubble →
+    // upload any attachments to Storage → send_message → reconcile or mark failed.
+    // Attachments + the wrong-thread guard make this longer than a plain text send.
+    async function deliverThreadMessage(id, peer, text, files) {
       const at = new Date().toISOString();
-      setThread((t) => upsertMessage(t, { id, peerId: peer.id, fromMe: true, body: text, createdAt: at, readAt: null, pending: true }));
+      const optimisticAtts = (files || []).map((f) => ({
+        name: f.name, mime: f.type, size: f.size,
+        url: (f.type || "").startsWith("image/") ? URL.createObjectURL(f) : null,
+      }));
+      setThread((t) => upsertMessage(t, { id, peerId: peer.id, fromMe: true, body: text, createdAt: at, readAt: null, pending: true, failed: false, attachments: optimisticAtts, _files: files || [] }));
       if (!isSupabaseConfigured()) return;
-      const { data, error } = await messageService.sendMessage(peer.id, text, id);
-      if (error) {
-        setThread((t) => t.filter((m) => m.id !== id));
-        toast(error.message || "Couldn't send message", "x");
-        return;
+
+      // Upload attachments first (own-folder Storage write); any failure → retryable.
+      const metas = [];
+      for (const f of (files || [])) {
+        const { data: meta, error: upErr } = await messageService.uploadAttachment(f, id);
+        if (upErr) { markSendFailed(id); toast(upErr.message || "Couldn't upload that file", "x"); return; }
+        metas.push(meta);
       }
-      setThread((t) => upsertMessage(t, { ...data, pending: false }));
-      setInbox((rows) => bumpInboxRow(rows, peer.id, { lastBody: text, lastAt: data.createdAt, lastFromMe: true, read: true }));
+
+      const { data, error } = await messageService.sendMessage(peer.id, text, id, metas);
+      if (error) { markSendFailed(id); toast(error.message || "Couldn't send message", "x"); return; }
+      // Only reconcile the OPEN thread's bubbles if we're still on this peer — a
+      // mid-send peer switch (setThread([]) ran for the new peer) must not splice
+      // this confirmed message into another conversation. The inbox bump is keyed
+      // by peer.id, so it stays correct regardless of what's open.
+      if (openPeerIdRef.current === peer.id) {
+        setThread((t) => upsertMessage(t, { ...data, pending: false, failed: false }));
+      }
+      setInbox((rows) => bumpInboxRow(rows, peer.id, { lastBody: text, lastAt: data.createdAt, lastFromMe: true, read: true, lastHasAttachment: metas.length > 0 }));
+    }
+    // Fetch an older page of the open thread (keyset on the oldest confirmed
+    // message) and prepend it. hasMore stays true while a full page comes back.
+    async function loadEarlierThread() {
+      if (loadingEarlier || !threadPeer || !threadPeer.id) return;
+      const oldest = thread.find((m) => !m.pending && !m.failed);
+      if (!oldest) return;
+      setLoadingEarlier(true);
+      const { data, error } = await messageService.getThread(threadPeer.id, oldest.createdAt, 50);
+      setLoadingEarlier(false);
+      if (error) { toast("Couldn't load earlier messages", "x"); return; }
+      const older = (data || []).slice().reverse();   // newest-first → chronological
+      if (openPeerIdRef.current === threadPeer.id) setThread((cur) => mergeThread(cur, older));
+      setThreadHasMore((data || []).length >= 50);
+    }
+    // Live read-receipt signal — tell the open peer "I've read up to now" so their
+    // sent bubbles flip to "Seen" instantly (the dm-receipts broadcast channel).
+    function signalRead(peerId) {
+      const c = dmReceiptRef.current;
+      if (c && c.peerId === peerId && c.ch && profile) {
+        c.ch.send({ type: "broadcast", event: "read", payload: { by: profile.id, at: new Date().toISOString() } });
+      }
     }
 
     async function submitModal(text, role) {
@@ -2108,6 +2221,7 @@ import { parse as parseLocation, build as buildPath, accessOf, validateNext, tit
           username: profileViewUsername,
           initialPerson: people.find((pp) => pp.handle && pp.handle.toLowerCase() === profileViewUsername.toLowerCase()) || null,
           connected,
+          incoming,
           onConnect,
           onDisconnect,
           onMessage: (person) => openThread(person),
@@ -2152,6 +2266,11 @@ import { parse as parseLocation, build as buildPath, accessOf, validateNext, tit
           isBlocked: threadPeer ? blocked.has(threadPeer.id) : false,
           onBlock: () => requestBlock(threadPeer),
           onUnblock: () => unblockPeer(threadPeer),
+          onDelete: () => requestDeleteConversation(threadPeer),
+          onRetry: retryThreadMessage,
+          onLoadEarlier: loadEarlierThread,
+          hasMore: threadHasMore,
+          loadingEarlier,
         }),
 
         route === "saved" && React.createElement(Matches, {
@@ -2264,6 +2383,16 @@ import { parse as parseLocation, build as buildPath, accessOf, validateNext, tit
           danger: true,
           onCancel: () => setConfirmBlock(null),
           onConfirm: blockPeerNow,
+        }),
+        confirmDelete && React.createElement(ConfirmModal, {
+          accent: "var(--c-startup)",
+          title: "Delete this conversation?",
+          body: "This removes it from your messages only — " + (confirmDelete.handle ? "@" + confirmDelete.handle : "the other person") + " keeps their copy. If they message you again, a new conversation starts.",
+          ctaLabel: "Delete",
+          ctaIcon: "trash",
+          danger: true,
+          onCancel: () => setConfirmDelete(null),
+          onConfirm: deleteConversationNow,
         }),
         React.createElement(Toasts, { items: toasts }),
         React.createElement(StyleTweaks, { t, setTweak })
