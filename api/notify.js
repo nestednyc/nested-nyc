@@ -171,16 +171,20 @@ async function planJoinApproved(tm, old) {
 async function planNewConnection(c) {
   if (!c || !c.target_id || !c.user_id) return null;
 
-  // Dedupe: email a given source→target connection only ONCE. connect →
-  // disconnect → reconnect deletes & re-inserts the connections row, re-firing
-  // this webhook; connection_notify_log persists across that churn (it is never
-  // deleted), so a PK conflict here means "already emailed" → skip the send.
-  const { error: logErr } = await admin
+  // Dedupe: email a given source→target connection only ONCE, even across
+  // connect → disconnect → reconnect churn (connection_notify_log persists; it is
+  // never deleted). We only CHECK here — the marker is committed in the handler's
+  // onSent, AFTER a confirmed send — so a transient send failure or an opt-out
+  // can't permanently suppress the first email; a later reconnect still delivers
+  // it. (One webhook per pair per connect + the connections PK ⇒ no concurrent-
+  // send race here.)
+  const { data: already } = await admin
     .from("connection_notify_log")
-    .insert({ user_id: c.user_id, target_id: c.target_id });
-  if (logErr && logErr.code === "23505") return null; // already notified this pair
-  // Any other log error: fall through and email anyway — a logging hiccup must
-  // never drop a legitimate first-time notification.
+    .select("user_id")
+    .eq("user_id", c.user_id)
+    .eq("target_id", c.target_id)
+    .maybeSingle();
+  if (already) return null; // already emailed this pair
 
   const { data: source } = await admin
     .from("profiles")
@@ -197,6 +201,12 @@ async function planNewConnection(c) {
         sourceUsername: source?.username || "",
         unsubUrl: unsub,
       }),
+    // Record the dedupe marker only once the email has actually gone out.
+    onSent: async () => {
+      await admin
+        .from("connection_notify_log")
+        .insert({ user_id: c.user_id, target_id: c.target_id });
+    },
   };
 }
 
@@ -270,6 +280,13 @@ export default async function handler(req, res) {
       try {
         await sendEmail(r.email, link, plan.make(link));
         sent++;
+        // Commit any post-send marker (e.g. the connection dedupe) only now that
+        // the email actually went out. Best-effort: a marker hiccup must not fail
+        // the request or double-count the send.
+        if (plan.onSent) {
+          try { await plan.onSent(rid); }
+          catch (e2) { console.error("notify: onSent failed for", rid, e2.message); }
+        }
       } catch (e) {
         failed++;
         console.error("notify: send failed for", rid, e.message);

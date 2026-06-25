@@ -36,8 +36,12 @@ export default async function handler(req, res) {
   // Misconfigured (no service role) → fail open; signup proceeds without the hint.
   if (!admin) return res.status(200).json({ exists: false });
 
-  // 20 checks / 10 min / IP: ample for signup retries, far below enumeration.
-  const ok = await limit(`check-email:${clientIp(req)}`, 20, 600);
+  // 60 checks / 10 min / IP. Raised from a single-user figure to tolerate campus
+  // NAT (many students behind one egress IP) during a signup wave — consistent
+  // with the [auth.rate_limit] NAT tuning — while still throttling enumeration.
+  // The caller fails open (signup proceeds without the "already have an account"
+  // hint), so erring generous here is safe.
+  const ok = await limit(`check-email:${clientIp(req)}`, 60, 600);
   if (!ok) return res.status(429).json({ error: "rate_limited" });
 
   let body = req.body;

@@ -51,11 +51,14 @@ BEGIN
     RETURN NEW;
   END IF;
 
-  -- DEFINER so the count bypasses team_members read-RLS and sees ALL of the
-  -- actor's recent rows, not just the relationship-scoped subset.
+  -- Count only the actor's recent PENDING join requests — the population this cap
+  -- actually throttles. Without the status filter, the status='approved' creator
+  -- self-stamp from each project they create would erode the join-request budget.
+  -- DEFINER so the count bypasses team_members read-RLS and sees all of them.
   SELECT COUNT(*) INTO v_count
   FROM public.team_members tm
   WHERE tm.user_id = v_uid
+    AND tm.status = 'pending'
     AND tm.joined_at > now() - interval '1 hour';
 
   IF v_count >= 20 THEN
@@ -74,9 +77,11 @@ CREATE TRIGGER zz_rl_team_members
 -- ---------------- trigger: connections ----------------
 -- Connections are normal, bursty behavior (browsing People, post-event adds), so
 -- this is an ABUSE backstop, not a throttle on real use: no per-minute cap, and a
--- high hourly ceiling. The connection_notify_log dedupe (api/notify.js) already
--- ensures that even hitting this cap can't re-email anyone. Keyed on the
--- connector (INSERT RLS forces user_id = auth.uid()). Tune if real abuse appears.
+-- high hourly ceiling. Note the connection_notify_log dedupe (api/notify.js) only
+-- stops re-emailing the SAME pair (connect/disconnect/reconnect churn); this
+-- hourly cap is what bounds emailing many DISTINCT targets, so it doubles as the
+-- "new connection" email-spray ceiling (<=100 first-contact emails/hr per account).
+-- Keyed on the connector (INSERT RLS forces user_id = auth.uid()). Tune if abuse appears.
 CREATE OR REPLACE FUNCTION public.rl_connections()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -200,6 +205,13 @@ AS $$
 DECLARE
   v_count INT;
 BEGIN
+  -- Opportunistic cleanup (~1% of calls) so the table can't accumulate a
+  -- permanent row per distinct IP ever seen. Safe: any ACTIVE limiter row is
+  -- refreshed within its (seconds-long) window, far under the 1-day cutoff.
+  IF random() < 0.01 THEN
+    DELETE FROM public.rate_limits WHERE window_start < now() - interval '1 day';
+  END IF;
+
   INSERT INTO public.rate_limits AS rl (key, window_start, count)
   VALUES (p_key, now(), 1)
   ON CONFLICT (key) DO UPDATE
@@ -235,5 +247,12 @@ ALTER TABLE public.connection_notify_log ENABLE ROW LEVEL SECURITY;
 -- Drop the anon grant so it can't be hammered directly at /rest/v1/rpc.
 -- authenticated keeps it (an account already exists — nothing leaked).
 REVOKE EXECUTE ON FUNCTION public.check_email_exists(TEXT) FROM PUBLIC, anon;
+
+-- NOTE: the sibling check_username_available is intentionally LEFT anon-callable.
+-- Usernames are already public (the /u/:username pages + the public_profiles view
+-- enumerate them), so it leaks nothing, and it's a cheap LOWER(username) index
+-- probe (profiles_username_unique_idx, migration 007). The onboarding username
+-- field calls it live (debounced) on the anon client, so proxying it like
+-- check_email_exists would add latency for no confidentiality gain.
 
 NOTIFY pgrst, 'reload schema';

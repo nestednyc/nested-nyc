@@ -5,7 +5,7 @@
    ============================================================ */
 import React from 'react'
 import Icon from './icons'
-import { UNIVERSITIES, UNI, MAJORS, INTERESTS, isSupportedEduEmail, uniByEmailDomain } from './data'
+import { UNIVERSITIES, UNI, MAJORS, INTERESTS, uniByEmailDomain } from './data'
 import { Stamp, Av } from './shared'
 import { authService, isSupabaseConfigured, getErrorMessage } from '../lib/supabase'
 import { lookupService } from '../services/lookupService'
@@ -106,10 +106,12 @@ import { toDbProfile, fromDbProfile } from './profileAdapter'
 
     const totalSteps = mode === "signup" ? SIGNUP_STEPS : SIGNIN_STEPS;
 
-    // Signup requires a SUPPORTED NYC-uni email (allow-list); sign-in stays
-    // lenient (any .edu) so accounts created before the allow-list still work.
+    // Signup requires a SUPPORTED NYC-uni email AND a well-formed address:
+    // validateEduEmail composes validateEmailFormat + the allow-list, so a missing
+    // local part like "@nyu.edu" is caught here, not only at final submit. Sign-in
+    // stays lenient (any .edu) so accounts created before the allow-list still work.
     const isEdu = mode === "signup"
-      ? isSupportedEduEmail(email)
+      ? authService.validateEduEmail(email).valid
       : /@[^@]+\.edu$/.test(email.trim());
     const detected = detectUni(email.trim());
 
