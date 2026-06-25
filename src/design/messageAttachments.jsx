@@ -8,6 +8,8 @@
        the picked-but-not-yet-sent files.
    Limits live in messageService (MAX_ATTACH_BYTES / ALLOWED_ATTACH_MIME /
    MAX_ATTACH_COUNT) so the composer, the service, and the bucket agree.
+   Classes are prefixed `dm-att-*` / `att-*` — note the bubble list is
+   `.dm-att-list` (NOT `.att-list`, which the event attendee sheet owns).
    ============================================================ */
 import React from 'react'
 import Icon from './icons'
@@ -24,25 +26,42 @@ import { MAX_ATTACH_BYTES, MAX_ATTACH_COUNT, ALLOWED_ATTACH_MIME } from '../serv
     return (b / (1024 * 1024)).toFixed(b < 10 * 1024 * 1024 ? 1 : 0) + " MB";
   }
 
+  // A document (or an image that can't render) as a download chip. `unavailable`
+  // covers a missing OR expired/failed signed URL — the row stays informative
+  // (name + size) but isn't a broken <img> or a dead link.
+  function DocChip({ a, unavailable }) {
+    const dead = unavailable || !a.url;
+    return React.createElement("a", {
+      className: "att-doc", href: dead ? undefined : a.url, target: "_blank", rel: "noopener noreferrer",
+      download: dead ? undefined : (a.name || true), title: dead ? (a.name || "file") : ("Download " + (a.name || "file")),
+      "aria-disabled": dead ? true : undefined,
+    },
+      React.createElement(Icon, { name: "file", size: 20 }),
+      React.createElement("span", { className: "att-doc-meta" },
+        React.createElement("b", null, a.name || "file"),
+        React.createElement("small", null, prettySize(a.size) + (dead ? " · unavailable" : ""))),
+      dead ? null : React.createElement(Icon, { name: "download", size: 16 }));
+  }
+
+  // An inline image from a signed URL. If the URL is absent OR fails to load
+  // (e.g. the 1h signed URL expired on a long-open thread), it degrades to the
+  // same DocChip the doc branch uses instead of showing a broken image (#19).
+  function AttImage({ a }) {
+    const [failed, setFailed] = useState(false);
+    if (!a.url || failed) return React.createElement(DocChip, { a, unavailable: true });
+    return React.createElement("a", { className: "att-img", href: a.url, target: "_blank", rel: "noopener noreferrer", title: a.name },
+      React.createElement("img", { src: a.url, alt: a.name || "image attachment", loading: "lazy", onError: () => setFailed(true) }));
+  }
+
   // Stored attachments on a confirmed message. `items`: [{ url, mime, name, size }].
   function Attachments({ items = [], fromMe = false }) {
     if (!items.length) return null;
     return (
-      React.createElement("div", { className: "att-list" + (fromMe ? " me" : "") },
+      React.createElement("div", { className: "dm-att-list" + (fromMe ? " me" : "") },
         items.map((a, i) => (
-          isImage(a.mime) && a.url
-            ? React.createElement("a", { key: i, className: "att-img", href: a.url, target: "_blank", rel: "noopener noreferrer", title: a.name },
-                React.createElement("img", { src: a.url, alt: a.name || "image attachment", loading: "lazy" }))
-            : React.createElement("a", {
-                key: i, className: "att-doc", href: a.url || undefined, target: "_blank", rel: "noopener noreferrer",
-                download: a.name || true, title: a.url ? "Download " + (a.name || "file") : (a.name || "file"),
-                "aria-disabled": a.url ? undefined : true,
-              },
-                React.createElement(Icon, { name: "file", size: 20 }),
-                React.createElement("span", { className: "att-doc-meta" },
-                  React.createElement("b", null, a.name || "file"),
-                  React.createElement("small", null, prettySize(a.size) + (a.url ? "" : " · unavailable"))),
-                a.url && React.createElement(Icon, { name: "download", size: 16 }))
+          isImage(a.mime)
+            ? React.createElement(AttImage, { key: i, a })
+            : React.createElement(DocChip, { key: i, a })
         ))
       )
     );

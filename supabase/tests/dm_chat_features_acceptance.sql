@@ -76,7 +76,7 @@ BEGIN;
   BEGIN
     SELECT count(*) INTO n FROM public.send_message(
       '90000000-0000-0000-0000-000000000003','bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', '',
-      '[{"storage_path":"a/m/pic.png","mime_type":"image/png","size_bytes":100,"file_name":"pic.png"}]'::jsonb);
+      '[{"storage_path":"aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/90000000-0000-0000-0000-000000000003/pic.png","mime_type":"image/png","size_bytes":100,"file_name":"pic.png"}]'::jsonb);
     IF n = 1 THEN RAISE NOTICE 'TEST 2b PASS: attachment-only message (empty body + file) allowed';
     ELSE RAISE NOTICE 'TEST 2b FAIL: rows=% (expected 1)', n;
     END IF;
@@ -96,8 +96,8 @@ BEGIN;
   BEGIN
     SELECT m.attachments INTO v_att FROM public.send_message(
       '90000000-0000-0000-0000-000000000010','bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'here are two files',
-      '[{"storage_path":"a/m/one.png","mime_type":"image/png","size_bytes":11,"file_name":"one.png"},
-        {"storage_path":"a/m/two.pdf","mime_type":"application/pdf","size_bytes":22,"file_name":"two.pdf"}]'::jsonb) AS m;
+      '[{"storage_path":"aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/90000000-0000-0000-0000-000000000010/one.png","mime_type":"image/png","size_bytes":11,"file_name":"one.png"},
+        {"storage_path":"aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/90000000-0000-0000-0000-000000000010/two.pdf","mime_type":"application/pdf","size_bytes":22,"file_name":"two.pdf"}]'::jsonb) AS m;
     IF jsonb_array_length(v_att) = 2 AND (v_att->0->>'file_name') = 'one.png'
     THEN RAISE NOTICE 'TEST 3a PASS: send_message returned 2 attachments in order (first=one.png)';
     ELSE RAISE NOTICE 'TEST 3a FAIL: attachments=%', v_att;

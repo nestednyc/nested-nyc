@@ -137,13 +137,18 @@ export const messageService = {
 
   /**
    * Upload one attachment to the private dm-attachments bucket under
-   * <uid>/<messageId>/<safe-name> (own-folder write per Storage RLS). Returns the
-   * metadata send_message expects. Validated client-side here AND by the bucket.
+   * <uid>/<messageId>/<index>-<safe-name> (own-folder write per Storage RLS).
+   * The per-attachment index keeps two files with the SAME name in one message
+   * from colliding, and upsert:true makes a retry of the same logical send
+   * idempotent — re-uploading the same path overwrites instead of 409-ing, so
+   * the "Failed — tap to retry" path can actually recover. Returns the metadata
+   * send_message expects. Validated client-side here AND by the bucket.
    * @param {File} file
    * @param {string} messageId - the client-supplied message id this will attach to
+   * @param {number} [index] - position within the message (path-uniqueness)
    * @returns {Promise<{data: object|null, error: object|null}>}
    */
-  async uploadAttachment(file, messageId) {
+  async uploadAttachment(file, messageId, index = 0) {
     if (!isSupabaseConfigured() || !supabase) return { data: null, error: { message: 'Supabase not configured' } }
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return { data: null, error: { message: 'Not authenticated' } }
@@ -152,9 +157,9 @@ export const messageService = {
     if (file.type && !ALLOWED_ATTACH_MIME.includes(file.type)) return { data: null, error: { message: 'File type not supported' } }
 
     const safe = (file.name || 'file').replace(/[^\w.\- ]+/g, '_').slice(-100)
-    const path = user.id + '/' + messageId + '/' + safe
+    const path = user.id + '/' + messageId + '/' + index + '-' + safe
     try {
-      const { error } = await supabase.storage.from(ATTACH_BUCKET).upload(path, file, { contentType: file.type || 'application/octet-stream', upsert: false })
+      const { error } = await supabase.storage.from(ATTACH_BUCKET).upload(path, file, { contentType: file.type || 'application/octet-stream', upsert: true })
       if (error) { console.error('uploadAttachment error:', error); return { data: null, error: { message: 'Upload failed — ' + (error.message || 'try again') } } }
       return { data: { storage_path: path, mime_type: file.type || 'application/octet-stream', size_bytes: file.size, file_name: file.name || safe }, error: null }
     } catch (err) {

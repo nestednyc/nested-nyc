@@ -150,7 +150,12 @@ export function upsertMessage(list, msg) {
   const i = arr.findIndex((m) => m.id === msg.id);
   if (i === -1) return [...arr, msg];
   const next = arr.slice();
-  next[i] = msg;
+  // Preserve a read receipt across a replace: a live "Seen" flip (dm-receipts
+  // broadcast) or a prior confirmed read_at must never regress to "Delivered"
+  // when a later refetch returns a row whose read_at hasn't caught up yet.
+  // read_at is monotonic (null→set, never back), so OR-ing keeps the strongest
+  // signal we've seen for this id.
+  next[i] = { ...msg, readAt: msg.readAt || next[i].readAt || null };
   return next;
 }
 
@@ -190,7 +195,16 @@ export function bumpInboxRow(rows, peerId, { lastBody, lastAt, lastFromMe, read,
   let next = (rows || []).map((r) => {
     if (r.peerId !== peerId) return r;
     seen = true;
-    return { ...r, lastBody, lastAt, lastFromMe, lastHasAttachment, unreadCount: read ? 0 : (r.unreadCount || 0) + 1 };
+    const unreadCount = read ? 0 : (r.unreadCount || 0) + 1;
+    // Last-write-wins by server time: rapid sends can confirm out of order, so
+    // an earlier message arriving later must NOT overwrite the row's newer
+    // preview/timestamp. Still always apply the unread/read change. (ISO-8601 Z
+    // strings compare lexically == chronologically; a missing time → treat the
+    // incoming as newest so the first write always lands.)
+    const newer = !r.lastAt || !lastAt || lastAt >= r.lastAt;
+    return newer
+      ? { ...r, lastBody, lastAt, lastFromMe, lastHasAttachment, unreadCount }
+      : { ...r, unreadCount };
   });
   if (!seen) next = [{ peerId, lastBody, lastAt, lastFromMe, lastHasAttachment, unreadCount: read ? 0 : 1 }, ...next];
   return next.sort((a, b) => (a.lastAt < b.lastAt ? 1 : a.lastAt > b.lastAt ? -1 : 0));

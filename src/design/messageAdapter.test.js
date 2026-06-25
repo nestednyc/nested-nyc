@@ -283,3 +283,50 @@ test('mergeThread pins a failed send last and never sorts it by its client clock
   assert.deepEqual(out.map((m) => m.id), ['c1', 'f1']); // failed stays last despite older client time
   assert.equal(out[1].failed, true);
 });
+
+// ── upsertMessage / mergeThread never regress a read receipt (#7) ────────────
+test('upsertMessage: replacing a seen row with a read_at-less refetch keeps Seen', () => {
+  const seen = { id: 'm1', fromMe: true, createdAt: '2026-01-01T00:00:00.000Z', readAt: '2026-01-01T00:05:00.000Z' };
+  const refetch = { id: 'm1', fromMe: true, createdAt: '2026-01-01T00:00:00.000Z', readAt: null };
+  const out = upsertMessage([seen], refetch);
+  assert.equal(out.length, 1);
+  assert.equal(out[0].readAt, '2026-01-01T00:05:00.000Z'); // not regressed to null
+});
+
+test('upsertMessage: an incoming read_at wins (delivered → seen)', () => {
+  const delivered = { id: 'm1', fromMe: true, createdAt: 't', readAt: null };
+  const nowSeen = { id: 'm1', fromMe: true, createdAt: 't', readAt: '2026-01-01T00:05:00.000Z' };
+  const out = upsertMessage([delivered], nowSeen);
+  assert.equal(out[0].readAt, '2026-01-01T00:05:00.000Z');
+});
+
+test('mergeThread: a live-flipped Seen bubble survives a later refetch (no Seen→Delivered)', () => {
+  const flipped = { id: 'm1', fromMe: true, createdAt: '2026-01-01T00:00:00.000Z', readAt: '2026-01-01T00:05:00.000Z' };
+  // get_thread refetch returns the same id with read_at not yet caught up
+  const refetchChrono = [{ id: 'm1', fromMe: true, createdAt: '2026-01-01T00:00:00.000Z', readAt: null }];
+  const out = mergeThread([flipped], refetchChrono);
+  assert.equal(out[0].readAt, '2026-01-01T00:05:00.000Z');
+});
+
+// ── bumpInboxRow is last-write-wins by server time (#4) ──────────────────────
+test('bumpInboxRow: an out-of-order older confirm does NOT overwrite a newer preview', () => {
+  const rows = [{ peerId: PEER, lastBody: 'newer', lastAt: '2026-01-01T00:00:02.000Z', lastFromMe: true, unreadCount: 0 }];
+  // an earlier message confirms late (older lastAt) — must not clobber the preview
+  const out = bumpInboxRow(rows, PEER, { lastBody: 'older', lastAt: '2026-01-01T00:00:01.000Z', lastFromMe: true, read: true });
+  assert.equal(out[0].lastBody, 'newer');
+  assert.equal(out[0].lastAt, '2026-01-01T00:00:02.000Z');
+});
+
+test('bumpInboxRow: a newer message DOES update the preview', () => {
+  const rows = [{ peerId: PEER, lastBody: 'old', lastAt: '2026-01-01T00:00:01.000Z', lastFromMe: false, unreadCount: 0 }];
+  const out = bumpInboxRow(rows, PEER, { lastBody: 'new', lastAt: '2026-01-01T00:00:03.000Z', lastFromMe: true, read: true });
+  assert.equal(out[0].lastBody, 'new');
+  assert.equal(out[0].lastAt, '2026-01-01T00:00:03.000Z');
+});
+
+test('bumpInboxRow: an older incoming still increments unread even when the preview is kept', () => {
+  const rows = [{ peerId: PEER, lastBody: 'newer', lastAt: '2026-01-01T00:00:05.000Z', lastFromMe: true, unreadCount: 1 }];
+  const out = bumpInboxRow(rows, PEER, { lastBody: 'older', lastAt: '2026-01-01T00:00:04.000Z', lastFromMe: false, read: false });
+  assert.equal(out[0].lastBody, 'newer');       // preview kept (newer wins)
+  assert.equal(out[0].unreadCount, 2);          // unread still applied
+});

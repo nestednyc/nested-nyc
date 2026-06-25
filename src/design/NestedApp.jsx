@@ -173,6 +173,18 @@ import { parse as parseLocation, build as buildPath, accessOf, validateNext, tit
     // The per-conversation Realtime broadcast channel for live read receipts (and
     // a natural home for typing later). { ch, peerId } — see the dm-receipts effect.
     const dmReceiptRef = useRef(null);
+    // Failed/unsent optimistic messages stashed per peerId so a thread switch
+    // doesn't lose the user's typed text + picked files (re-merged on reopen).
+    const pendingByPeerRef = useRef(new Map());
+    // Self-scoped read-sync broadcast channel (dm-readsync:<myId>) so reading a
+    // thread in one tab clears its unread badge in this user's other tabs live.
+    const readSyncRef = useRef(null);
+    // Latest auto-retry fn (a ref so the realtime effect's resync can call it with
+    // fresh state) — re-sends transient-failed sends in the open thread on reconnect.
+    const autoRetryRef = useRef(null);
+    // Ids the user Removed while a send/retry might still be in flight — the deliver
+    // success path checks this so a racing success can't resurrect a discarded bubble.
+    const discardedRef = useRef(new Set());
     const [pendingRequests, setPendingRequests] = useState([]);
     // /u/:username — the handle on the userProfile route. Set by openProfile
     // (in-app navigation) or the boot/popstate URL parse (deep link).
@@ -694,6 +706,7 @@ import { parse as parseLocation, build as buildPath, accessOf, validateNext, tit
     useEffect(() => {
       if (!profile || !profile.id || !isSupabaseConfigured() || !supabase) return;
       let channel;
+      let readChannel = null;
       let cancelled = false;
       let subscribedOnce = false;
       // Coalesce bursts: while a refetch is in flight, mark it dirty and fire
@@ -726,8 +739,10 @@ import { parse as parseLocation, build as buildPath, accessOf, validateNext, tit
           if (cancelled || !data) return;
           if (openPeerIdRef.current !== pid) return;   // switched threads mid-fetch → drop this result
           setThread((cur) => mergeThread(cur, data.slice().reverse()));
+          pruneDeliveredFromStash(pid, data);   // an id now delivered is no longer "failed" — drop any stale stash copy so it can't resurrect
           messageService.markThreadRead(pid);
-          signalRead(pid);   // live "Seen" to the sender on realtime-driven reads too
+          signalRead(pid, data[0] && data[0].createdAt);   // live "Seen" to the sender (server time)
+          signalReadSync(pid);   // clear this peer's unread in my other tabs
           const newest = data[0];   // get_thread is newest-first
           if (newest) setInbox((rows) => bumpInboxRow(rows, pid,
             { lastBody: newest.body, lastAt: newest.createdAt, lastFromMe: newest.fromMe, read: true, lastHasAttachment: !!(newest.attachments && newest.attachments.length) }));
@@ -740,7 +755,7 @@ import { parse as parseLocation, build as buildPath, accessOf, validateNext, tit
         }
       }
 
-      async function resync() { await refetchInbox(); await refetchOpenThread(); }
+      async function resync() { await refetchInbox(); await refetchOpenThread(); if (autoRetryRef.current) autoRetryRef.current(); }
       function onVisible() { if (document.visibilityState === "visible") resync(); }
 
       (async () => {
@@ -764,13 +779,26 @@ import { parse as parseLocation, build as buildPath, accessOf, validateNext, tit
             // pull anything missed. Errors/timeouts: let the client auto-rejoin.
             if (status === "SUBSCRIBED") { if (subscribedOnce) resync(); subscribedOnce = true; }
           });
+        // Cross-tab read-sync: when THIS user reads a thread in another tab, that
+        // tab broadcasts here so we clear the same peer's unread badge live.
+        readChannel = supabase.channel("dm-readsync:" + profile.id, { config: { broadcast: { self: false } } });
+        readChannel.on("broadcast", { event: "read" }, ({ payload }) => {
+          const pid = payload && payload.peerId;
+          if (pid) setInbox((rows) => rows.map((r) => (r.peerId === pid ? { ...r, unreadCount: 0 } : r)));
+        });
+        readChannel.subscribe();
+        readSyncRef.current = readChannel;
       })();
 
       document.addEventListener("visibilitychange", onVisible);
+      window.addEventListener("online", resync);   // browser regained connectivity → pull missed messages + auto-retry transient-failed sends
       return () => {
         cancelled = true;
         document.removeEventListener("visibilitychange", onVisible);
+        window.removeEventListener("online", resync);
         if (channel) supabase.removeChannel(channel);
+        if (readChannel) supabase.removeChannel(readChannel);
+        readSyncRef.current = null;
       };
     }, [profile && profile.id]);
 
@@ -822,10 +850,16 @@ import { parse as parseLocation, build as buildPath, accessOf, validateNext, tit
         if (cancelled) return;
         if (error) { setThreadStatus("error"); return; }
         setThread((cur) => mergeThread(cur, (msgs || []).slice().reverse()));   // merge, not replace — a ping mid-load isn't clobbered
+        pruneDeliveredFromStash(peer.id, msgs);   // drop stash entries already delivered so they can't re-overwrite a confirmed bubble as "failed"
+        // Restore any genuinely failed/unsent bubbles stashed for this peer (a failed
+        // send before a thread switch) so the user can still see + retry them.
+        const stashed = pendingByPeerRef.current.get(peer.id);
+        if (stashed && stashed.length) setThread((cur) => mergeThread(cur, stashed));
         setThreadStatus("ready");
         setThreadHasMore((msgs || []).length >= 50);   // a full page back → there may be older messages
         messageService.markThreadRead(peer.id);
-        signalRead(peer.id);   // tell the peer their messages are now seen (live)
+        signalRead(peer.id, (msgs && msgs[0]) ? msgs[0].createdAt : null);   // tell the peer their messages are now seen (server time)
+        signalReadSync(peer.id);   // clear this peer's unread in my other tabs
         setInbox((rows) => rows.map((r) => (r.peerId === peer.id ? { ...r, unreadCount: 0 } : r)));
       })();
       return () => { cancelled = true; };
@@ -1129,6 +1163,12 @@ import { parse as parseLocation, build as buildPath, accessOf, validateNext, tit
       setRsvped(new Set());
       setConnected([]);
       setIncoming([]);
+      setInbox([]);
+      setThread([]);
+      setThreadPeer(null);
+      setBlocked(new Set());
+      pendingByPeerRef.current = new Map();
+      discardedRef.current = new Set();
       setOrgAccount(null);
       setOrgEvents([]);
       setEventDraftId(null);
@@ -1408,6 +1448,7 @@ import { parse as parseLocation, build as buildPath, accessOf, validateNext, tit
       const prevInbox = inbox;   // snapshot for revert-on-failure
       setInbox((rows) => rows.filter((r) => r.peerId !== peer.id));
       if (route === "messageThread") { setThread([]); setRoute("messages"); window.scrollTo({ top: 0 }); }
+      pendingByPeerRef.current.delete(peer.id);   // drop any failed/unsent bubbles for this peer so they can't resurrect on reopen
       toast("Conversation deleted", "check");
       if (!isSupabaseConfigured()) return;
       const { error } = await messageService.deleteConversation(peer.id);
@@ -1524,40 +1565,125 @@ import { parse as parseLocation, build as buildPath, accessOf, validateNext, tit
       if (!peer || !peer.id || (!text && !list.length)) return;
       deliverThreadMessage(newId(), peer, text, list);
     }
-    // Mark a failed optimistic message so the bubble offers retry (kept in place,
-    // not removed — removing would lose the user's text/files).
-    function markSendFailed(id) {
-      setThread((t) => t.map((m) => (m.id === id ? { ...m, pending: false, failed: true } : m)));
-    }
     // Re-send a failed message with the SAME id (idempotent server-side). Reuses
-    // the original File objects stashed on the optimistic row.
+    // the original File objects AND any attachments that already uploaded on the
+    // first attempt (m._metas) so the retry doesn't re-upload them.
     function retryThreadMessage(m) {
       if (!m || !m.id || !threadPeer) return;
       setThread((t) => t.map((x) => (x.id === m.id ? { ...x, failed: false, pending: true } : x)));
-      deliverThreadMessage(m.id, threadPeer, m.body || "", m._files || []);
+      // Mark the stash entry in-flight (_autoRetried) so a concurrent reconnect
+      // auto-retry can't ALSO re-send the same id while this manual retry is pending.
+      // If this attempt re-fails, fail() rebuilds the entry with _autoRetried:false,
+      // re-arming one automatic retry on the next reconnect.
+      const inflight = (pendingByPeerRef.current.get(threadPeer.id) || []).map((x) => (x.id === m.id ? { ...x, _autoRetried: true } : x));
+      pendingByPeerRef.current.set(threadPeer.id, inflight);
+      deliverThreadMessage(m.id, threadPeer, m.body || "", m._files || [], m._metas || null);
     }
+    // Remove a FAILED (optimistic, never-persisted) message from the thread + the
+    // per-peer stash. Guarded to failed bubbles ONLY — a delivered message can never
+    // be removed here, and its bubble never renders the Remove control.
+    function discardFailedMessage(m) {
+      if (!m || !m.id || !m.failed) return;
+      discardedRef.current.add(m.id);   // if a send/retry for this id is mid-flight, its success must not resurrect the bubble
+      (m.attachments || []).forEach((a) => { if (a && a.url && a.url.startsWith("blob:")) { try { URL.revokeObjectURL(a.url); } catch (e) {} } });
+      setThread((t) => t.filter((x) => x.id !== m.id));
+      const peerId = threadPeer && threadPeer.id;
+      if (peerId) {
+        const arr = (pendingByPeerRef.current.get(peerId) || []).filter((x) => x.id !== m.id);
+        if (arr.length) pendingByPeerRef.current.set(peerId, arr); else pendingByPeerRef.current.delete(peerId);
+      }
+    }
+    // A message whose id now appears as a CONFIRMED (delivered) server row is no
+    // longer "failed" — drop any stale per-peer stash entry for it so a false-failure
+    // (committed server-side, but the HTTP response was lost) can't resurrect a
+    // delivered message as a "Failed to send" bubble on the next thread reopen.
+    function pruneDeliveredFromStash(peerId, serverRows) {
+      if (!peerId) return;
+      const arr = pendingByPeerRef.current.get(peerId);
+      if (!arr || !arr.length) return;
+      const delivered = new Set((serverRows || []).map((r) => r && r.id));
+      const next = arr.filter((x) => !delivered.has(x.id));
+      if (next.length === arr.length) return;
+      if (next.length) pendingByPeerRef.current.set(peerId, next); else pendingByPeerRef.current.delete(peerId);
+    }
+    // Auto-retry on reconnect/refocus (called from the realtime resync): re-send the
+    // OPEN thread's TRANSIENT-failed bubbles ONCE. The idempotent id + reused
+    // _files/_metas mean a re-send can't duplicate; _autoRetried gates it to a single
+    // attempt so a flapping network can't loop. Permanent failures (rate-limit /
+    // blocked / validation) are skipped — they stay as manual Retry.
+    function autoRetryFailed() {
+      const peer = threadPeer;
+      if (!peer || !peer.id || openPeerIdRef.current !== peer.id) return;
+      const targets = (pendingByPeerRef.current.get(peer.id) || []).filter((m) => m.failed && m._autoRetryable && !m._autoRetried && !discardedRef.current.has(m.id));
+      for (const m of targets) {
+        const arr = (pendingByPeerRef.current.get(peer.id) || []).map((x) => (x.id === m.id ? { ...x, _autoRetried: true } : x));
+        pendingByPeerRef.current.set(peer.id, arr);
+        setThread((t) => t.map((x) => (x.id === m.id ? { ...x, failed: false, pending: true, _autoRetried: true } : x)));
+        deliverThreadMessage(m.id, peer, m.body || "", m._files || [], m._metas || null, { autoRetried: true });
+      }
+    }
+    autoRetryRef.current = autoRetryFailed;   // keep the ref on the latest closure so resync sees fresh thread state
     // Shared send pipeline (first attempt + retry): optimistic pending bubble →
     // upload any attachments to Storage → send_message → reconcile or mark failed.
-    // Attachments + the wrong-thread guard make this longer than a plain text send.
-    async function deliverThreadMessage(id, peer, text, files) {
+    // A failed send is STASHED per peer (pendingByPeerRef) so its text + files
+    // survive a thread switch and re-merge on reopen. `preMetas` (retry only) are
+    // attachment rows that already uploaded, so we skip re-uploading them.
+    async function deliverThreadMessage(id, peer, text, files, preMetas, opts) {
       const at = new Date().toISOString();
-      const optimisticAtts = (files || []).map((f) => ({
+      const fileList = files || [];
+      const optimisticAtts = fileList.map((f) => ({
         name: f.name, mime: f.type, size: f.size,
         url: (f.type || "").startsWith("image/") ? URL.createObjectURL(f) : null,
       }));
-      setThread((t) => upsertMessage(t, { id, peerId: peer.id, fromMe: true, body: text, createdAt: at, readAt: null, pending: true, failed: false, attachments: optimisticAtts, _files: files || [] }));
+      const blobUrls = optimisticAtts.map((a) => a.url).filter((u) => u && u.startsWith("blob:"));
+      // A retry mints fresh preview blob URLs; free the PRIOR attempt's stashed ones
+      // for this id so each retry doesn't leak an object URL.
+      const prior = (pendingByPeerRef.current.get(peer.id) || []).find((x) => x.id === id);
+      if (prior) (prior.attachments || []).forEach((a) => { if (a && a.url && a.url.startsWith("blob:")) { try { URL.revokeObjectURL(a.url); } catch (e) {} } });
+      const optimisticRow = { id, peerId: peer.id, fromMe: true, body: text, createdAt: at, readAt: null, pending: true, failed: false, attachments: optimisticAtts, _files: fileList };
+      setThread((t) => upsertMessage(t, optimisticRow));
       if (!isSupabaseConfigured()) return;
 
-      // Upload attachments first (own-folder Storage write); any failure → retryable.
-      const metas = [];
-      for (const f of (files || [])) {
-        const { data: meta, error: upErr } = await messageService.uploadAttachment(f, id);
-        if (upErr) { markSendFailed(id); toast(upErr.message || "Couldn't upload that file", "x"); return; }
-        metas.push(meta);
+      // Mark failed, keep the bubble (its preview blob URL stays alive for retry),
+      // and stash it under this peer so a thread switch doesn't lose it. keepMetas
+      // is passed ONLY when every attachment already uploaded (the SEND failed) so
+      // a retry can skip re-uploading; an upload failure forces a full re-upload.
+      // keepMetas: passed only on a SEND failure (all uploads done) so a retry can
+      // skip re-uploading. err drives auto-retry classification: a TRANSIENT failure
+      // (network / no SQLSTATE / PT500 server fault) is eligible for one automatic
+      // retry on reconnect; PERMANENT ones (PT401/403/422/429 — auth, blocked,
+      // validation, rate-limit) stay manual-only.
+      const fail = (keepMetas, err) => {
+        const autoRetryable = !err || !err.code || err.code === "PT500";
+        const failedRow = { ...optimisticRow, pending: false, failed: true, _metas: keepMetas, _autoRetryable: autoRetryable, _autoRetried: !!(opts && opts.autoRetried) };
+        setThread((t) => t.map((m) => (m.id === id ? failedRow : m)));
+        const map = pendingByPeerRef.current;
+        const arr = (map.get(peer.id) || []).filter((x) => x.id !== id);
+        arr.push(failedRow);
+        map.set(peer.id, arr);
+      };
+
+      // Upload attachments first (own-folder Storage write), unless a retry already
+      // carries them. A per-file index keeps same-named files from colliding.
+      let metas = Array.isArray(preMetas) ? preMetas : [];
+      if (!metas.length && fileList.length) {
+        for (let i = 0; i < fileList.length; i++) {
+          const { data: meta, error: upErr } = await messageService.uploadAttachment(fileList[i], id, i);
+          if (upErr) { fail(undefined, upErr); toast(upErr.message || "Couldn't upload that file", "x"); return; }
+          metas.push(meta);
+        }
       }
 
       const { data, error } = await messageService.sendMessage(peer.id, text, id, metas);
-      if (error) { markSendFailed(id); toast(error.message || "Couldn't send message", "x"); return; }
+      if (error) { fail(metas, error); toast(error.message || "Couldn't send message", "x"); return; }
+      // Success: drop the per-peer stash entry and free the optimistic blob URLs.
+      const map = pendingByPeerRef.current;
+      const left = (map.get(peer.id) || []).filter((x) => x.id !== id);
+      if (left.length) map.set(peer.id, left); else map.delete(peer.id);
+      blobUrls.forEach((u) => { try { URL.revokeObjectURL(u); } catch (e) {} });
+      // The user tapped Remove on this bubble while the send was mid-flight: honor it
+      // (don't resurrect the bubble locally) even though it reached the server.
+      if (discardedRef.current.has(id)) { discardedRef.current.delete(id); return; }
       // Only reconcile the OPEN thread's bubbles if we're still on this peer — a
       // mid-send peer switch (setThread([]) ran for the new peer) must not splice
       // this confirmed message into another conversation. The inbox bump is keyed
@@ -1583,11 +1709,21 @@ import { parse as parseLocation, build as buildPath, accessOf, validateNext, tit
     }
     // Live read-receipt signal — tell the open peer "I've read up to now" so their
     // sent bubbles flip to "Seen" instantly (the dm-receipts broadcast channel).
-    function signalRead(peerId) {
+    function signalRead(peerId, at) {
       const c = dmReceiptRef.current;
       if (c && c.peerId === peerId && c.ch && profile) {
-        c.ch.send({ type: "broadcast", event: "read", payload: { by: profile.id, at: new Date().toISOString() } });
+        // `at` is the newest SERVER created_at the reader has loaded (not a client
+        // wall clock) so the sender's createdAt<=at gate compares server-time to
+        // server-time — clock skew can't suppress the Seen flip. Null → flip all.
+        c.ch.send({ type: "broadcast", event: "read", payload: { by: profile.id, at: at || null } });
       }
+    }
+    // Tell THIS user's OTHER tabs a thread was just read so their unread badge for
+    // that peer clears live (the dm-self stream is INSERT-only — a read in one tab
+    // is otherwise invisible to siblings until the next hydration/focus).
+    function signalReadSync(peerId) {
+      const ch = readSyncRef.current;
+      if (ch && peerId) { try { ch.send({ type: "broadcast", event: "read", payload: { peerId } }); } catch (e) {} }
     }
 
     async function submitModal(text, role) {
@@ -2268,6 +2404,7 @@ import { parse as parseLocation, build as buildPath, accessOf, validateNext, tit
           onUnblock: () => unblockPeer(threadPeer),
           onDelete: () => requestDeleteConversation(threadPeer),
           onRetry: retryThreadMessage,
+          onDiscard: discardFailedMessage,
           onLoadEarlier: loadEarlierThread,
           hasMore: threadHasMore,
           loadingEarlier,

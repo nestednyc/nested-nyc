@@ -905,7 +905,7 @@ input, textarea, select { font-family: inherit; }
 
 /* ---- messages inbox (S4: read-only conversation list) ---- */
 .msg-list { display: flex; flex-direction: column; gap: 12px; margin-top: 8px; }
-.msg-row { display: flex; align-items: center; gap: 14px; background: var(--paper); border-radius: 10px; box-shadow: var(--shadow-card); padding: 14px 18px; border: 1.5px solid var(--paper-edge); cursor: pointer; transition: border-color .12s ease, background .12s ease; }
+.msg-row { display: flex; align-items: center; gap: 14px; background: var(--paper); border-radius: 10px; box-shadow: var(--shadow-card); padding: 12px 16px; border: 1.5px solid var(--paper-edge); cursor: pointer; transition: border-color .12s ease, background .12s ease; }
 .msg-row:hover { border-color: var(--accent); background: var(--accent-wash); }
 .msg-row .av { width: 46px; height: 46px; font-size: 16px; flex: none; }
 .msg-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
@@ -918,7 +918,7 @@ input, textarea, select { font-family: inherit; }
 @media (max-width: 860px) { .msg-row { padding: 12px 14px; gap: 11px; } }
 
 /* ---- messages thread (S5: one conversation + composer) ---- */
-.thread { max-width: 720px; margin: 0 auto; padding: 18px clamp(16px, 3vw, 32px) 128px; }
+.thread { max-width: 720px; margin: 0 auto; padding: 18px clamp(16px, 3vw, 32px) 150px; }
 .thread-head { display: flex; align-items: center; gap: 16px; padding-bottom: 14px; border-bottom: 1.5px solid var(--line); margin-bottom: 18px; flex-wrap: wrap; }
 .thread-peer { display: flex; align-items: center; gap: 10px; background: none; border: none; cursor: pointer; padding: 4px 8px; border-radius: 10px; }
 .thread-peer:hover { background: var(--accent-wash); }
@@ -926,7 +926,7 @@ input, textarea, select { font-family: inherit; }
 .thread-peer-id { display: flex; flex-direction: column; line-height: 1.15; text-align: left; }
 .thread-peer-id b { font-family: var(--disp); font-weight: 700; font-size: 16px; color: var(--ink); }
 .thread-peer-id small { font-family: var(--mono); font-size: 11px; color: var(--ink-faint); }
-.thread-scroll { display: flex; flex-direction: column; gap: 8px; }
+.thread-scroll { display: flex; flex-direction: column; gap: 2px; }
 .bubble-row { display: flex; }
 .bubble-row.me { justify-content: flex-end; }
 .bubble-row.them { justify-content: flex-start; }
@@ -937,13 +937,21 @@ input, textarea, select { font-family: inherit; }
 .bubble.me { background: var(--accent); color: var(--paper); border-bottom-right-radius: 5px; }
 .bubble.me .bubble-time { color: var(--paper); }
 .bubble.pending { opacity: .55; }
+/* message grouping (a consecutive same-sender run): tighter spacing + flattened
+   inner corners so a run reads as one stack; the timestamp shows on the last only */
+.bubble-row.group-start { margin-top: 12px; }
+.thread-scroll > .bubble-row:first-child { margin-top: 0; }
+.bubble.me:not(.gstart) { border-top-right-radius: 4px; }
+.bubble.me:not(.gend) { border-bottom-right-radius: 4px; }
+.bubble.them:not(.gstart) { border-top-left-radius: 4px; }
+.bubble.them:not(.gend) { border-bottom-left-radius: 4px; }
 .thread-empty { text-align: center; color: var(--ink-soft); padding: 56px 20px; display: flex; flex-direction: column; align-items: center; gap: 12px; }
 .thread-empty p { font-size: 15px; }
-.composer { position: sticky; bottom: 12px; display: flex; gap: 10px; align-items: flex-end; padding: 10px; margin-top: 16px; background: var(--paper); border: 1.5px solid var(--paper-edge); border-radius: 14px; box-shadow: var(--shadow-card); }
+.composer { position: sticky; bottom: calc(12px + env(safe-area-inset-bottom)); display: flex; gap: 10px; align-items: flex-end; padding: 10px; margin-top: 16px; background: var(--paper); border: 1.5px solid var(--paper-edge); border-radius: 14px; box-shadow: var(--shadow-card); }
 .composer-input { flex: 1; box-sizing: border-box; border: none; background: transparent; padding: 7px 8px; font-family: var(--body); font-size: 15px; line-height: 1.4; color: var(--ink); resize: none; min-height: 30px; max-height: 140px; outline: none; }
 .composer-send { flex: none; padding: 0; width: 40px; height: 40px; border-radius: 10px; display: grid; place-items: center; }
 .composer-send:disabled { opacity: .45; cursor: default; }
-@media (max-width: 860px) { .thread { padding: 14px 14px 112px; } .bubble { max-width: 84%; } }
+@media (max-width: 860px) { .thread { padding: 14px 14px calc(132px + env(safe-area-inset-bottom)); } .bubble { max-width: 84%; } }
 
 /* ---- messages: conversation overflow menu + block states (S7) ---- */
 .thread-more { margin-left: auto; position: relative; }
@@ -958,11 +966,11 @@ input, textarea, select { font-family: inherit; }
 .blocklink { display: inline-flex; align-items: center; gap: 7px; background: none; border: none; cursor: pointer; padding: 7px 10px; border-radius: 8px; font-family: var(--mono); font-size: 12.5px; color: var(--ink-faint); }
 .blocklink:hover { color: var(--c-startup); background: color-mix(in oklch, var(--c-startup) 10%, transparent); }
 .blocklink.blocked { color: var(--c-startup); }
-.msg-row:focus-visible, .thread-peer:focus-visible, .thread-more .iconbtn:focus-visible, .thread-menu-item:focus-visible, .blocklink:focus-visible, .composer-send:focus-visible, .back:focus-visible { outline: 2.5px solid var(--accent); outline-offset: 2px; }
+.msg-row:focus-visible, .thread-peer:focus-visible, .thread-more .iconbtn:focus-visible, .thread-menu-item:focus-visible, .blocklink:focus-visible, .composer-send:focus-visible, .back:focus-visible, .bubble-retry:focus-visible, .bubble-discard:focus-visible { outline: 2.5px solid var(--accent); outline-offset: 2px; }
 
 /* ---- DM chat features: status / date dividers / retry / pagination / attachments ---- */
 /* delivery status line under the latest sent message */
-.bubble-status { align-self: flex-end; font-family: var(--mono); font-size: 10.5px; color: var(--ink-faint); margin: -3px 5px 3px 0; }
+.bubble-status { align-self: flex-end; font-family: var(--mono); font-size: 10.5px; color: var(--ink-soft); background: color-mix(in oklch, var(--ink) 9%, transparent); padding: 2px 9px; border-radius: 999px; margin: 1px 5px 4px 0; }
 /* date divider */
 .thread-day { text-align: center; margin: 12px 0 4px; }
 .thread-day span { font-family: var(--mono); font-size: 11px; color: var(--ink-soft); background: color-mix(in oklch, var(--ink) 9%, transparent); padding: 3px 11px; border-radius: 999px; }
@@ -971,18 +979,23 @@ input, textarea, select { font-family: inherit; }
 .bubble.me.failed .bubble-time { color: var(--ink-soft); }
 .bubble-retry { display: inline-flex; align-items: center; gap: 5px; margin-top: 3px; padding: 0; border: none; background: none; cursor: pointer; font-family: var(--mono); font-size: 10.5px; color: var(--c-startup); align-self: flex-end; }
 .bubble-retry:hover { text-decoration: underline; }
+.bubble-failed-actions { display: flex; align-items: center; gap: 12px; margin: 4px 0 1px; align-self: flex-end; }
+.bubble-failed-label { font-family: var(--mono); font-size: 10.5px; color: var(--c-startup); }
+.bubble-failed-actions .bubble-retry { margin-top: 0; align-self: auto; }
+.bubble-discard { display: inline-flex; align-items: center; gap: 5px; padding: 0; border: none; background: none; cursor: pointer; font-family: var(--mono); font-size: 10.5px; color: var(--ink-faint); }
+.bubble-discard:hover { color: var(--c-startup); text-decoration: underline; }
 /* load earlier */
 .thread-loadmore { display: flex; justify-content: center; padding: 4px 0 10px; }
 .thread-loadmore .btn { font-family: var(--mono); font-size: 12px; }
 /* composer additions */
-.composer-wrap { position: sticky; bottom: 12px; margin-top: 16px; }
+.composer-wrap { position: sticky; bottom: calc(12px + env(safe-area-inset-bottom)); margin-top: 16px; }
 .composer-wrap .composer { position: static; margin-top: 0; }
 .composer-attach { flex: none; width: 38px; height: 38px; border-radius: 10px; display: grid; place-items: center; background: none; border: none; cursor: pointer; color: var(--ink-soft); }
 .composer-attach:hover { background: var(--accent-wash); color: var(--accent); }
 .composer-count { font-family: var(--mono); font-size: 10.5px; color: var(--ink-faint); align-self: flex-end; padding-bottom: 11px; }
 .composer-count.at-max { color: var(--c-startup); }
 /* attachments inside a bubble */
-.att-list { display: flex; flex-direction: column; gap: 6px; }
+.dm-att-list { display: flex; flex-direction: column; gap: 6px; }
 .att-img { display: block; }
 .att-img img { max-width: min(260px, 60vw); max-height: 280px; border-radius: 11px; display: block; }
 .att-doc { display: flex; align-items: center; gap: 9px; padding: 8px 11px; border-radius: 10px; text-decoration: none; color: inherit; background: color-mix(in oklch, var(--ink) 7%, transparent); }
