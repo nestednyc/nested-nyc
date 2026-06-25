@@ -59,6 +59,11 @@ export const connectionService = {
       .insert({ user_id: user.id, target_id: targetId })
 
     if (error && error.code === '23505') return { error: null } // already connected
+    // PT429 from the rate-limit trigger (migration 20260625000001) → friendly
+    // message so the NestedApp "Couldn't connect — …" toast reads cleanly.
+    if (error && error.code === 'PT429') {
+      return { error: { ...error, message: "you're connecting too fast, take a short break and try again" } }
+    }
     return { error }
   },
 

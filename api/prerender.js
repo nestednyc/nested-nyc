@@ -25,6 +25,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createClient } from "@supabase/supabase-js";
+import { limit, clientIp } from "./_rate-limit.js";
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const ANON_KEY = process.env.SUPABASE_ANON_KEY;
@@ -248,6 +249,16 @@ export default async function handler(req, res) {
     return res.status(200).send("<!doctype html><html><head><meta charset=\"utf-8\"></head><body><div id=\"root\"></div></body></html>");
   }
   if (!supa) {
+    res.setHeader("Cache-Control", "public, s-maxage=60");
+    return res.status(200).send(html);
+  }
+
+  // Per-IP cap on cache-MISS invocations (Vercel's CDN serves most hits). Over
+  // the limit we skip the DB enrichment and serve the plain shell — never a 429
+  // a crawler might cache — so a flood of uncached URLs can't become unbounded
+  // DB load. The limiter uses its own isolated service-role client; this
+  // function still reads entities with the ANON key only.
+  if (!(await limit(`prerender:${clientIp(req)}`, 120, 60))) {
     res.setHeader("Cache-Control", "public, s-maxage=60");
     return res.status(200).send(html);
   }

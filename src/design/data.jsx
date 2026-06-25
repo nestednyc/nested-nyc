@@ -37,6 +37,19 @@
   ];
   const UNI = Object.fromEntries(UNIVERSITIES.map((u) => [u.id, u]));
 
+  // Email-domain → supported university. Matches the domain exactly OR as a
+  // subdomain of a supported domain (baruch.cuny.edu → CUNY), while rejecting
+  // look-alikes (notnyu.edu does NOT match nyu.edu). The server enforces the
+  // same list in public.is_supported_edu_email() — keep the two in sync.
+  function uniByEmailDomain(email) {
+    const at = String(email == null ? "" : email).trim().toLowerCase().split("@")[1] || "";
+    if (!at) return null;
+    return UNIVERSITIES.find((u) => at === u.domain || at.endsWith("." + u.domain)) || null;
+  }
+  function isSupportedEduEmail(email) {
+    return !!uniByEmailDomain(email);
+  }
+
   const MAJORS = [
     "Computer Science", "Design / Comm Design", "Business", "Mechanical Eng",
     "Economics", "Fine Arts", "Data Science", "Architecture", "Film / Media",
@@ -209,6 +222,7 @@
     LINK_ICON, avColor, initials, findById, orgEventsOf, sortByDay,
     ownerToken, isProjectAdmin, isProjectOwner, projectAdminSet, coLeadsOf,
     STATUSES, STATUS, statusMeta, DEFAULT_STATUS,
+    uniByEmailDomain, isSupportedEduEmail,
   };
 
   export const NestedData = {

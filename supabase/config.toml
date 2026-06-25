@@ -31,3 +31,25 @@ double_confirm_changes = true
 # Local testing: auto-confirm signups (.edu enforcement stays off for now)
 enable_confirmations = false
 
+# Rate limits. config.toml governs the LOCAL stack only — these MUST be mirrored
+# in the Supabase dashboard (Authentication -> Rate Limits) for prod project
+# fkiyjxxiysbvmflbibsu, which is the load-bearing copy. With no CAPTCHA, these
+# are the primary defense for the auth/email path. Tuned to NOT block two normal
+# situations: a signup WAVE (a club shares the link → many signups/hour) and
+# CAMPUS NAT (hundreds of students behind one egress IP). Re-tune to real traffic.
+[auth.rate_limit]
+# Auth emails (confirm / magic link / recovery) per hour, PROJECT-WIDE. Must sit
+# above a real signup wave or legit students stop getting their OTP. Custom SMTP
+# (Resend) lifts the old built-in 2/hr ceiling. Single-victim bombing is capped
+# by the per-IP limits below, not by this global number.
+email_sent = 150
+# Per 5 min per IP — sign-up + sign-in attempts. Raised for campus NAT (many
+# students share one egress IP), still well under credential-stuffing volume.
+sign_in_sign_ups = 60
+# Per 5 min per IP — OTP / confirmation verification attempts (also NAT-shared).
+token_verifications = 60
+# Per 5 min per IP — access-token refreshes (one per active session; NAT-shared).
+token_refresh = 300
+# Per hour per IP — anonymous sign-ins (unused today; capped defensively).
+anonymous_users = 10
+

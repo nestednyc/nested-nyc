@@ -19,6 +19,7 @@
    ============================================================ */
 import crypto from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
+import { limit, clientIp } from "./_rate-limit.js";
 
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -135,7 +136,11 @@ export default async function handler(req, res) {
   }
 
   // POST — the actual change. Fired by the button above OR by a provider's
-  // RFC-8058 one-click unsubscribe.
+  // RFC-8058 one-click unsubscribe. The HMAC token already gates this; the
+  // per-IP cap just stops hammering.
+  if (!(await limit(`unsubscribe:${clientIp(req)}`, 20, 60))) {
+    return res.status(429).send(note("Too many requests", "Please wait a moment and try again."));
+  }
   if (action === "resubscribe") {
     const { error } = await setOptOut(userId, false);
     if (error) return res.status(500).send(note("Something went wrong", "We couldn't update your preferences. Please try again."));

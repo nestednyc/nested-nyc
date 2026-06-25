@@ -5,7 +5,7 @@
    ============================================================ */
 import React from 'react'
 import Icon from './icons'
-import { UNIVERSITIES, UNI, MAJORS, INTERESTS } from './data'
+import { UNIVERSITIES, UNI, MAJORS, INTERESTS, isSupportedEduEmail, uniByEmailDomain } from './data'
 import { Stamp, Av } from './shared'
 import { authService, isSupabaseConfigured, getErrorMessage } from '../lib/supabase'
 import { lookupService } from '../services/lookupService'
@@ -27,9 +27,8 @@ import { toDbProfile, fromDbProfile } from './profileAdapter'
   };
 
   function detectUni(email) {
-    const at = email.split("@")[1] || "";
-    const u = UNIVERSITIES.find((x) => at.endsWith(x.domain));
-    return u || null;
+    // Robust exact-or-subdomain match, shared with signup validation.
+    return uniByEmailDomain(email);
   }
 
   function UniSeal({ u }) {
@@ -107,7 +106,11 @@ import { toDbProfile, fromDbProfile } from './profileAdapter'
 
     const totalSteps = mode === "signup" ? SIGNUP_STEPS : SIGNIN_STEPS;
 
-    const isEdu = /@[^@]+\.edu$/.test(email.trim());
+    // Signup requires a SUPPORTED NYC-uni email (allow-list); sign-in stays
+    // lenient (any .edu) so accounts created before the allow-list still work.
+    const isEdu = mode === "signup"
+      ? isSupportedEduEmail(email)
+      : /@[^@]+\.edu$/.test(email.trim());
     const detected = detectUni(email.trim());
 
     const passwordValid = password.length >= 6 && /[A-Z]/.test(password);
@@ -418,7 +421,7 @@ import { toDbProfile, fromDbProfile } from './profileAdapter'
             emailError
               ? React.createElement("div", { className: "hint err" }, "// " + emailError)
               : emailTouched && email && !isEdu
-                ? React.createElement("div", { className: "hint err" }, "// must be a .edu address")
+                ? React.createElement("div", { className: "hint err" }, "// use a supported NYC school email")
                 : detected
                   ? React.createElement("div", { className: "hint ok" }, "// recognized — " + detected.full)
                   : React.createElement("div", { className: "hint" }, "// NYU · Columbia · Cooper · Parsons · CUNY · Fordham …")

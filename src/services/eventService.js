@@ -146,6 +146,11 @@ export const eventService = {
       .select()
       .single()
 
+    // PT429 from the event-creation rate-limit trigger (migration 20260625000001)
+    // → friendly message for the create-event error toast.
+    if (error && error.code === 'PT429') {
+      return { data: null, error: { ...error, message: "you're creating events too fast, take a short break and try again" } }
+    }
     return { data, error }
   },
 
@@ -230,6 +235,11 @@ export const eventService = {
       .select()
       .single()
 
+    // PT429 from the RSVP rate-limit trigger (migration 20260625000001) →
+    // friendly message for the "RSVP didn't save — …" toast.
+    if (error && error.code === 'PT429') {
+      return { data: null, error: { ...error, message: "you're RSVPing too fast, take a short break and try again" } }
+    }
     return { data, error }
   },
 

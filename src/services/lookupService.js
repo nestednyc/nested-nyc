@@ -12,25 +12,27 @@ export const lookupService = {
    * @returns {Promise<{exists: boolean, error: object|null}>}
    */
   async checkEmailExists(email) {
-    if (!isSupabaseConfigured() || !supabase) {
-      return { exists: false, error: { message: 'Service not configured' } }
-    }
-
     if (!email || typeof email !== 'string') {
       return { exists: false, error: { message: 'Invalid email' } }
     }
 
+    // Goes through the /api/check-email proxy (service-role + per-IP rate limit)
+    // instead of the RPC directly — anon EXECUTE on check_email_exists was
+    // revoked to kill email enumeration (migration 20260625000001). This is a
+    // signup UX hint only, so ANY failure (404 in local `vite` dev with no
+    // Vercel runtime, 429, 5xx, network) fails OPEN: report "doesn't exist" and
+    // let signup proceed — Supabase still enforces email uniqueness.
     try {
-      const { data, error } = await supabase.rpc('check_email_exists', {
-        email_to_check: email.toLowerCase().trim()
+      const res = await fetch('/api/check-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.toLowerCase().trim() }),
       })
-
-      if (error) {
-        console.error('Email lookup error:', error)
-        return { exists: false, error }
+      if (!res.ok) {
+        return { exists: false, error: { code: res.status, message: 'Lookup unavailable' } }
       }
-
-      return { exists: data === true, error: null }
+      const data = await res.json()
+      return { exists: data && data.exists === true, error: null }
     } catch (err) {
       console.error('Email lookup exception:', err)
       return { exists: false, error: { message: 'Lookup failed' } }

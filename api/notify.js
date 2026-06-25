@@ -170,6 +170,18 @@ async function planJoinApproved(tm, old) {
 
 async function planNewConnection(c) {
   if (!c || !c.target_id || !c.user_id) return null;
+
+  // Dedupe: email a given source→target connection only ONCE. connect →
+  // disconnect → reconnect deletes & re-inserts the connections row, re-firing
+  // this webhook; connection_notify_log persists across that churn (it is never
+  // deleted), so a PK conflict here means "already emailed" → skip the send.
+  const { error: logErr } = await admin
+    .from("connection_notify_log")
+    .insert({ user_id: c.user_id, target_id: c.target_id });
+  if (logErr && logErr.code === "23505") return null; // already notified this pair
+  // Any other log error: fall through and email anyway — a logging hiccup must
+  // never drop a legitimate first-time notification.
+
   const { data: source } = await admin
     .from("profiles")
     .select("first_name,last_name,username,university")

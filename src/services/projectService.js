@@ -419,6 +419,11 @@ export const projectService = {
       .select()
       .single()
 
+    // PT429 from the join-request rate-limit trigger (migration 20260625000001)
+    // → friendly message for the "Request didn't send — …" toast.
+    if (error && error.code === 'PT429') {
+      return { data: null, error: { ...error, message: "you're sending join requests too fast, take a short break and try again" } }
+    }
     return { data, error }
   },
 

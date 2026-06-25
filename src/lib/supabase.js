@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import { isSupportedEduEmail } from '../design/data'
 
 /**
  * Supabase Configuration
@@ -170,8 +171,11 @@ export const authService = {
       }
     }
 
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    if (!emailRegex.test(email)) {
+    // Require a real domain: label(.label)+ with no empty labels, so junk like
+    // a@b..c / a@.b / a@b. is rejected. (Deliverability is still proven by the
+    // OTP confirmation — this is just input hygiene.)
+    const emailRegex = /^[^\s@]+@[^\s@.]+(\.[^\s@.]+)+$/
+    if (!emailRegex.test(email.trim())) {
       return {
         valid: false,
         error: {
@@ -193,14 +197,17 @@ export const authService = {
     const formatValidation = this.validateEmailFormat(email)
     if (!formatValidation.valid) return formatValidation
 
-    // Student-only network: require a .edu address. Org admins sign up via
-    // signUpAsOrg(), which skips this check (the DB trigger exempts them too).
-    if (!email.trim().toLowerCase().endsWith('.edu')) {
+    // Student-only network: require a SUPPORTED NYC-university email (allow-list
+    // in data.jsx UNIVERSITIES[].domain, subdomain-aware so baruch.cuny.edu
+    // passes). Org admins sign up via signUpAsOrg(), which skips this; the
+    // handle_new_user trigger enforces the same allow-list server-side. Sign-in
+    // stays format-only so accounts created before the allow-list aren't locked out.
+    if (!isSupportedEduEmail(email)) {
       return {
         valid: false,
         error: {
-          message: 'Use your school email — a .edu address is required to join.',
-          code: 'NOT_EDU_EMAIL'
+          message: 'Use your school email — we currently support NYU, Columbia, CUNY, and other NYC campuses.',
+          code: 'NOT_SUPPORTED_EDU'
         }
       }
     }

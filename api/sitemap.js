@@ -11,6 +11,7 @@
    and anon-visible events. Gated routes are never emitted.
    ============================================================ */
 import { createClient } from "@supabase/supabase-js";
+import { limit, clientIp } from "./_rate-limit.js";
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const ANON_KEY = process.env.SUPABASE_ANON_KEY;
@@ -47,7 +48,11 @@ export default async function handler(req, res) {
 
   const urls = [url(SITE + "/"), url(SITE + "/events")];
 
-  if (supa) {
+  // Per-IP cap on cache-miss invocations; over the limit, emit just the static
+  // URLs (skip the three 5k-row queries) rather than 429-ing a crawler.
+  const allowed = await limit(`sitemap:${clientIp(req)}`, 60, 60);
+
+  if (supa && allowed) {
     const [projects, events, orgs] = await Promise.all([
       supa.from("projects").select("id, updated_at, created_at").eq("publish_to_discover", true).order("updated_at", { ascending: false }).limit(5000),
       supa.from("events").select("id, created_at").order("created_at", { ascending: false }).limit(5000),
