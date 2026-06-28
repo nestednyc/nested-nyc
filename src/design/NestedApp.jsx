@@ -2209,8 +2209,6 @@ import { parse as parseLocation, build as buildPath, accessOf, validateNext, tit
                 onChange: (e) => { setQuery(e.target.value); if (route !== "discover") setRoute("discover"); },
               })
             ),
-            profile && React.createElement("button", { className: "iconbtn", onClick: () => goNav("saved"), title: "Saved projects" },
-              React.createElement(Icon, { name: "bookmark", size: 20 })),
             profile && React.createElement("button", {
               className: "iconbtn", onClick: () => { setRoute("messages"); window.scrollTo({ top: 0 }); }, title: "Messages",
             },
@@ -2265,6 +2263,7 @@ import { parse as parseLocation, build as buildPath, accessOf, validateNext, tit
                 uniName: (NestedData.UNI[profile.uni] || {}).name,
                 onViewProfile: () => { setRoute("profile"); window.scrollTo({ top: 0 }); },
                 onEditProfile: () => { setProfileEditOnArrive(true); setRoute("profile"); window.scrollTo({ top: 0 }); },
+                onViewSaved: () => goNav("saved"),
                 onSignOut: requestSignOut,
                 onClose: () => setAcctOpen(false),
               })
@@ -2343,6 +2342,7 @@ import { parse as parseLocation, build as buildPath, accessOf, validateNext, tit
           connected,
           onConnect,
           onDisconnect,
+          onMessage: (person) => openThread(person),
           onOpenPerson: (person) => openPerson(person.handle),
           loading: projectsLoading,
           error: loadErrors && loadErrors.people,
@@ -2384,31 +2384,51 @@ import { parse as parseLocation, build as buildPath, accessOf, validateNext, tit
           onRetry: retrySurface,
         }),
 
-        route === "messages" && React.createElement(Messages, {
-          conversations,
-          loading: projectsLoading,
-          error: loadErrors && loadErrors.messages,
-          onRetry: retrySurface,
-          onOpenThread: openThread,
-        }),
-
-        route === "messageThread" && React.createElement(MessageThread, {
-          peer: threadPeer,
-          messages: thread,
-          status: threadStatus,
-          onSend: sendThreadMessage,
-          onBack: () => { setRoute("messages"); window.scrollTo({ top: 0 }); },
-          onOpenProfile: () => { if (threadPeer && threadPeer.handle) openPerson(threadPeer.handle); },
-          isBlocked: threadPeer ? blocked.has(threadPeer.id) : false,
-          onBlock: () => requestBlock(threadPeer),
-          onUnblock: () => unblockPeer(threadPeer),
-          onDelete: () => requestDeleteConversation(threadPeer),
-          onRetry: retryThreadMessage,
-          onDiscard: discardFailedMessage,
-          onLoadEarlier: loadEarlierThread,
-          hasMore: threadHasMore,
-          loadingEarlier,
-        }),
+        // Messaging is a desktop master–detail split: conversation list (left) +
+        // active thread (right). Both /messages and /messages/:user render this
+        // same .dm container; on mobile (≤860px) CSS shows ONE pane at a time
+        // (list, or the open thread when route === messageThread → .show-thread).
+        (route === "messages" || route === "messageThread") && React.createElement("div", { className: "dm" + (route === "messageThread" ? " show-thread" : "") },
+          React.createElement("div", { className: "dm-list" },
+            React.createElement(Messages, {
+              conversations,
+              loading: projectsLoading,
+              error: loadErrors && loadErrors.messages,
+              onRetry: retrySurface,
+              onOpenThread: openThread,
+              activeHandle: messageThreadHandle,
+              // Per-row ⋯ menu (block / delete) — same handlers the thread used.
+              blocked,
+              onBlock: requestBlock,
+              onUnblock: unblockPeer,
+              onDelete: requestDeleteConversation,
+            })
+          ),
+          React.createElement("div", { className: "dm-pane" },
+            (route === "messageThread" && threadPeer)
+              ? React.createElement(MessageThread, {
+                  peer: threadPeer,
+                  messages: thread,
+                  status: threadStatus,
+                  onSend: sendThreadMessage,
+                  onBack: () => { setRoute("messages"); window.scrollTo({ top: 0 }); },
+                  onOpenProfile: () => { if (threadPeer && threadPeer.handle) openPerson(threadPeer.handle); },
+                  isBlocked: threadPeer ? blocked.has(threadPeer.id) : false,
+                  onBlock: () => requestBlock(threadPeer),
+                  onUnblock: () => unblockPeer(threadPeer),
+                  onDelete: () => requestDeleteConversation(threadPeer),
+                  onRetry: retryThreadMessage,
+                  onDiscard: discardFailedMessage,
+                  onLoadEarlier: loadEarlierThread,
+                  hasMore: threadHasMore,
+                  loadingEarlier,
+                })
+              : React.createElement("div", { className: "dm-empty" },
+                  React.createElement(Icon, { name: "chat", size: 40, stroke: "var(--accent)" }),
+                  React.createElement("h3", null, "Select a conversation"),
+                  React.createElement("p", null, "Pick someone on the left to start chatting."))
+          )
+        ),
 
         route === "saved" && React.createElement(Matches, {
           projects: projectsList, profile,

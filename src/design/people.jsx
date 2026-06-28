@@ -1,7 +1,7 @@
 /* ============================================================
    NESTED NYC — People (discover collaborators)
-   Browse student profiles, connect, and message the students
-   you've connected with (or reach out via the links they post).
+   Browse student profiles, connect with people, and message any
+   student directly (or reach out via the links they post).
    ============================================================ */
 import React from 'react'
 import Icon from './icons'
@@ -68,8 +68,12 @@ import { Av, Skeleton } from './shared'
   }
 
   // ---- browse grid ----
-  function PersonCard({ person, onOpen }) {
+  function PersonCard({ person, connected = false, onConnect, onMessage, onOpen }) {
     const r = ROLE[person.role];
+    // The card body opens the profile; the action buttons stopPropagation so they
+    // don't also navigate. Connect mirrors the profile (connect-only; shows
+    // "Connected" once done). Message is open to anyone \u2014 no connection required.
+    const stop = (fn) => (e) => { e.stopPropagation(); fn && fn(); };
     return (
       React.createElement("div", { className: "person-card", onClick: () => onOpen(person) },
         React.createElement("div", { className: "cat-bar", style: { background: r.color } }),
@@ -83,10 +87,23 @@ import { Av, Skeleton } from './shared'
             React.createElement(RoleBadge, { role: person.role })
           ),
           React.createElement("div", { className: "pc-bio" }, person.bio),
-          React.createElement("div", { className: "pc-foot" },
+          person.building && React.createElement("div", { className: "pc-foot" },
             React.createElement("span", { style: { fontFamily: "var(--mono)", fontSize: 11, color: "var(--ink-faint)" } },
-              person.building ? "building " + person.building : ""),
-            React.createElement("span", { className: "btn btn-ghost", style: { padding: "7px 13px", fontSize: 13 } }, "View profile")
+              "building " + person.building)
+          ),
+          React.createElement("div", { className: "pc-actions" },
+            React.createElement("button", {
+              className: "btn " + (connected ? "btn-primary done" : "btn-primary"),
+              onClick: stop(() => onConnect && onConnect(person.id)),
+              title: connected ? "Connected" : "Connect with @" + person.handle,
+            },
+              connected
+                ? [React.createElement(Icon, { name: "check", size: 15, stroke: "var(--paper)", key: "i" }), "Connected"]
+                : [React.createElement(Icon, { name: "heart", size: 15, stroke: "var(--paper)", key: "i" }), "Connect"]),
+            onMessage && React.createElement("button", {
+              className: "btn btn-ghost", onClick: stop(() => onMessage(person)), title: "Message @" + person.handle,
+            },
+              React.createElement(Icon, { name: "chat", size: 15, key: "i" }), "Message")
           )
         )
       )
@@ -99,8 +116,8 @@ import { Av, Skeleton } from './shared'
   // the action row (e.g. viewing yourself).
   function PersonProfile({ person, connected, canMessage, onConnect, onMessage, isBlocked = false, onBlock, onUnblock, showConnect = true }) {
     // `connected` drives the Connect/Disconnect toggle (the viewer's OUTGOING
-    // edge). Messaging is allowed on an edge in EITHER direction, so the Message
-    // button is gated on `canMessage` (falls back to `connected` if not passed).
+    // edge). Messaging no longer requires a connection — `canMessage` is set by
+    // the caller (true for anyone but yourself); falls back to `connected` if unset.
     const messageable = canMessage === undefined ? connected : canMessage;
     return (
       React.createElement("div", { className: "pm-inner" },
@@ -137,23 +154,15 @@ import { Av, Skeleton } from './shared'
             connected
               ? [React.createElement(Icon, { name: "check", size: 17, stroke: "var(--paper)", key: "i" }), "Connected"]
               : [React.createElement(Icon, { name: "heart", size: 17, stroke: "var(--paper)", key: "i" }), "Connect"]),
-          // Connection-gated (either direction): anyone connected to you can be messaged.
+          // Messaging no longer requires a connection — shown for any non-self viewer (canMessage).
           messageable && onMessage && React.createElement("button", { className: "btn btn-ghost", style: { flex: 1, padding: 13 }, onClick: () => onMessage(person) },
             React.createElement(Icon, { name: "chat", size: 17, key: "i" }), "Message")
-        ),
-        // Block is DM-only and rare — a quiet link under the actions, not a button.
-        showConnect && onBlock && React.createElement("div", { className: "pm-block" },
-          isBlocked
-            ? React.createElement("button", { className: "blocklink blocked", onClick: () => onUnblock && onUnblock(person), title: "Unblock @" + person.handle },
-                React.createElement(Icon, { name: "block", size: 14 }), "Unblock @" + person.handle)
-            : React.createElement("button", { className: "blocklink", onClick: () => onBlock && onBlock(person), title: "Block @" + person.handle },
-                React.createElement(Icon, { name: "block", size: 14 }), "Block @" + person.handle)
         )
       )
     );
   }
 
-  function People({ connected = [], onConnect, onDisconnect, people = [], loading = false, error = null, onRetry, onOpenPerson }) {
+  function People({ connected = [], onConnect, onDisconnect, onMessage, people = [], loading = false, error = null, onRetry, onOpenPerson }) {
     const [mode, setMode] = useState("browse");
     // Controlled: NestedApp owns the connection set (optimistic + revert, like
     // toggleSave). We read it and call the handlers; no local connection state.
@@ -181,7 +190,7 @@ import { Av, Skeleton } from './shared'
     } else if (mode === "browse") {
       body = people.length
         ? React.createElement("div", { className: "people-grid" },
-            people.map((p) => React.createElement(PersonCard, { key: p.id, person: p, onOpen: onOpenPerson })))
+            people.map((p) => React.createElement(PersonCard, { key: p.id, person: p, connected: connSet.has(p.id), onConnect, onMessage, onOpen: onOpenPerson })))
         : React.createElement("div", { className: "match-empty fade-up" },
             React.createElement("div", { className: "ill" }, React.createElement(Icon, { name: "users", size: 42, stroke: "var(--accent)" })),
             React.createElement("h3", null, "No other students yet"),

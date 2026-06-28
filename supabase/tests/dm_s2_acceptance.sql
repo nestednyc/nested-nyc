@@ -98,8 +98,12 @@ BEGIN;
 ROLLBACK;
 
 -- ============================================================
--- TEST 2: an unconnected send (C → B) is rejected with PT403 / not_connected.
--- (C is connected only to A, never to B — so this is the pure not-connected gate.)
+-- TEST 2: an unconnected send (C → B) now SUCCEEDS — the connection requirement
+-- was dropped (migration 20260627000000_dm_drop_connection_requirement). C is
+-- connected only to A, never to B, yet the send is allowed. Block + rate-limit
+-- still apply (TEST 3 below + the dm_s7 safety suite), and the recipient must
+-- still be a real student (the no_such_recipient check replaces the old gate's
+-- implicit validity guarantee).
 -- ============================================================
 BEGIN;
   SET LOCAL request.jwt.claims = '{"sub":"cccccccc-cccc-cccc-cccc-cccccccccccc","role":"authenticated"}';
@@ -111,12 +115,16 @@ BEGIN;
              '22222222-0000-0000-0000-000000000002',
              'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
              'C trying to reach B') AS m;
-    RAISE NOTICE 'TEST 2 FAIL: unconnected send was ALLOWED (got body=%)', v_body;
+    IF FOUND AND v_body = 'C trying to reach B' THEN
+      RAISE NOTICE 'TEST 2 PASS: unconnected send ALLOWED (connection requirement dropped)';
+    ELSE
+      RAISE NOTICE 'TEST 2 FAIL: expected the unconnected send to succeed, FOUND=% body=%', FOUND, v_body;
+    END IF;
   EXCEPTION
     WHEN sqlstate 'PT403' THEN
-      RAISE NOTICE 'TEST 2 PASS: unconnected send rejected (PT403 / not_connected)';
+      RAISE NOTICE 'TEST 2 FAIL: unconnected send still rejected (PT403) — gate not fully removed';
     WHEN others THEN
-      RAISE NOTICE 'TEST 2 FAIL: expected PT403, got SQLSTATE % (%)', SQLSTATE, SQLERRM;
+      RAISE NOTICE 'TEST 2 FAIL: expected success, got SQLSTATE % (%)', SQLSTATE, SQLERRM;
   END $$;
 ROLLBACK;
 

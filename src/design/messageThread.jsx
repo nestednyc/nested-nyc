@@ -1,6 +1,6 @@
 /* ============================================================
    NESTED NYC — Message thread (one 1:1 conversation)
-   Reached from an inbox row or a connected profile's "Message".
+   Reached from an inbox row or a profile's "Message" button.
    Presentational: NestedApp owns the data (getThread), the optimistic
    send (reconcile-by-id), mark-thread-read, pagination + retry handlers,
    and the live read-receipt signal; this renders the peer header, the
@@ -100,18 +100,22 @@ import { Attachments, AttachPicker } from './messageAttachments'
     };
     return (
       React.createElement("div", { className: "composer-wrap" },
-        (files.length || note) ? React.createElement(AttachPicker.Tray, { files, note, onRemove: (i) => setFiles(files.filter((_, j) => j !== i)) }) : null,   // ATTACHMENTS
-        React.createElement("div", { className: "composer" },
-          React.createElement(AttachPicker, { count: files.length, onPick: (picked, n) => { setFiles((f) => [...f, ...picked].slice(0, MAX_ATTACH_COUNT)); setNote(n || ""); } }),   // ATTACHMENTS
-          React.createElement("textarea", {
-            ref: taRef, className: "composer-input", placeholder: "Write a message…", value: text, rows: 1,
-            maxLength: MAX_MESSAGE_CHARS, "aria-label": "Write a message",
-            onChange: (e) => setText(e.target.value), onKeyDown,
-          }),
-          near && React.createElement("span", { className: "composer-count" + (text.length >= MAX_MESSAGE_CHARS ? " at-max" : "") }, text.length + "/" + MAX_MESSAGE_CHARS),
-          React.createElement("button", {
-            className: "btn btn-primary composer-send", onClick: send, disabled: !ready, title: "Send", "aria-label": "Send", "aria-disabled": !ready,
-          }, React.createElement(Icon, { name: "send", size: 17, stroke: "var(--paper)" }))
+        React.createElement("div", { className: "composer" + ((files.length || note) ? " has-attach" : "") },
+          // ATTACHMENTS — picked-but-unsent preview lives INSIDE the box, above the
+          // input row, so it's clearly part of the message you're about to send.
+          (files.length || note) ? React.createElement(AttachPicker.Tray, { files, note, onRemove: (i) => setFiles(files.filter((_, j) => j !== i)) }) : null,
+          React.createElement("div", { className: "composer-row" },
+            React.createElement(AttachPicker, { count: files.length, onPick: (picked, n) => { setFiles((f) => [...f, ...picked].slice(0, MAX_ATTACH_COUNT)); setNote(n || ""); } }),   // ATTACHMENTS
+            React.createElement("textarea", {
+              ref: taRef, className: "composer-input", placeholder: "Write a message…", value: text, rows: 1,
+              maxLength: MAX_MESSAGE_CHARS, "aria-label": "Write a message",
+              onChange: (e) => setText(e.target.value), onKeyDown,
+            }),
+            near && React.createElement("span", { className: "composer-count" + (text.length >= MAX_MESSAGE_CHARS ? " at-max" : "") }, text.length + "/" + MAX_MESSAGE_CHARS),
+            React.createElement("button", {
+              className: "btn btn-primary composer-send", onClick: send, disabled: !ready, title: "Send", "aria-label": "Send", "aria-disabled": !ready,
+            }, React.createElement(Icon, { name: "send", size: 17, stroke: "var(--paper)" }))
+          )
         )
       )
     );
@@ -165,48 +169,40 @@ import { Attachments, AttachPicker } from './messageAttachments'
     // up reading history, an incoming message must NOT yank me down (#10).
     useEffect(() => {
       if (status !== "ready") return;
-      const se = scrollEl();
-      const nearBottom = (se.scrollHeight - se.scrollTop - se.clientHeight) < 200;
-      if (initialRef.current || lastMine || nearBottom) {
-        if (endRef.current && endRef.current.scrollIntoView) endRef.current.scrollIntoView({ block: "end" });
+      const se = scrollRef.current;
+      if (!se) return;
+      // Opening a thread: hard-snap to the very bottom. Run now AND across the next
+      // two animation frames so wrapped text / late layout can't strand us mid-thread.
+      if (initialRef.current) {
         initialRef.current = false;
+        const toBottom = () => { const s = scrollRef.current; if (s) s.scrollTop = s.scrollHeight; };
+        toBottom();
+        requestAnimationFrame(toBottom);
+        requestAnimationFrame(() => requestAnimationFrame(toBottom));
+        return;
+      }
+      const nearBottom = (se.scrollHeight - se.scrollTop - se.clientHeight) < 200;
+      if (lastMine || nearBottom) {
+        if (endRef.current && endRef.current.scrollIntoView) endRef.current.scrollIntoView({ block: "end" });
       }
     }, [lastId, status]);
 
-    // When an older batch is prepended, keep the viewport pinned to what the user
-    // was reading by compensating for the height the prepend added. The document
-    // (not .thread-scroll) is the scroller, so anchor on document.scrollingElement.
+    // When an older batch is prepended, keep the view pinned to what the user was
+    // reading by compensating for the height the prepend added. The .thread-scroll
+    // pane is the scroller now (split layout), so anchor on scrollRef.current.
     useLayoutEffect(() => {
       if (anchorRef.current) {
-        const se = scrollEl();
-        se.scrollTop = anchorRef.current.top + (se.scrollHeight - anchorRef.current.height);
+        const se = scrollRef.current;
+        if (se) se.scrollTop = anchorRef.current.top + (se.scrollHeight - anchorRef.current.height);
         anchorRef.current = null;
       }
     }, [messages]);
 
     const loadEarlier = () => {
-      const se = scrollEl();
-      anchorRef.current = { height: se.scrollHeight, top: se.scrollTop };
+      const se = scrollRef.current;
+      if (se) anchorRef.current = { height: se.scrollHeight, top: se.scrollTop };
       onLoadEarlier && onLoadEarlier();
     };
-
-    // Conversation overflow menu (block/unblock/delete). Open state is local; it
-    // closes on click-outside, Escape, a selection, or a peer switch. On open we
-    // move focus into the menu for keyboard users.
-    const [menuOpen, setMenuOpen] = useState(false);
-    const moreRef = useRef(null);
-    const menuRef = useRef(null);
-    useEffect(() => { setMenuOpen(false); }, [peer && peer.id]);
-    useEffect(() => {
-      if (!menuOpen) return;
-      const first = menuRef.current && menuRef.current.querySelector(".thread-menu-item");
-      if (first) first.focus();
-      const onDown = (e) => { if (moreRef.current && !moreRef.current.contains(e.target)) setMenuOpen(false); };
-      const onKey = (e) => { if (e.key === "Escape") { setMenuOpen(false); const b = moreRef.current && moreRef.current.querySelector(".iconbtn"); if (b) b.focus(); } };
-      document.addEventListener("mousedown", onDown);
-      document.addEventListener("keydown", onKey);
-      return () => { document.removeEventListener("mousedown", onDown); document.removeEventListener("keydown", onKey); };
-    }, [menuOpen]);
 
     const name = (peer && peer.name) || "Conversation";
     const handle = peer && peer.handle;
@@ -221,20 +217,6 @@ import { Attachments, AttachPicker } from './messageAttachments'
             React.createElement("span", { className: "thread-peer-id" },
               React.createElement("b", null, name),
               handle && React.createElement("small", null, "@" + handle))
-          ),
-          peer && (onBlock || onUnblock || onDelete) && React.createElement("div", { className: "thread-more", ref: moreRef },
-            React.createElement("button", {
-              className: "iconbtn", onClick: () => setMenuOpen((o) => !o), title: "Conversation options",
-              "aria-label": "Conversation options", "aria-haspopup": "menu", "aria-expanded": menuOpen,
-            }, React.createElement(Icon, { name: "ellipsis", size: 20 })),
-            menuOpen && React.createElement("div", { className: "thread-menu", role: "menu", ref: menuRef },
-              (onBlock || onUnblock) && (isBlocked
-                ? React.createElement("button", { className: "thread-menu-item", role: "menuitem", onClick: () => { setMenuOpen(false); onUnblock && onUnblock(); } },
-                    React.createElement(Icon, { name: "block", size: 16 }), "Unblock" + (handle ? " @" + handle : ""))
-                : React.createElement("button", { className: "thread-menu-item danger", role: "menuitem", onClick: () => { setMenuOpen(false); onBlock && onBlock(); } },
-                    React.createElement(Icon, { name: "block", size: 16 }), "Block" + (handle ? " @" + handle : ""))),
-              onDelete && React.createElement("button", { className: "thread-menu-item danger", role: "menuitem", onClick: () => { setMenuOpen(false); onDelete(); } },
-                React.createElement(Icon, { name: "trash", size: 16 }), "Delete conversation"))
           )
         ),
 

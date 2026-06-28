@@ -78,11 +78,11 @@ import { isSupabaseConfigured } from '../lib/supabase'
 
     const r = ROLE[person.role];
     const isSelf = viewerId && person.id === viewerId;
-    // The DM gate is an either-direction connection edge (locked rule + server
-    // RPC): you can message anyone connected to you, even if you never connected
-    // back. `connected` (outgoing only) still drives the Connect/Disconnect
-    // toggle; `canMessage` ORs in incoming edges so the Message button matches.
-    const canMessage = connected.includes(person.id) || incoming.some((p) => p && p.id === person.id);
+    // Messaging no longer requires a connection (gate dropped 2026-06-27 — the
+    // server send_message RPC enforces only block + rate-limit now). Any student
+    // can DM any other student, so the Message button shows on every profile but
+    // your own. `connected` (outgoing only) still drives the Connect toggle.
+    const canMessage = !isSelf;
     return (
       React.createElement(PageShell, { onBack },
         React.createElement("article", { className: "profile-modal" },

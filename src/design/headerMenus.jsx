@@ -122,7 +122,7 @@ import { Av } from './shared'
   // Account menu behind the topbar chip. View / edit profile + sign out;
   // settings + appearance rows slot in where marked once that system lands.
   // onSignOut opens NestedApp's confirm modal — it does not sign out directly.
-  function AccountPanel({ open, profile, photoUrl, uniName, avLabel, onViewProfile, onEditProfile, onSignOut, onClose }) {
+  function AccountPanel({ open, profile, photoUrl, uniName, avLabel, onViewProfile, onEditProfile, onViewSaved, onSignOut, onClose }) {
     if (!open || !profile) return null;
     const choose = (fn) => () => { onClose && onClose(); if (fn) fn(); };
 
@@ -139,6 +139,8 @@ import { Av } from './shared'
         React.createElement(Icon, { name: "user", size: 18 }), "View profile"),
       React.createElement("button", { className: "menu-item", role: "menuitem", onClick: choose(onEditProfile) },
         React.createElement(Icon, { name: "pin", size: 18 }), "Edit profile"),
+      React.createElement("button", { className: "menu-item", role: "menuitem", onClick: choose(onViewSaved) },
+        React.createElement(Icon, { name: "bookmark", size: 18 }), "Saved"),
       // Settings / appearance / notification-pref rows slot in here.
       React.createElement("div", { className: "menu-div" }),
       React.createElement("button", { className: "menu-item danger", role: "menuitem", onClick: choose(onSignOut) },

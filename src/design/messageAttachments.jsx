@@ -99,8 +99,29 @@ import { MAX_ATTACH_BYTES, MAX_ATTACH_COUNT, ALLOWED_ATTACH_MIME } from '../serv
     );
   }
 
-  // Pre-send preview of the picked File objects (image thumbnails / doc chips)
-  // with per-file remove + an optional rejection note.
+  // One staged file. A browser-decodable image shows as a thumbnail tile (the
+  // picture IS the label); a non-image OR an image the browser can't render
+  // (HEIC, …) falls back to a labeled file chip + size — never a broken <img>.
+  function StagedItem({ file, url, onRemove }) {
+    const [failed, setFailed] = useState(false);
+    const removeBtn = React.createElement("button", {
+      className: "att-chip-x", type: "button", title: "Remove", "aria-label": "Remove " + file.name, onClick: onRemove,
+    }, React.createElement(Icon, { name: "x", size: 13 }));
+    if (url && !failed) {
+      return React.createElement("div", { className: "att-thumb", title: file.name },
+        React.createElement("img", { className: "att-thumb-img", src: url, alt: file.name, onError: () => setFailed(true) }),
+        removeBtn);
+    }
+    return React.createElement("div", { className: "att-chip" },
+      React.createElement(Icon, { name: "file", size: 18 }),
+      React.createElement("span", { className: "att-chip-meta" },
+        React.createElement("span", { className: "att-chip-name", title: file.name }, file.name),
+        React.createElement("span", { className: "att-chip-size" }, prettySize(file.size))),
+      removeBtn);
+  }
+
+  // Pre-send preview of the picked File objects with per-file remove + an
+  // optional rejection note.
   AttachPicker.Tray = function Tray({ files = [], onRemove, note }) {
     const [urls, setUrls] = useState([]);
     useEffect(() => {
@@ -110,18 +131,7 @@ import { MAX_ATTACH_BYTES, MAX_ATTACH_COUNT, ALLOWED_ATTACH_MIME } from '../serv
     }, [files]);
     return (
       React.createElement("div", { className: "att-tray" },
-        files.map((f, i) => (
-          React.createElement("div", { className: "att-chip", key: i },
-            urls[i]
-              ? React.createElement("img", { className: "att-chip-thumb", src: urls[i], alt: f.name })
-              : React.createElement(Icon, { name: "file", size: 16 }),
-            React.createElement("span", { className: "att-chip-name", title: f.name }, f.name),
-            React.createElement("button", {
-              className: "att-chip-x", type: "button", title: "Remove", "aria-label": "Remove " + f.name,
-              onClick: () => onRemove && onRemove(i),
-            }, React.createElement(Icon, { name: "x", size: 13 }))
-          )
-        )),
+        files.map((f, i) => React.createElement(StagedItem, { key: i, file: f, url: urls[i], onRemove: () => onRemove && onRemove(i) })),
         note ? React.createElement("span", { className: "att-tray-note" }, note) : null
       )
     );
