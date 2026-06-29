@@ -860,7 +860,6 @@ input, textarea, select { font-family: inherit; }
 .sc-namerow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .sc-name { font-family: var(--disp); font-weight: 800; font-size: 27px; letter-spacing: -0.02em; line-height: 1.05; white-space: nowrap; }
 .sc-handle { font-family: var(--mono); font-size: 12px; color: var(--ink-faint); }
-.rolebadge { display: inline-flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 10.5px; letter-spacing: .07em; text-transform: uppercase; padding: 4px 10px; border-radius: 999px; font-weight: 500; }
 .sc-meta { font-family: var(--mono); font-size: 12px; color: var(--ink-soft); margin-top: 9px; }
 .sc-bio { font-size: 15px; line-height: 1.5; color: var(--ink); margin-top: 12px; }
 .sc-looking { display: flex; gap: 9px; align-items: flex-start; margin-top: 14px; padding: 11px 13px; background: var(--accent-wash); border-radius: 10px; }

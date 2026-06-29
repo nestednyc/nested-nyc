@@ -121,15 +121,6 @@
   const orgEventsOf = (events, orgId) => (events || []).filter((e) => e.orgId === orgId);
   const sortByDay = (events) => [...(events || [])].sort((a, b) => (a.isPast === b.isPast) ? 0 : (a.isPast ? 1 : -1));
 
-  const ROLES = [
-    { id: "designer",   label: "Designer",   color: "var(--c-research)" },
-    { id: "engineer",   label: "Engineer",   color: "var(--c-class)" },
-    { id: "founder",    label: "Founder",    color: "var(--c-startup)" },
-    { id: "researcher", label: "Researcher", color: "var(--c-side)" },
-    { id: "creative",   label: "Creative",   color: "var(--c-hack)" },
-  ];
-  const ROLE = Object.fromEntries(ROLES.map((r) => [r.id, r]));
-
   const STAGES = [
     { id: "idea",          label: "Just an idea",    note: "Looking for co-founders or first hands" },
     { id: "mvp",           label: "Building MVP",    note: "First version in motion" },
@@ -217,7 +208,7 @@
 
   export {
     CATEGORIES, CAT, UNIVERSITIES, UNI, MAJORS, INTERESTS, FIELDS, SKILLS,
-    EVENT_TYPES, ETYPE, ROLES, ROLE, STAGES, COMMITMENTS,
+    EVENT_TYPES, ETYPE, STAGES, COMMITMENTS,
     ORG_TYPES, ORG_TYPE,
     LINK_ICON, avColor, initials, findById, orgEventsOf, sortByDay,
     ownerToken, isProjectAdmin, isProjectOwner, projectAdminSet, coLeadsOf,
@@ -227,7 +218,7 @@
 
   export const NestedData = {
     CATEGORIES, CAT, UNIVERSITIES, UNI, MAJORS, INTERESTS, FIELDS, SKILLS,
-    EVENT_TYPES, ETYPE, ROLES, ROLE, STAGES, COMMITMENTS,
+    EVENT_TYPES, ETYPE, STAGES, COMMITMENTS,
     ORG_TYPES, ORG_TYPE,
     LINK_ICON, avColor, initials, findById, orgEventsOf, sortByDay,
     ownerToken, isProjectAdmin, isProjectOwner, projectAdminSet, coLeadsOf,

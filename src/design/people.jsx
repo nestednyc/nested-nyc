@@ -5,7 +5,7 @@
    ============================================================ */
 import React from 'react'
 import Icon from './icons'
-import { ROLE, UNI, LINK_ICON, avColor, initials } from './data'
+import { UNI, LINK_ICON, avColor, initials } from './data'
 import { Av, Skeleton } from './shared'
 
   const { useState } = React;
@@ -24,12 +24,6 @@ import { Av, Skeleton } from './shared'
         React.createElement("div", { className: "cap" }, label)
       )
     );
-  }
-
-  function RoleBadge({ role }) {
-    const r = ROLE[role];
-    return React.createElement("span", { className: "rolebadge", style: { background: "color-mix(in oklch, " + r.color + " 16%, transparent)", color: r.color } },
-      React.createElement("span", { style: { width: 6, height: 6, borderRadius: "50%", background: r.color } }), r.label);
   }
 
   function LinkPill({ link }) {
@@ -69,22 +63,19 @@ import { Av, Skeleton } from './shared'
 
   // ---- browse grid ----
   function PersonCard({ person, connected = false, onConnect, onMessage, onOpen }) {
-    const r = ROLE[person.role];
     // The card body opens the profile; the action buttons stopPropagation so they
     // don't also navigate. Connect mirrors the profile (connect-only; shows
     // "Connected" once done). Message is open to anyone \u2014 no connection required.
     const stop = (fn) => (e) => { e.stopPropagation(); fn && fn(); };
     return (
       React.createElement("div", { className: "person-card", onClick: () => onOpen(person) },
-        React.createElement("div", { className: "cat-bar", style: { background: r.color } }),
         React.createElement("div", { className: "pc-photos" }, person.photos.slice(0, 3).map((p, i) => React.createElement(Polaroid, { key: i, label: p.l, src: p.src }))),
         React.createElement("div", { className: "pc-body" },
           React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 } },
             React.createElement("div", null,
               React.createElement("div", { className: "pc-name" }, person.name),
               React.createElement("div", { className: "pc-meta" }, "@" + person.handle + " \u00b7 " + UNI[person.uni].name)
-            ),
-            React.createElement(RoleBadge, { role: person.role })
+            )
           ),
           React.createElement("div", { className: "pc-bio" }, person.bio),
           person.building && React.createElement("div", { className: "pc-foot" },
@@ -123,8 +114,7 @@ import { Av, Skeleton } from './shared'
       React.createElement("div", { className: "pm-inner" },
         React.createElement("div", { className: "pm-photos" }, person.photos.slice(0, 3).map((p, i) => React.createElement(Polaroid, { key: i, label: p.l, src: p.src }))),
         React.createElement("div", { className: "sc-namerow" },
-          React.createElement("span", { className: "sc-name", style: { fontSize: 30 } }, person.name),
-          React.createElement(RoleBadge, { role: person.role })
+          React.createElement("span", { className: "sc-name", style: { fontSize: 30 } }, person.name)
         ),
         React.createElement("div", { className: "sc-meta" }, "@" + person.handle + " \u00b7 " + UNI[person.uni].full + " \u00b7 " + person.major + " " + person.year),
         React.createElement("p", { className: "sc-bio", style: { fontSize: 16 } }, person.bio),
@@ -199,7 +189,7 @@ import { Av, Skeleton } from './shared'
             connectedPeople.map((p) => (
               React.createElement("div", { className: "conn-card", key: p.id },
                 React.createElement("div", { className: "conn-head" },
-                  React.createElement(Av, { name: p.name, color: ROLE[p.role].color, img: p.avatar }),
+                  React.createElement(Av, { name: p.name, img: p.avatar }),
                   React.createElement("div", { className: "who" },
                     React.createElement("b", null, p.name),
                     React.createElement("small", null, "@" + p.handle + " \u00b7 " + UNI[p.uni].name)),

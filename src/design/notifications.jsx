@@ -7,7 +7,7 @@
    ============================================================ */
 import React from 'react'
 import Icon from './icons'
-import { ROLE, UNI } from './data'
+import { UNI } from './data'
 import { Av, Skeleton } from './shared'
 import { ContactLinks } from './people'
 
@@ -25,7 +25,7 @@ import { ContactLinks } from './people'
             style: open ? { cursor: "pointer" } : undefined,
             title: open ? "View full profile" : undefined,
           },
-            React.createElement(Av, { name: p.name, color: (ROLE[p.role] || {}).color, img: p.avatar }),
+            React.createElement(Av, { name: p.name, img: p.avatar }),
             React.createElement("div", { className: "who" },
               React.createElement("b", null, p.name),
               React.createElement("small", null, "@" + p.handle + " · " + ((UNI[p.uni] || {}).name || "")))),

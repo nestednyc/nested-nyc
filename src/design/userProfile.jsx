@@ -11,7 +11,6 @@
    ============================================================ */
 import React from 'react'
 import Icon from './icons'
-import { ROLE } from './data'
 import { Skeleton } from './shared'
 import { PersonProfile } from './people'
 import { toPerson } from './peopleAdapter'
@@ -76,7 +75,6 @@ import { isSupabaseConfigured } from '../lib/supabase'
       );
     }
 
-    const r = ROLE[person.role];
     const isSelf = viewerId && person.id === viewerId;
     // Messaging no longer requires a connection (gate dropped 2026-06-27 — the
     // server send_message RPC enforces only block + rate-limit now). Any student
@@ -86,7 +84,6 @@ import { isSupabaseConfigured } from '../lib/supabase'
     return (
       React.createElement(PageShell, { onBack },
         React.createElement("article", { className: "profile-modal" },
-          React.createElement("div", { className: "cat-bar", style: { background: r.color } }),
           React.createElement(PersonProfile, {
             person,
             connected: connected.includes(person.id),
