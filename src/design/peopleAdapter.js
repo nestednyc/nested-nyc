@@ -92,7 +92,6 @@ export function toPerson(row) {
     photos: [0, 1, 2].map((i) => ({ src: photoUrls[i] || null, l: label })),
     skills,
     building: row.building || "",
-    avail: row.availability || "",
     interests: fields,
     links: row.links || {},
   };

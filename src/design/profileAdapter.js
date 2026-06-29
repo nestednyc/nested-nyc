@@ -51,7 +51,6 @@ export function toDbProfile(local, userId) {
     skills: local.skills || [],
     year: local.year || null,
     building: local.building || null,
-    availability: local.availability || local.avail || null,
     links: linksToObject(local.links),
     onboarding_completed: true,
   };
@@ -74,7 +73,6 @@ export function fromDbProfile(row, fallbackEmail) {
     skills: row.skills || [],
     year: row.year || "",
     building: row.building || "",
-    availability: row.availability || "",
     links: linksToObject(row.links),
     email: fallbackEmail || row.email || "",
     joinedAt: row.created_at ? new Date(row.created_at).getTime() : null,

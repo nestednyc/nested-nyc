@@ -151,8 +151,6 @@ import { ContactLinks } from './people'
       ? (firstName + (lastName ? " " + lastName : "")).trim()
       : (view.name || "@" + view.username);
 
-    const buildAvail = view.availability || view.avail || "";
-
     // For the rail "Reach me" view-mode display, build the array of pills:
     // object links → array, plus the email (verified, from onboarding).
     const contactArr = Object.entries(linksObj)
@@ -366,7 +364,7 @@ import { ContactLinks } from './people'
                 : React.createElement("div", { style: { marginTop: 18 } },
                     React.createElement(HintLine, { text: "// no bio yet" }))),
 
-            // ── BUILDING / AVAIL ───────────────────────────
+            // ── BUILDING ───────────────────────────────────
             editing
               ? React.createElement("div", {
                   style: {
@@ -381,24 +379,13 @@ import { ContactLinks } from './people'
                     placeholder: "what you're shipping",
                     value: view.building || "",
                     onChange: (e) => updateDraft({ building: e.target.value }),
-                  }),
-                  React.createElement("span", null, " · "),
-                  React.createElement("input", {
-                    className: "fluid-sm",
-                    style: Object.assign({}, monoInputStyle, { width: 150 }),
-                    placeholder: "10 hrs / week",
-                    value: buildAvail,
-                    onChange: (e) => updateDraft({ availability: e.target.value }),
                   })
                 )
-              : ((view.building || buildAvail)
+              : (view.building
                 ? React.createElement("div", {
                     style: { marginTop: 14, fontFamily: "var(--mono)", fontSize: 12, color: "var(--ink-faint)" },
                   },
-                    "// " +
-                    (view.building ? "building " + view.building : "") +
-                    (view.building && buildAvail ? " · " : "") +
-                    buildAvail
+                    "// building " + view.building
                   )
                 : null),
 

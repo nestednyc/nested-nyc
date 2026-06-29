@@ -128,14 +128,12 @@ import { Av, Skeleton } from './shared'
         ),
         React.createElement("div", { className: "sc-meta" }, "@" + person.handle + " \u00b7 " + UNI[person.uni].full + " \u00b7 " + person.major + " " + person.year),
         React.createElement("p", { className: "sc-bio", style: { fontSize: 16 } }, person.bio),
-        (person.building || person.avail) && React.createElement("div", { className: "sc-looking" },
+        person.building && React.createElement("div", { className: "sc-looking" },
           React.createElement(Icon, { name: "pin", size: 16 }),
-          React.createElement("div", { className: "t" }, [
-            person.building ? "Building " : null,
-            person.building ? React.createElement("b", { key: "b" }, person.building) : null,
-            (person.building && person.avail) ? " \u00b7 " : null,
-            person.avail || null,
-          ].filter(Boolean))
+          React.createElement("div", { className: "t" },
+            "Building ",
+            React.createElement("b", null, person.building)
+          )
         ),
         React.createElement("div", { className: "pm-section" },
           React.createElement("div", { className: "sec-h" }, "Skills"),
