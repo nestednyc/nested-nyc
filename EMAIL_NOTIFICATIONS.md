@@ -1,7 +1,7 @@
 # Email notifications
 
 Transactional emails for Nested, sent from Vercel serverless functions when
-Supabase rows change. Four notifications today:
+Supabase rows change. Five notifications today:
 
 | Trigger (Supabase) | Email | Recipient |
 |---|---|---|
@@ -9,10 +9,11 @@ Supabase rows change. Four notifications today:
 | `team_members` UPDATE (→ `approved`) | You're in | The requester |
 | `connections` INSERT | New connection | The target |
 | `organizations` UPDATE (verified → `true`) | You're verified | The org owner |
+| `messages` INSERT (**first of a pair only**) | New message | The message recipient |
 
 ## Architecture
 
-- `api/_email/template.js` — one `renderEmail()` shell + the four `emails.*`
+- `api/_email/template.js` — one `renderEmail()` shell + the five `emails.*`
   builders (each returns `{ subject, html }`). All email copy lives here.
 - `api/notify.js` — the webhook receiver. Verifies the `x-webhook-secret`
   header, looks up recipient emails (service role → `auth.admin.getUserById`)
@@ -53,7 +54,7 @@ the column exists in prod (Supabase → Table editor) rather than trusting
 
 ## 3. Webhooks (Supabase → Database → Webhooks)
 
-Create **three** webhooks, all pointing at `https://www.nested.social/api/notify`,
+Create **four** webhooks, all pointing at `https://www.nested.social/api/notify`,
 HTTP method **POST**, each with an HTTP header `x-webhook-secret: <WEBHOOK_SECRET>`:
 
 | Name | Table | Events |
@@ -61,9 +62,14 @@ HTTP method **POST**, each with an HTTP header `x-webhook-secret: <WEBHOOK_SECRE
 | `notify_team_members` | `team_members` | Insert, Update |
 | `notify_connections` | `connections` | Insert |
 | `notify_organizations` | `organizations` | Update |
+| `notify_messages` | `messages` | Insert |
 
 `notify.js` filters precisely (pending inserts, the pending→approved flip, the
-verified false→true flip), so it is safe for the webhooks to fire broadly.
+verified false→true flip, and — for `messages` — only the **first** message of a
+pair, deduped via `message_notify_log` and capped 100/hr per sender), so it is
+safe for the webhooks to fire broadly. ⚠️ The `messages` webhook fires per row;
+it's throttled to one email per new conversation, but **disable it before any bulk
+INSERT/restore into `messages`** (each genuinely-new pair would email once).
 
 <details><summary>Equivalent SQL (reference only — the dashboard is the supported path)</summary>
 
@@ -87,6 +93,13 @@ create trigger notify_connections
 
 create trigger notify_organizations
   after update on public.organizations
+  for each row execute function supabase_functions.http_request(
+    'https://www.nested.social/api/notify', 'POST',
+    '{"Content-Type":"application/json","x-webhook-secret":"<WEBHOOK_SECRET>"}',
+    '{}', '5000');
+
+create trigger notify_messages
+  after insert on public.messages
   for each row execute function supabase_functions.http_request(
     'https://www.nested.social/api/notify', 'POST',
     '{"Content-Type":"application/json","x-webhook-secret":"<WEBHOOK_SECRET>"}',

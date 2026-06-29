@@ -199,7 +199,7 @@ message_attachments                                  -- S10: files on a message 
 **Privacy, logging & retention (audited 2026-06-22):**
 - Bodies are encrypted at rest (`pgp_sym_encrypt`, Vault key `dm_body_key`), decrypted only inside the SECURITY DEFINER RPCs — a raw `SELECT body_enc` or a Realtime payload is ciphertext.
 - **No message body is logged anywhere:** the RPCs raise only keyed errors (`not_connected` / `blocked` / `rate_limited`), and `messageService` / `messageAdapter` log error objects, never bodies.
-- **No database webhook/trigger on `messages`** — the bulk-email hazard (`EMAIL_NOTIFICATIONS.md`) is avoided by construction.
+- **First-message email webhook on `messages`** (added 2026-06-28) — a per-row Supabase webhook on `messages` INSERT → `/api/notify`, throttled to the *first* message of a pair (`planNewMessage`: messages-table is-first check + `message_notify_log` dedupe + a 100/hr per-sender cap). The original bulk-email hazard was re-assessed as a non-issue: `messages` is written only one row at a time through the rate-limited `send_message` RPC (direct INSERT is `REVOKE`d), with no bulk/backfill path. Bodies are never read by the email path (sender-name-only). ⚠️ Disable the `notify_messages` webhook before any bulk `messages` INSERT/restore — see `EMAIL_NOTIFICATIONS.md`.
 - **Retention:** messages persist until account deletion, then cascade away (`auth.users → profiles → messages + blocks`, all `ON DELETE CASCADE`).
 
 **Acceptance:**
@@ -261,7 +261,7 @@ message_attachments                                  -- S10: files on a message 
 
 ## Out of scope (v1 / deferred)
 - Group chats, edit/delete-for-everyone. ~~attachments/images~~ shipped in **S10**; ~~read receipts~~ shipped in **S9** (always-on Seen). Still deferred: **typing indicators** (the dm-receipts broadcast channel is the place to add them), **online/last-active presence**, and a **per-user read-receipt privacy toggle**.
-- **Message email notifications** — deferred *and* must be throttled/offline-only when built. **Do NOT** add a per-row email webhook on `messages` (bulk-email + spam hazard; see `EMAIL_NOTIFICATIONS.md`). The webhook/trigger layer (`zz_email_notify` etc.) is applied **out-of-band**, not in `supabase/migrations/`; none references `messages` today, and "do not add" means at the Supabase dashboard / prod-SQL level.
+- ~~**Message email notifications**~~ — **SHIPPED 2026-06-28** as the *first-message-only* build this anticipated (the "throttled" condition): a per-row Supabase webhook on `messages` INSERT → `/api/notify` (`planNewMessage`), which emails the recipient only when no earlier message exists for the unordered pair, deduped via `message_notify_log` and capped 100/hr per sender. The old "**Do NOT** add a per-row webhook on `messages`" rule was retired after re-assessing the bulk-email hazard as a non-issue (`messages` is RPC-only, single-row, rate-limited; no bulk/backfill path). The webhook is still applied **out-of-band** (dashboard), and must be **disabled before any bulk `messages` op**. Still deferred: **offline-only** delivery (email only when the recipient is inactive) — a future layer on top of first-message-only.
 - App-server write-path; message-requests gating; E2EE.
 
 ## Open questions

@@ -171,6 +171,21 @@ export const emails = {
     }),
   }),
 
+  // → recipient: another student sent them their FIRST direct message (once per pair)
+  newMessage: ({ senderName, school, senderUsername, unsubUrl }) => ({
+    subject: `${senderName} messaged you on Nested`,
+    html: renderEmail({
+      preheader: `${senderName} messaged you on Nested`,
+      eyebrow: "new message",
+      heading: `${senderName} sent you a message`,
+      body: `${senderName}${school ? ` from ${school}` : ""} just messaged you on Nested. Open the conversation to read it and reply.`,
+      ctaLabel: "Open conversation",
+      ctaUrl: url(senderUsername ? `/messages/${senderUsername}` : `/messages`),
+      footerNote: "You're getting this because someone messaged you for the first time on Nested.",
+      unsubUrl,
+    }),
+  }),
+
   // → org owner: their organization was verified
   orgVerified: ({ orgName, unsubUrl }) => ({
     subject: `${orgName} is verified on Nested`,

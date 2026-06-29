@@ -210,6 +210,95 @@ async function planNewConnection(c) {
   };
 }
 
+// → recipient: the FIRST direct message of a pair (one email per conversation, ever).
+// `m` is the inserted public.messages row from the webhook (id, sender_id,
+// recipient_id, created_at all present; body_enc is ignored — no plaintext leaves DB).
+async function planNewMessage(m) {
+  const isUuid = (s) => /^[0-9a-f-]{36}$/i.test(String(s || ""));
+  if (!m || !isUuid(m.sender_id) || !isUuid(m.recipient_id) || !m.created_at) return null;
+  if (m.sender_id === m.recipient_id) return null;
+
+  // 1. DEDUPE AUTHORITY — already emailed this (unordered) pair? Mirrors
+  // planNewConnection's up-front connection_notify_log check. This is what makes the
+  // notification idempotent against a duplicate / at-least-once webhook delivery of
+  // the same first message: the messages-table check (step 2) alone would re-fire,
+  // because that one message still has nothing earlier than itself. Fail CLOSED on a
+  // query error — a missed notification beats a wrong/duplicate one.
+  // (Residual: A→B and B→A opening a pair within the same few ms can both pass before
+  // either logs → 2 legit emails to the 2 participants; vanishingly rare, accepted.)
+  const { data: already, error: dedupeErr } = await admin
+    .from("message_notify_log")
+    .select("sender_id")
+    .or(
+      `and(sender_id.eq.${m.sender_id},recipient_id.eq.${m.recipient_id}),` +
+      `and(sender_id.eq.${m.recipient_id},recipient_id.eq.${m.sender_id})`
+    )
+    .limit(1)
+    .maybeSingle();
+  if (dedupeErr) return null;
+  if (already) return null; // this pair has already been emailed
+
+  // 2. LAUNCH-BLAST GUARD — is this actually the first message of the pair? Decided
+  // against the messages table (NOT the log) so flipping the webhook on does not
+  // email every EXISTING conversation: those have earlier messages, and the log is
+  // empty at switch-on. Keep BOTH checks — the log (step 1) is the dedupe authority,
+  // this is the pre-existing-history guard. Service-role `admin` bypasses RLS. Fail
+  // CLOSED on error. Two-arm OR on the (sender,recipient,created_at) index.
+  const { data: earlier, error: firstErr } = await admin
+    .from("messages")
+    .select("id")
+    .or(
+      `and(sender_id.eq.${m.sender_id},recipient_id.eq.${m.recipient_id}),` +
+      `and(sender_id.eq.${m.recipient_id},recipient_id.eq.${m.sender_id})`
+    )
+    .lt("created_at", m.created_at)
+    .limit(1)
+    .maybeSingle();
+  if (firstErr) return null;
+  if (earlier) return null; // not the first message in this pair
+
+  // 3. SPRAY CEILING — cap how many distinct new conversations one sender can EMAIL in
+  // a rolling hour (mirrors the connections 100/hr email-spray cap). Suppresses the
+  // email only — the message itself already delivered. Fail CLOSED on error.
+  // (Best-effort: concurrent sends can overshoot the cap by a few at the boundary.)
+  const SENDER_HOURLY_CAP = 100;
+  const sinceIso = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+  const { count, error: capErr } = await admin
+    .from("message_notify_log")
+    .select("*", { count: "exact", head: true })
+    .eq("sender_id", m.sender_id)
+    .gt("notified_at", sinceIso);
+  if (capErr) return null;
+  if ((count || 0) >= SENDER_HOURLY_CAP) {
+    console.warn("notify: first-message email spray cap hit for sender", m.sender_id);
+    return null;
+  }
+
+  const { data: source } = await admin
+    .from("profiles")
+    .select("first_name,last_name,username,university")
+    .eq("id", m.sender_id)
+    .maybeSingle();
+
+  return {
+    recipientIds: [String(m.recipient_id)],
+    make: (unsub) =>
+      emails.newMessage({
+        senderName: fullName(source),
+        school: source?.university || "",
+        senderUsername: source?.username || "",
+        unsubUrl: unsub,
+      }),
+    // Mark the pair notified only after a confirmed send; the UNIQUE unordered-pair
+    // index turns a concurrent/retry double into a caught 23505 (best-effort).
+    onSent: async () => {
+      await admin
+        .from("message_notify_log")
+        .insert({ sender_id: m.sender_id, recipient_id: m.recipient_id });
+    },
+  };
+}
+
 async function planOrgVerified(org, old) {
   if (!org || org.verified !== true) return null;
   if (old && old.verified === true) return null; // only the false → true flip
@@ -233,6 +322,7 @@ async function planFor({ type, table, record, old_record }) {
   }
   if (table === "connections" && type === "INSERT") return planNewConnection(record);
   if (table === "organizations" && type === "UPDATE") return planOrgVerified(record, old_record);
+  if (table === "messages" && type === "INSERT") return planNewMessage(record);
   return null;
 }
 
