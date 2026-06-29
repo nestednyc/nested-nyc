@@ -38,6 +38,7 @@ import { toDbProfile, fromDbProfile, dataUrlToFile } from './profileAdapter'
 import { projectService, closeRole } from '../services/projectService'
 import { toDbProject, fromDbProject, creatorTeamMember } from './projectAdapter'
 import { toPerson } from './peopleAdapter'
+import { rankPeople } from './peopleRank'
 import { enrichConversations, upsertMessage, mergeThread, bumpInboxRow } from './messageAdapter'
 import { connectionService } from '../services/connectionService'
 import { messageService, newId } from '../services/messageService'
@@ -578,9 +579,14 @@ import { parse as parseLocation, build as buildPath, accessOf, validateNext, tit
           setRequested(new Set(((requestedRes && requestedRes.data) || []).map((p) => p.id)));
           setRejected(new Set(((rejRes && rejRes.data) || []).map((p) => p.id)));
           setRsvped(new Set(((rsvpRes && rsvpRes.data) || []).map((e) => e.id)));
-          setPeople(((peopleRes && peopleRes.data) || [])
-            .filter((r) => r.id !== profile.id && r.account_type !== "org_admin")
-            .map(toPerson));
+          // Rank raw rows relative to the viewer (relevance + profile
+          // completeness) BEFORE adapting — see peopleRank.js. Ranking the raw
+          // rows keeps the exact university/skills/fields that toPerson drops.
+          setPeople(rankPeople(
+            ((peopleRes && peopleRes.data) || [])
+              .filter((r) => r.id !== profile.id && r.account_type !== "org_admin"),
+            profile
+          ).map(toPerson));
           setConnected(((connRes && connRes.data) || []).map((t) => t.id));
           setIncoming(((incomingRes && incomingRes.data) || [])
             .filter((r) => r.account_type !== "org_admin")
