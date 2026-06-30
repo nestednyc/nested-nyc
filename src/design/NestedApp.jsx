@@ -1819,8 +1819,11 @@ import { parse as parseLocation, build as buildPath, accessOf, validateNext, tit
                 window.scrollTo({ top: 0 });
                 toast("Welcome to Nested, @" + p.username, "sparkle");
               } else {
-                setProfileEditOnArrive(true); setRoute("profile"); window.scrollTo({ top: 0 });
-                toast("Welcome to Nested, @" + p.username + " — finish your profile so people can find you", "sparkle");
+                // The wizard now handles profile enrichment inline (name, photo,
+                // skills, …), so a fresh signup lands straight on the board
+                // rather than being dropped into the profile-edit page.
+                setRoute("discover"); window.scrollTo({ top: 0 });
+                toast("Welcome to Nested, @" + p.username, "sparkle");
               }
               setJustVerified(true);
               setTimeout(() => setJustVerified(false), 1500);
@@ -2283,9 +2286,19 @@ import { parse as parseLocation, build as buildPath, accessOf, validateNext, tit
           React.createElement("div", { className: "topbar-mob" },
             React.createElement("button", { className: "iconbtn", onClick: () => setMSearchOpen((v) => !v), title: "Search", "aria-expanded": mSearchOpen ? "true" : "false" },
               React.createElement(Icon, { name: mSearchOpen ? "x" : "search", size: 20 })),
+            // Chat lives in the bar (mirrors the desktop chat icon) — without it,
+            // messages were buried in the account sheet with no labeled affordance.
+            // Carries its OWN unread dot; the avatar dot below sheds messages so the
+            // two signals are distinguishable.
+            profile && React.createElement("button", {
+              className: "iconbtn", onClick: () => { setRoute("messages"); window.scrollTo({ top: 0 }); }, title: "Messages", "aria-label": "Messages",
+            },
+              React.createElement(Icon, { name: "chat", size: 20 }),
+              unreadMessages > 0 && React.createElement("span", { className: "dot" })
+            ),
             profile && React.createElement("button", { className: "mob-avatar", onClick: () => setSheetOpen(true), title: "Account" },
               React.createElement(Av, { name: profile.username, img: firstPhotoUrl(profile.photos), label: handleInitials(profile.username) }),
-              (incomingPending.length + projectRequests.length + unreadMessages) > 0 && React.createElement("span", { className: "dot" })
+              (incomingPending.length + projectRequests.length) > 0 && React.createElement("span", { className: "dot" })
             ),
             !profile && React.createElement("button", { className: "btn btn-primary", onClick: () => goAuth("signup"), title: "Create your account" }, "Sign up")
           )

@@ -614,7 +614,7 @@ input, textarea, select { font-family: inherit; }
 .a-footer-link span { text-decoration: underline; text-underline-offset: 3px; }
 .a-footer-link:hover { opacity: 1; }
 
-.onb-main { background: var(--paper); display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 44px clamp(24px, 5vw, 80px); position: relative; }
+.onb-main { background: var(--paper); display: flex; flex-direction: column; align-items: center; justify-content: center; justify-content: safe center; padding: 44px clamp(24px, 5vw, 80px); position: relative; }
 .onb-card { width: 100%; max-width: 440px; }
 .onb-steps { display: flex; align-items: center; gap: 7px; margin-bottom: 30px; }
 .onb-steps .dot { height: 5px; border-radius: 3px; background: var(--line); flex: 1; transition: background .3s; }
@@ -672,6 +672,26 @@ input, textarea, select { font-family: inherit; }
 .onb-actions .ghost-link { background: none; border: 0; color: var(--ink-soft); font-weight: 600; font-size: 14px; }
 .onb-actions .ghost-link:hover { color: var(--ink); }
 .spacer { flex: 1; }
+.onb-actions { flex-wrap: wrap; }
+
+/* enrichment (post-confirmation) wizard — optional, skippable steps */
+.onb-steps.optional .dot { background: var(--paper-edge); opacity: .6; }
+.onb-steps.optional .dot.done, .onb-steps.optional .dot.cur { background: var(--accent); opacity: 1; }
+.onb-id-row { display: flex; gap: 20px; align-items: flex-start; }
+.onb-snap { width: 130px; flex: none; }
+.onb-snap-hint { text-align: center; margin-top: 7px; font-family: var(--mono); font-size: 10.5px; color: var(--ink-faint); letter-spacing: .02em; }
+.onb-id-fields { flex: 1; min-width: 0; }
+.onb-bio { width: 100%; box-sizing: border-box; resize: vertical; min-height: 84px; font-family: inherit; font-size: 16px; line-height: 1.5; color: var(--ink); background: var(--paper); border: 1.5px solid var(--paper-edge); border-radius: 11px; padding: 12px 14px; outline: none; transition: border-color .15s, box-shadow .15s; }
+.onb-bio:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-wash); }
+.onb-twocol { display: flex; gap: 14px; }
+.onb-twocol .field { flex: 1; }
+.onb-actions .ghost-link.onb-finishlater { color: var(--ink-faint); }
+@media (max-width: 480px) {
+  .onb-id-row { flex-direction: column; align-items: center; }
+  .onb-snap { width: 150px; }
+  .onb-id-fields { width: 100%; }
+  .onb-twocol { flex-direction: column; gap: 0; }
+}
 
 /* forgot-password 6-digit code boxes — focused state mirrors .input-wrap */
 .code-box:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-wash); }
@@ -953,7 +973,7 @@ input, textarea, select { font-family: inherit; }
 .bubble.them:not(.gend) { border-bottom-left-radius: 4px; }
 .thread-empty { text-align: center; color: var(--ink-soft); padding: 56px 20px; display: flex; flex-direction: column; align-items: center; gap: 12px; }
 .thread-empty p { font-size: 15px; }
-.composer { position: sticky; bottom: calc(12px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 8px; padding: 10px; margin-top: 16px; background: var(--paper); border: 1.5px solid var(--paper-edge); border-radius: 14px; box-shadow: var(--shadow-card); }
+.composer { position: sticky; bottom: calc(12px + env(safe-area-inset-bottom) + var(--kb, 0px)); display: flex; flex-direction: column; gap: 8px; padding: 10px; margin-top: 16px; background: var(--paper); border: 1.5px solid var(--paper-edge); border-radius: 14px; box-shadow: var(--shadow-card); }
 .composer.has-attach { border-color: var(--accent); }
 .composer-row { display: flex; gap: 10px; align-items: flex-end; }
 .composer-input { flex: 1; box-sizing: border-box; border: none; background: transparent; padding: 7px 8px; font-family: var(--body); font-size: 15px; line-height: 1.4; color: var(--ink); resize: none; min-height: 30px; max-height: 140px; outline: none; }
@@ -996,7 +1016,7 @@ input, textarea, select { font-family: inherit; }
 .thread-loadmore { display: flex; justify-content: center; padding: 4px 0 10px; }
 .thread-loadmore .btn { font-family: var(--mono); font-size: 12px; }
 /* composer additions */
-.composer-wrap { position: sticky; bottom: calc(12px + env(safe-area-inset-bottom)); margin-top: 16px; }
+.composer-wrap { position: sticky; bottom: calc(12px + env(safe-area-inset-bottom) + var(--kb, 0px)); margin-top: 16px; }
 .composer-wrap .composer { position: static; margin-top: 0; }
 .composer-attach { flex: none; width: 38px; height: 38px; border-radius: 10px; display: grid; place-items: center; background: none; border: none; cursor: pointer; color: var(--ink-soft); }
 .composer-attach:hover { background: var(--accent-wash); color: var(--accent); }
@@ -1855,11 +1875,18 @@ input, textarea, select { font-family: inherit; }
      "Sign up" stays TEXT on purpose — it's the primary guest signup entry; an
      icon-only pill would read as a mystery and cost conversions. Also de-clips
      the logged-in bar, which was a few px over at 390 as well. */
-  .topbar { gap: 7px; }
+  .topbar { gap: 6px; }
   .topbar .nav { margin-left: 0; gap: 1px; }
-  .topbar .nav button { padding: 8px 8px; font-size: 13px; }
-  .topbar-mob { gap: 6px; }
+  .topbar .nav button { padding: 7px 7px; font-size: 12.5px; }
+  .topbar-mob { gap: 5px; }
   .topbar-mob .btn { padding: 8px 11px; font-size: 12.5px; }
+  /* The mobile utility cluster now carries THREE controls (search + chat +
+     avatar). Shrink them a step (42→38 icons, 36→32 avatar) so the cluster plus
+     the three nav tabs still clear the narrowest phones: fits ≥360px, matching
+     prod's prior overflow profile (only true ≤320px legacy widths clip, as before). */
+  .topbar-mob .iconbtn, .topbar-mob .mob-avatar { width: 38px; height: 38px; }
+  .topbar-mob .iconbtn svg { width: 18px; height: 18px; }
+  .topbar-mob .mob-avatar .av { width: 32px; height: 32px; font-size: 12px; }
 
   /* Matches tab row (Saved · Requests · My projects) ran ~12px too wide for a
      390px phone, so the third tab pushed the page past the viewport — which left
@@ -1901,7 +1928,7 @@ input, textarea, select { font-family: inherit; }
    ============================================================ */
 
 /* New mobile-only elements: inert on desktop, revealed in the block below. */
-.onb-mobhead, .onb-orgline, .onb-mobback { display: none; }
+.onb-mobhead, .onb-orgline, .onb-mobback, .onb-mobfinish { display: none; }
 
 @media (max-width: 880px) {
   /* Re-hide the desktop pitch/preview aside on mobile for EVERY .onb screen
@@ -1978,7 +2005,7 @@ input, textarea, select { font-family: inherit; }
      card edges with a paper fade so content scrolls cleanly underneath; z-index
      beats .grain::after (z-index:1). */
   .onb-signup .onb-actions {
-    position: sticky; bottom: 0; z-index: 2;
+    position: sticky; bottom: var(--kb, 0px); z-index: 2;
     margin: 24px -20px 0;
     padding: 14px 20px calc(14px + env(safe-area-inset-bottom, 0px));
     background: linear-gradient(to top, var(--paper) 72%, transparent);
@@ -2004,6 +2031,25 @@ input, textarea, select { font-family: inherit; }
   /* Phone-sized verification stamp (beats the inline 120px). */
   .onb-signup .stamp-big { width: 100px !important; height: 100px !important; }
   .onb-signup .stamp-stage { padding: 4px 0 10px; }
+
+  /* Enrichment panels — relocate the dense action cluster on mobile. The in-bar
+     Back + Finish-later move out (to .onb-mobback up top and .onb-mobfinish under
+     the card), leaving just Skip + the primary in the sticky bar. */
+  .onb-signup .onb-actions-enrich .enrich-back,
+  .onb-signup .onb-actions-enrich .onb-finishlater { display: none; }
+  .onb-signup .onb-actions-enrich .ghost-link { padding: 10px 6px; }
+  .onb-signup .onb-mobfinish {
+    display: block; width: 100%; margin: 14px 0 6px; padding: 12px;
+    border: 0; background: none; text-align: center;
+    font-family: var(--mono); font-size: 13px; letter-spacing: .02em; color: var(--ink-faint);
+  }
+  .onb-signup .onb-mobfinish:disabled { opacity: .5; }
+
+  /* Keyboard: leave room so a focused field scrolls clear of the sticky CTA, even
+     where interactive-widget isn't honored (older iOS Safari). */
+  .onb-signup .input-wrap, .onb-signup .input-wrap input, .onb-signup .onb-bio { scroll-margin-bottom: 100px; }
+  /* Drag-resize handle is awkward on touch (matches .composer-input). */
+  .onb-signup .onb-bio { resize: none; }
 }
 
 /* ============================================================

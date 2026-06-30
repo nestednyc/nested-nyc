@@ -5,17 +5,19 @@
    ============================================================ */
 import React from 'react'
 import Icon from './icons'
-import { UNIVERSITIES, UNI, MAJORS, INTERESTS, uniByEmailDomain } from './data'
-import { Stamp, Av } from './shared'
+import { UNIVERSITIES, UNI, MAJORS, INTERESTS, SKILLS, LINK_ICON, uniByEmailDomain } from './data'
+import { Stamp, Av, Polaroid, resizePhoto, LINK_KINDS } from './shared'
 import { authService, isSupabaseConfigured, getErrorMessage } from '../lib/supabase'
 import { lookupService } from '../services/lookupService'
 import { profileService } from '../services/profileService'
-import { toDbProfile, fromDbProfile } from './profileAdapter'
+import { storageService } from '../services/storageService'
+import { toDbProfile, fromDbProfile, dataUrlToFile } from './profileAdapter'
 
   const { useState, useRef, useEffect } = React;
 
   const SIGNUP_STEPS = 5;
   const SIGNIN_STEPS = 2;
+  const ENRICH_STEPS = 3;
   const UNIS_PER_TAB = 6;
 
   const CODE_BOX_STYLE = {
@@ -103,6 +105,41 @@ import { toDbProfile, fromDbProfile } from './profileAdapter'
       const t = setTimeout(() => setResendCooldown((s) => s - 1), 1000);
       return () => clearTimeout(t);
     }, [resendCooldown]);
+
+    // ---- Post-confirmation profile enrichment ----
+    // Once the .edu account exists and the core profile is saved, the wizard
+    // doesn't exit — it continues into optional, skippable steps (name+photo,
+    // skills, the details) on the now-live session. Skipping any of them, or
+    // "Finish later", still lands the user in with a basic profile.
+    const [enrich, setEnrich] = useState(false);
+    const [enrichStep, setEnrichStep] = useState(0);
+    const [enrichUserId, setEnrichUserId] = useState(null);
+    const [baseProfile, setBaseProfile] = useState(null);
+    const [firstName, setFirstName] = useState("");
+    const [lastName, setLastName] = useState("");
+    const [photoUrl, setPhotoUrl] = useState(null);         // uploaded storage URL
+    const [photoPreview, setPhotoPreview] = useState(null); // local dataURL while uploading
+    const [photoUploading, setPhotoUploading] = useState(false);
+    const [skills, setSkills] = useState([]);
+    const [bio, setBio] = useState("");
+    const [building, setBuilding] = useState("");
+    const [gradYear, setGradYear] = useState("");
+    const [links, setLinks] = useState({ github: "", portfolio: "", linkedin: "", instagram: "" });
+    const photoOpRef = useRef(0); // bumped on each pick/clear to void a superseded in-flight upload
+
+    // Dev-only preview: /signup?preview=enrich jumps straight into the
+    // enrichment panels with mock data so the new UI can be eyeballed without
+    // the full signup + email-confirm round-trip. Compiled out of prod builds.
+    useEffect(() => {
+      if (!import.meta.env.DEV) return;
+      try {
+        if (new URLSearchParams(window.location.search).get("preview") === "enrich") {
+          setBaseProfile({ username: "mayabuilds", uni: "nyu", major: "Computer Science", fields: [], skills: [], photos: [], links: {}, email: "maya@nyu.edu" });
+          setEnrichUserId("preview");
+          setEnrich(true);
+        }
+      } catch (e) {}
+    }, []);
 
     const totalSteps = mode === "signup" ? SIGNUP_STEPS : SIGNIN_STEPS;
 
@@ -244,8 +281,7 @@ import { toDbProfile, fromDbProfile } from './profileAdapter'
         return;
       }
 
-      setSubmitting(false);
-      onComplete(fromDbProfile(row, email.trim()));
+      enterEnrichment(userId, fromDbProfile(row, email.trim()));
     }
 
     // Verify the 6-digit signup code, then create the profile now that the
@@ -271,8 +307,7 @@ import { toDbProfile, fromDbProfile } from './profileAdapter'
       const { data: row, error: upErr } = await profileService.upsertProfile(userId, toDbProfile(localProfile, userId));
       if (upErr) { setSubmitError(getErrorMessage(upErr)); setSubmitting(false); return; }
 
-      setSubmitting(false);
-      onComplete(fromDbProfile(row, email.trim()));
+      enterEnrichment(userId, fromDbProfile(row, email.trim()));
     }
 
     async function resendSignupCode() {
@@ -338,6 +373,107 @@ import { toDbProfile, fromDbProfile } from './profileAdapter'
       }
 
       setSubmitting(false);
+      onComplete(fromDbProfile(row, email.trim()));
+    }
+
+    // After the account exists and the core profile is written, keep the user
+    // in the wizard for optional enrichment — unless they were deep-linked
+    // somewhere (returnTo), in which case honor that and exit straight away.
+    function enterEnrichment(uid, base) {
+      setSubmitting(false);
+      if (returnTo && returnTo !== "/") { onComplete(base); return; }
+      setEnrichUserId(uid);
+      setBaseProfile(base);
+      if (base && base.firstName) setFirstName(base.firstName);
+      if (base && base.lastName) setLastName(base.lastName);
+      setAwaitingCode(false);
+      setEnrichStep(0);
+      setEnrich(true);
+      window.scrollTo({ top: 0 });
+    }
+
+    async function pickEnrichPhoto(file) {
+      if (photoUploading) return;
+      const op = ++photoOpRef.current; // claim this pick; a later clear/pick supersedes it
+      setSubmitError("");
+      setPhotoUploading(true);
+      try {
+        const dataUrl = await resizePhoto(file, 800);
+        if (photoOpRef.current !== op) return; // cleared / re-picked during resize
+        setPhotoPreview(dataUrl); // instant local preview while the upload lands
+        if (enrichUserId === "preview") return; // dev preview — show, don't upload (finally clears uploading)
+        const f = await dataUrlToFile(dataUrl, "avatar.jpg");
+        const { url, error } = await storageService.uploadProfilePhoto(enrichUserId, f, 0);
+        if (photoOpRef.current !== op) return; // cleared / re-picked while uploading — don't resurrect it
+        if (error || !url) {
+          setPhotoPreview(null);
+          setSubmitError((error && getErrorMessage(error)) || "Couldn't upload that photo — try again.");
+        } else {
+          setPhotoUrl(url);
+        }
+      } catch (e) {
+        if (photoOpRef.current === op) { setPhotoPreview(null); setSubmitError("Couldn't process that image — try another."); }
+      } finally {
+        if (photoOpRef.current === op) setPhotoUploading(false);
+      }
+    }
+    // Bump the op id so any in-flight upload for the removed photo is voided.
+    function clearEnrichPhoto() { photoOpRef.current++; setPhotoUrl(null); setPhotoPreview(null); setPhotoUploading(false); }
+
+    function toggleSkill(s) {
+      setSkills((arr) => arr.includes(s) ? arr.filter((x) => x !== s) : [...arr, s]);
+    }
+    function setLink(kind, value) { setLinks((l) => ({ ...l, [kind]: value })); }
+
+    function enrichNext() {
+      setSubmitError(""); // a per-step error shouldn't bleed onto the next panel
+      if (enrichStep < ENRICH_STEPS - 1) setEnrichStep((s) => s + 1);
+      else finishEnrichment();
+    }
+    function enrichBack() { setSubmitError(""); setEnrichStep((s) => Math.max(0, s - 1)); }
+
+    // forceEnter (from "Finish later") guarantees the user reaches the app even if
+    // the optional enrichment write fails — the account + core profile already
+    // exist, so this second write must never trap them on the wizard.
+    async function finishEnrichment(forceEnter) {
+      if (submitting || photoUploading) return;
+      if (enrichUserId === "preview") { setSubmitError("preview mode — nothing is saved here"); return; }
+      const cleanLinks = {};
+      Object.entries(links).forEach(([k, v]) => { if (v && v.trim()) cleanLinks[k] = v.trim(); });
+      const merged = {
+        ...baseProfile,
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        bio: bio.trim(),
+        skills,
+        year: gradYear.trim(),
+        building: building.trim(),
+        links: cleanLinks,
+        photos: photoUrl ? [{ src: photoUrl }] : (baseProfile.photos || []),
+      };
+      const touched = merged.firstName || merged.lastName || merged.bio || skills.length ||
+        merged.year || merged.building || Object.keys(cleanLinks).length || photoUrl;
+      // Nothing added → enter on the basic profile, skip a redundant write.
+      if (!touched) { onComplete(baseProfile); return; }
+
+      setSubmitting(true);
+      setSubmitError("");
+      const payload = toDbProfile(merged, enrichUserId);
+      let { data: row, error } = await profileService.upsertProfile(enrichUserId, payload);
+      if (error) {
+        // One refresh-and-retry covers the just-confirmed session not yet being
+        // live to PostgREST (the race NestedApp's profile-save path also guards).
+        try { await authService.refreshSession(); } catch (e) {}
+        ({ data: row, error } = await profileService.upsertProfile(enrichUserId, payload));
+      }
+      setSubmitting(false);
+      if (error) {
+        // Never strand. "Finish later" enters anyway (they chose to defer); the
+        // primary CTA keeps the typed input on-screen and re-enables for a retry.
+        if (forceEnter) { onComplete(baseProfile); return; }
+        setSubmitError(getErrorMessage(error));
+        return;
+      }
       onComplete(fromDbProfile(row, email.trim()));
     }
 
@@ -604,6 +740,173 @@ import { toDbProfile, fromDbProfile } from './profileAdapter'
       if (onLastStep) return "Enter Nested";
       return "Continue";
     })();
+
+    // Post-confirmation enrichment wizard — same chrome, optional + skippable.
+    // Reached only after the account is confirmed and the core profile saved,
+    // so the live session is available for the photo upload.
+    if (enrich) {
+      const isLast = enrichStep === ENRICH_STEPS - 1;
+      const busy = submitting || photoUploading;
+
+      let panel;
+      if (enrichStep === 0) {
+        panel = (
+          React.createElement("div", { className: "fade-up", key: "e0" },
+            React.createElement("span", { className: "onb-kicker" }, "You're in · Put a face to it"),
+            React.createElement("h1", null, "Make it yours."),
+            React.createElement("p", { className: "desc" }, "Add your name and a photo so teammates recognize you — or skip and add these later from your profile."),
+            React.createElement("div", { className: "onb-id-row" },
+              React.createElement("div", { className: "onb-snap" },
+                React.createElement(Polaroid, {
+                  src: photoPreview || photoUrl, editable: true,
+                  onPick: pickEnrichPhoto, onClear: clearEnrichPhoto,
+                }),
+                React.createElement("div", { className: "onb-snap-hint" }, photoUploading ? "uploading…" : "// one good snap")
+              ),
+              React.createElement("div", { className: "onb-id-fields" },
+                React.createElement("div", { className: "field" },
+                  React.createElement("label", null, "First name"),
+                  React.createElement("div", { className: "input-wrap" + (firstName ? " good" : "") },
+                    React.createElement(Icon, { name: "user", size: 19 }),
+                    React.createElement("input", { placeholder: "Maya", value: firstName, autoFocus: true, onChange: (e) => setFirstName(e.target.value) })
+                  )
+                ),
+                React.createElement("div", { className: "field", style: { marginBottom: 0 } },
+                  React.createElement("label", null, "Last name"),
+                  React.createElement("div", { className: "input-wrap" + (lastName ? " good" : "") },
+                    React.createElement(Icon, { name: "user", size: 19 }),
+                    React.createElement("input", { placeholder: "Rivera", value: lastName, onChange: (e) => setLastName(e.target.value) })
+                  )
+                )
+              )
+            )
+          )
+        );
+      } else if (enrichStep === 1) {
+        panel = (
+          React.createElement("div", { className: "fade-up", key: "e1" },
+            React.createElement("span", { className: "onb-kicker" }, "Optional · What you bring"),
+            React.createElement("h1", null, "What do you do?"),
+            React.createElement("p", { className: "desc" }, "Pick the skills you'd bring to a team — it's how projects find you. ", React.createElement("b", null, skills.length + " selected")),
+            React.createElement("div", { className: "field" },
+              React.createElement("div", { className: "chips-grid" },
+                SKILLS.map((s) => {
+                  const on = skills.includes(s);
+                  return React.createElement("button", { key: s, className: "pick" + (on ? " on accent" : ""), onClick: () => toggleSkill(s) },
+                    on && React.createElement(Icon, { name: "check", size: 14, width: 2.4 }), s);
+                })
+              )
+            )
+          )
+        );
+      } else {
+        panel = (
+          React.createElement("div", { className: "fade-up", key: "e2" },
+            React.createElement("span", { className: "onb-kicker" }, "Optional · The details"),
+            React.createElement("h1", null, "Round it out."),
+            React.createElement("p", { className: "desc" }, "A line about you, what you're building, and where to reach you."),
+            React.createElement("div", { className: "field" },
+              React.createElement("label", null, "Bio"),
+              React.createElement("textarea", {
+                className: "onb-bio", placeholder: "Who you are, what you're into…",
+                value: bio, maxLength: 280, rows: 3, onChange: (e) => setBio(e.target.value),
+              }),
+              React.createElement("div", { className: "hint" }, "// " + bio.length + " / 280")
+            ),
+            React.createElement("div", { className: "onb-twocol" },
+              React.createElement("div", { className: "field" },
+                React.createElement("label", null, "Building"),
+                React.createElement("div", { className: "input-wrap" + (building ? " good" : "") },
+                  React.createElement(Icon, { name: "flag", size: 18 }),
+                  React.createElement("input", { placeholder: "what you're shipping", value: building, onChange: (e) => setBuilding(e.target.value) })
+                )
+              ),
+              React.createElement("div", { className: "field" },
+                React.createElement("label", null, "Year"),
+                React.createElement("div", { className: "input-wrap" + (gradYear ? " good" : "") },
+                  React.createElement(Icon, { name: "calendar", size: 18 }),
+                  React.createElement("input", { placeholder: "'27", value: gradYear, onChange: (e) => setGradYear(e.target.value) })
+                )
+              )
+            ),
+            React.createElement("div", { className: "field", style: { marginBottom: 0 } },
+              React.createElement("label", null, "Reach me"),
+              LINK_KINDS.map((lk) =>
+                React.createElement("div", {
+                  key: lk.key,
+                  className: "input-wrap" + ((links[lk.key] || "").trim() ? " good" : ""),
+                  style: { marginTop: 10 },
+                },
+                  React.createElement(Icon, { name: LINK_ICON[lk.key] || "link", size: 18 }),
+                  React.createElement("input", { placeholder: lk.placeholder, value: links[lk.key] || "", onChange: (e) => setLink(lk.key, e.target.value) })
+                )
+              )
+            )
+          )
+        );
+      }
+
+      return (
+        React.createElement("div", { className: "onb onb-signup" },
+          React.createElement("div", { className: "onb-aside corkbg grain" },
+            React.createElement("div", { className: "a-top" },
+              React.createElement("div", { className: "brand" },
+                React.createElement("span", { className: "mark" }, React.createElement(Icon, { name: "pin", size: 21, stroke: "var(--paper)" })),
+                React.createElement("span", { className: "name" }, "Nested", React.createElement("span", null, "."))
+              )
+            ),
+            React.createElement("div", { className: "onb-pitch" },
+              React.createElement("h2", null, "You're in.", React.createElement("br"), "Now make it", React.createElement("br"), "yours."),
+              React.createElement("p", null, "A name, a face, a few skills — that's how the right people find you on the board. Every step here is optional; skip anything and finish later.")
+            )
+          ),
+          React.createElement("div", { className: "onb-main grain" },
+            React.createElement("div", { className: "onb-mobhead" },
+              React.createElement("div", { className: "brand" },
+                React.createElement("span", { className: "mark" }, React.createElement(Icon, { name: "pin", size: 21, stroke: "var(--paper)" })),
+                React.createElement("span", { className: "name" }, "Nested", React.createElement("span", null, "."))
+              ),
+              React.createElement("p", { className: "onb-mobpitch" }, "You're in — round out your profile so people can find you.")
+            ),
+            // Mobile-only Back — relocated out of the cramped sticky action bar to
+            // a top-left affordance (reuses the org screens' .onb-mobback pattern).
+            enrichStep > 0 && React.createElement("button", {
+              className: "onb-mobback", onClick: enrichBack, disabled: busy, type: "button",
+            }, React.createElement(Icon, { name: "arrowLeft", size: 14 }), "Back"),
+            React.createElement("div", { className: "onb-card" },
+              React.createElement("div", { className: "onb-steps optional" },
+                Array.from({ length: ENRICH_STEPS }).map((_, i) => (
+                  React.createElement("span", { key: i, className: "dot" + (i < enrichStep ? " done" : i === enrichStep ? " cur" : "") })
+                ))
+              ),
+              panel,
+              // Single error line for the whole wizard (every panel, not just 0 & 2),
+              // cleared on step change so it never bleeds across panels.
+              submitError && React.createElement("div", { className: "enrich-err", style: { marginTop: 14, fontFamily: "var(--mono)", fontSize: 12.5, color: "var(--c-startup)" } }, "// " + submitError),
+              React.createElement("div", { className: "onb-actions onb-actions-enrich" },
+                enrichStep > 0 && React.createElement("button", { className: "ghost-link enrich-back", onClick: enrichBack, disabled: busy }, "← Back"),
+                React.createElement("button", { className: "ghost-link onb-finishlater", onClick: () => finishEnrichment(true), disabled: busy }, "Finish later →"),
+                React.createElement("span", { className: "spacer" }),
+                !isLast && React.createElement("button", { className: "ghost-link", onClick: enrichNext, disabled: busy }, "Skip"),
+                React.createElement("button", {
+                  className: "btn btn-primary",
+                  disabled: busy, style: busy ? { opacity: 0.5, pointerEvents: "none" } : {},
+                  onClick: enrichNext,
+                },
+                  submitting ? "Just a sec…" : (isLast ? "Enter Nested" : "Continue"),
+                  React.createElement(Icon, { name: "arrowRight", size: 17, stroke: "var(--paper)" })
+                )
+              )
+            ),
+            // Mobile-only "Finish later" — pulled out of the action cluster to a
+            // single de-emphasized link beneath the card (reuses .onb-orgline voice).
+            React.createElement("button", {
+              className: "onb-mobfinish", onClick: () => finishEnrichment(true), disabled: busy, type: "button",
+            }, "Finish later →")
+          )
+        )
+      );
+    }
 
     // Email-confirmation code screen — a terminal step shown only when signup
     // needs the .edu inbox confirmed. Mirrors the password-reset code UX.

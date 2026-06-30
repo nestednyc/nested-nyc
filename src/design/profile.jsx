@@ -5,36 +5,11 @@ import React from 'react'
 import Icon from './icons'
 import { UNI, CAT, FIELDS, SKILLS, LINK_ICON } from './data'
 import { ContactLinks } from './people'
+import { Polaroid, resizePhoto, LINK_KINDS } from './shared'
 
   const { useState, useRef, useEffect } = React;
 
   const MAX_BIO = 280;
-
-  const LINK_KINDS = [
-    { key: "github",    label: "GitHub URL",    placeholder: "https://github.com/yourhandle" },
-    { key: "portfolio", label: "Portfolio URL", placeholder: "https://yoursite.com" },
-    { key: "linkedin",  label: "LinkedIn URL",  placeholder: "https://linkedin.com/in/you" },
-    { key: "instagram", label: "Instagram",     placeholder: "@yourhandle" },
-  ];
-
-  async function resizePhoto(file, maxWidth = 800) {
-    const dataURL = await new Promise((res) => {
-      const r = new FileReader();
-      r.onload = () => res(r.result);
-      r.readAsDataURL(file);
-    });
-    const img = await new Promise((res) => {
-      const i = new Image();
-      i.onload = () => res(i);
-      i.src = dataURL;
-    });
-    const scale = Math.min(1, maxWidth / img.width);
-    const c = document.createElement("canvas");
-    c.width = Math.round(img.width * scale);
-    c.height = Math.round(img.height * scale);
-    c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
-    return c.toDataURL("image/jpeg", 0.82);
-  }
 
   // Accept both [{kind,label}] (legacy) and {github,portfolio,...} (new). Return the object.
   function readLinks(profile) {
@@ -50,53 +25,6 @@ import { ContactLinks } from './people'
     // never renders or gets re-saved (the DB migration clears it at rest).
     delete obj.discord;
     return obj;
-  }
-
-  function Polaroid({ label, src, cap, editable, onPick, onClear }) {
-    const inputRef = useRef(null);
-    return React.createElement("div", {
-      className: "polaroid",
-      style: editable ? { cursor: src ? "default" : "pointer", position: "relative" } : { position: "relative" },
-      onClick: editable && !src ? () => inputRef.current && inputRef.current.click() : undefined,
-    },
-      editable && React.createElement("input", {
-        type: "file", accept: "image/*", ref: inputRef, style: { display: "none" },
-        onChange: (e) => {
-          const f = e.target.files && e.target.files[0];
-          if (f) onPick(f);
-          e.target.value = "";
-        },
-      }),
-      React.createElement("div", { className: "ph" },
-        src
-          ? React.createElement("img", {
-              src, alt: cap || label || "",
-              style: { width: "100%", height: "100%", objectFit: "cover", display: "block" },
-            })
-          : React.createElement("span", { className: "pl" }, editable ? "+ pin a snap" : label)
-      ),
-      (cap || label) && !editable && React.createElement("div", { className: "cap" }, cap || label),
-      editable && src && React.createElement("button", {
-        title: "Remove photo",
-        onClick: (e) => { e.stopPropagation(); onClear(); },
-        style: {
-          position: "absolute", top: -8, right: -8, width: 22, height: 22, borderRadius: "50%",
-          background: "var(--paper)", border: "1.5px solid var(--paper-edge)",
-          display: "grid", placeItems: "center", cursor: "pointer", padding: 0,
-          boxShadow: "0 2px 5px -2px oklch(0.2 0.02 60/.4)",
-        },
-      }, React.createElement(Icon, { name: "x", size: 12 })),
-      editable && src && React.createElement("button", {
-        title: "Replace photo",
-        onClick: (e) => { e.stopPropagation(); inputRef.current && inputRef.current.click(); },
-        style: {
-          position: "absolute", bottom: 16, left: "50%", transform: "translateX(-50%)",
-          fontFamily: "var(--mono)", fontSize: 10, color: "var(--paper)",
-          background: "oklch(0 0 0 / 0.55)", padding: "3px 9px", borderRadius: 4,
-          border: 0, cursor: "pointer",
-        },
-      }, "replace")
-    );
   }
 
   function fmtJoined(ts) {
