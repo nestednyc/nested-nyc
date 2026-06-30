@@ -291,14 +291,14 @@ import { Facepile, CatTag, Pin, Skeleton } from './shared'
       return c;
     }, [projects]);
 
-    // Build the discovery shelves from the live projects. With a small launch
-    // dataset we deal projects across just two shelves: the four most-joined go
-    // to "Popular now", the next four to "Featured". NO project repeats across
-    // shelves, and empty shelves drop out via the filter below.
+    // Build the discovery shelves from the live projects: the four most-joined
+    // go to "Popular now", and every remaining project goes to "Featured",
+    // which paginates (FeedRow flip-pagination) so no project is ever dropped.
+    // NO project repeats across shelves, and empty shelves drop via the filter.
     const feeds = useMemo(() => {
       const byJoined = [...projects].sort((a, b) => b.joinedCount - a.joinedCount);
       const popular = byJoined.slice(0, 4);
-      const featured = byJoined.slice(4, 8);
+      const featured = byJoined.slice(4);
 
       return [
         { id: "popular",  label: "Popular now", sub: "most students joining",    color: "var(--c-startup)", cols: 4, rows: 1, items: popular },
