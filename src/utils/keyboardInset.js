@@ -23,17 +23,22 @@
   if (!vv) { root.style.setProperty("--kb", "0px"); return; }
 
   let queued = false;
+  // Skip redundant writes: --kb only changes when the keyboard/zoom state changes,
+  // but the visualViewport resize/scroll burst fires many frames. Cache the last
+  // value written and only touch the DOM when it actually changes.
+  let last = null;
+  const write = (v) => { if (v === last) return; last = v; root.style.setProperty("--kb", v); };
   const apply = () => {
     queued = false;
     // Pinch-zoom also shrinks the visual viewport, which would otherwise read as a
     // huge bogus keyboard inset (innerHeight − vv.height) with no keyboard open and
     // shove the sticky bars off-anchor. Only the unzoomed state means "keyboard".
-    if (vv.scale > 1) { root.style.setProperty("--kb", "0px"); return; }
+    if (vv.scale > 1) { write("0px"); return; }
     // Keyboard overlap = layout-viewport height − visible height − top offset.
     // offsetTop is non-zero only under pinch-zoom; clamp ≥ 0 and treat sub-pixel
     // jitter (URL-bar settle) as 0 so the bar doesn't twitch.
     const inset = window.innerHeight - vv.height - vv.offsetTop;
-    root.style.setProperty("--kb", (inset > 1 ? Math.round(inset) : 0) + "px");
+    write((inset > 1 ? Math.round(inset) : 0) + "px");
   };
   // Coalesce the burst of resize/scroll events the keyboard fires into one write.
   const schedule = () => {

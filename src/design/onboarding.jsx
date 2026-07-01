@@ -403,13 +403,28 @@ import { toDbProfile, fromDbProfile, dataUrlToFile } from './profileAdapter'
         setPhotoPreview(dataUrl); // instant local preview while the upload lands
         if (enrichUserId === "preview") return; // dev preview — show, don't upload (finally clears uploading)
         const f = await dataUrlToFile(dataUrl, "avatar.jpg");
-        const { url, error } = await storageService.uploadProfilePhoto(enrichUserId, f, 0);
-        if (photoOpRef.current !== op) return; // cleared / re-picked while uploading — don't resurrect it
+        let { url, error } = await storageService.uploadProfilePhoto(enrichUserId, f, 0);
+        if (error) {
+          // Just-confirmed session may not be live to Storage RLS yet — refresh once, retry
+          // (the same post-confirm race finishEnrichment's upsert and NestedApp's upload guard).
+          try { await authService.refreshSession(); } catch (e) {}
+          if (photoOpRef.current !== op) return;
+          ({ url, error } = await storageService.uploadProfilePhoto(enrichUserId, f, 0));
+        }
+        if (photoOpRef.current !== op) {
+          // Cleared / re-picked while uploading — don't resurrect it. If the upload had
+          // already landed, delete the now-orphaned object instead of dropping it (the
+          // clear-mid-upload gap the eager-upload cleanup would otherwise miss).
+          if (url) deleteEnrichPhotoObject(url);
+          return;
+        }
         if (error || !url) {
           setPhotoPreview(null);
           setSubmitError((error && getErrorMessage(error)) || "Couldn't upload that photo — try again.");
         } else {
+          const prev = photoUrl; // the object this upload supersedes — clean it up
           setPhotoUrl(url);
+          if (prev && prev !== url) deleteEnrichPhotoObject(prev);
         }
       } catch (e) {
         if (photoOpRef.current === op) { setPhotoPreview(null); setSubmitError("Couldn't process that image — try another."); }
@@ -417,8 +432,26 @@ import { toDbProfile, fromDbProfile, dataUrlToFile } from './profileAdapter'
         if (photoOpRef.current === op) setPhotoUploading(false);
       }
     }
+    // Delete a superseded enrichment photo from Storage — fire-and-forget, scoped to
+    // the user's own folder (mirrors NestedApp.saveProfileToSupabase's stale-photo
+    // cleanup). Eager uploads use unique Date.now() names, so replaced/cleared photos
+    // would otherwise linger as orphans.
+    function deleteEnrichPhotoObject(url) {
+      const marker = "/storage/v1/object/public/avatars/";
+      if (!url || !url.includes(marker)) return;
+      const path = decodeURIComponent(url.split(marker)[1] || "");
+      if (!path.startsWith(enrichUserId + "/")) return;
+      storageService.deleteAvatar(path).then(({ error }) => {
+        if (error) console.error("Enrichment photo cleanup failed:", error);
+      });
+    }
     // Bump the op id so any in-flight upload for the removed photo is voided.
-    function clearEnrichPhoto() { photoOpRef.current++; setPhotoUrl(null); setPhotoPreview(null); setPhotoUploading(false); }
+    function clearEnrichPhoto() {
+      photoOpRef.current++;
+      const prev = photoUrl;
+      setPhotoUrl(null); setPhotoPreview(null); setPhotoUploading(false);
+      if (prev) deleteEnrichPhotoObject(prev);
+    }
 
     function toggleSkill(s) {
       setSkills((arr) => arr.includes(s) ? arr.filter((x) => x !== s) : [...arr, s]);
@@ -454,7 +487,9 @@ import { toDbProfile, fromDbProfile, dataUrlToFile } from './profileAdapter'
       const touched = merged.firstName || merged.lastName || merged.bio || skills.length ||
         merged.year || merged.building || Object.keys(cleanLinks).length || photoUrl;
       // Nothing added → enter on the basic profile, skip a redundant write.
-      if (!touched) { onComplete(baseProfile); return; }
+      // Guard first: onComplete navigates away, and setting submitting disables
+      // every exit control so a double-tap can't fire it twice (double route/toast).
+      if (!touched) { setSubmitting(true); onComplete(baseProfile); return; }
 
       setSubmitting(true);
       setSubmitError("");
@@ -475,6 +510,248 @@ import { toDbProfile, fromDbProfile, dataUrlToFile } from './profileAdapter'
         return;
       }
       onComplete(fromDbProfile(row, email.trim()));
+    }
+
+    // Post-confirmation enrichment wizard — same chrome, optional + skippable.
+    // Reached only after the account is confirmed and the core profile saved,
+    // so the live session is available for the photo upload. Returned above the
+    // body/gating computation so enrichment keystrokes don't rebuild a discarded
+    // signup step tree on every render.
+    if (enrich) {
+      const isLast = enrichStep === ENRICH_STEPS - 1;
+      const busy = submitting || photoUploading;
+
+      let panel;
+      if (enrichStep === 0) {
+        panel = (
+          React.createElement("div", { className: "fade-up", key: "e0" },
+            React.createElement("span", { className: "onb-kicker" }, "You're in · Put a face to it"),
+            React.createElement("h1", null, "Make it yours."),
+            React.createElement("p", { className: "desc" }, "Add your name and a photo so teammates recognize you — or skip and add these later from your profile."),
+            React.createElement("div", { className: "onb-id-row" },
+              React.createElement("div", { className: "onb-snap" },
+                React.createElement(Polaroid, {
+                  src: photoPreview || photoUrl, editable: true,
+                  onPick: pickEnrichPhoto, onClear: clearEnrichPhoto,
+                }),
+                React.createElement("div", { className: "onb-snap-hint" }, photoUploading ? "uploading…" : "// one good snap")
+              ),
+              React.createElement("div", { className: "onb-id-fields" },
+                React.createElement("div", { className: "field" },
+                  React.createElement("label", null, "First name"),
+                  React.createElement("div", { className: "input-wrap" + (firstName ? " good" : "") },
+                    React.createElement(Icon, { name: "user", size: 19 }),
+                    React.createElement("input", { placeholder: "Maya", value: firstName, onChange: (e) => setFirstName(e.target.value) })
+                  )
+                ),
+                React.createElement("div", { className: "field", style: { marginBottom: 0 } },
+                  React.createElement("label", null, "Last name"),
+                  React.createElement("div", { className: "input-wrap" + (lastName ? " good" : "") },
+                    React.createElement(Icon, { name: "user", size: 19 }),
+                    React.createElement("input", { placeholder: "Rivera", value: lastName, onChange: (e) => setLastName(e.target.value) })
+                  )
+                )
+              )
+            )
+          )
+        );
+      } else if (enrichStep === 1) {
+        panel = (
+          React.createElement("div", { className: "fade-up", key: "e1" },
+            React.createElement("span", { className: "onb-kicker" }, "Optional · What you bring"),
+            React.createElement("h1", null, "What do you do?"),
+            React.createElement("p", { className: "desc" }, "Pick the skills you'd bring to a team — it's how projects find you. ", React.createElement("b", null, skills.length + " selected")),
+            React.createElement("div", { className: "field" },
+              React.createElement("div", { className: "chips-grid" },
+                SKILLS.map((s) => {
+                  const on = skills.includes(s);
+                  return React.createElement("button", { key: s, className: "pick" + (on ? " on accent" : ""), onClick: () => toggleSkill(s) },
+                    on && React.createElement(Icon, { name: "check", size: 14, width: 2.4 }), s);
+                })
+              )
+            )
+          )
+        );
+      } else {
+        panel = (
+          React.createElement("div", { className: "fade-up", key: "e2" },
+            React.createElement("span", { className: "onb-kicker" }, "Optional · The details"),
+            React.createElement("h1", null, "Round it out."),
+            React.createElement("p", { className: "desc" }, "A line about you, what you're building, and where to reach you."),
+            React.createElement("div", { className: "field" },
+              React.createElement("label", null, "Bio"),
+              React.createElement("textarea", {
+                className: "onb-bio", placeholder: "Who you are, what you're into…",
+                value: bio, maxLength: 280, rows: 3, onChange: (e) => setBio(e.target.value),
+              }),
+              React.createElement("div", { className: "hint" }, "// " + bio.length + " / 280")
+            ),
+            React.createElement("div", { className: "onb-twocol" },
+              React.createElement("div", { className: "field" },
+                React.createElement("label", null, "Building"),
+                React.createElement("div", { className: "input-wrap" + (building ? " good" : "") },
+                  React.createElement(Icon, { name: "flag", size: 18 }),
+                  React.createElement("input", { placeholder: "what you're shipping", value: building, onChange: (e) => setBuilding(e.target.value) })
+                )
+              ),
+              React.createElement("div", { className: "field" },
+                React.createElement("label", null, "Year"),
+                React.createElement("div", { className: "input-wrap" + (gradYear ? " good" : "") },
+                  React.createElement(Icon, { name: "calendar", size: 18 }),
+                  React.createElement("input", { placeholder: "'27", value: gradYear, onChange: (e) => setGradYear(e.target.value) })
+                )
+              )
+            ),
+            React.createElement("div", { className: "field", style: { marginBottom: 0 } },
+              React.createElement("label", null, "Reach me"),
+              LINK_KINDS.map((lk) =>
+                React.createElement("div", {
+                  key: lk.key,
+                  className: "input-wrap" + ((links[lk.key] || "").trim() ? " good" : ""),
+                  style: { marginTop: 10 },
+                },
+                  React.createElement(Icon, { name: LINK_ICON[lk.key] || "link", size: 18 }),
+                  React.createElement("input", { placeholder: lk.placeholder, value: links[lk.key] || "", onChange: (e) => setLink(lk.key, e.target.value) })
+                )
+              )
+            )
+          )
+        );
+      }
+
+      return (
+        React.createElement("div", { className: "onb onb-signup" },
+          React.createElement("div", { className: "onb-aside corkbg grain" },
+            React.createElement("div", { className: "a-top" },
+              React.createElement("div", { className: "brand" },
+                React.createElement("span", { className: "mark" }, React.createElement(Icon, { name: "pin", size: 21, stroke: "var(--paper)" })),
+                React.createElement("span", { className: "name" }, "Nested", React.createElement("span", null, "."))
+              )
+            ),
+            React.createElement("div", { className: "onb-pitch" },
+              React.createElement("h2", null, "You're in.", React.createElement("br"), "Now make it", React.createElement("br"), "yours."),
+              React.createElement("p", null, "A name, a face, a few skills — that's how the right people find you on the board. Every step here is optional; skip anything and finish later.")
+            )
+          ),
+          React.createElement("div", { className: "onb-main grain" },
+            React.createElement("div", { className: "onb-mobhead" },
+              React.createElement("div", { className: "brand" },
+                React.createElement("span", { className: "mark" }, React.createElement(Icon, { name: "pin", size: 21, stroke: "var(--paper)" })),
+                React.createElement("span", { className: "name" }, "Nested", React.createElement("span", null, "."))
+              ),
+              React.createElement("p", { className: "onb-mobpitch" }, "You're in — round out your profile so people can find you.")
+            ),
+            // Mobile-only Back — relocated out of the cramped sticky action bar to
+            // a top-left affordance (reuses the org screens' .onb-mobback pattern).
+            enrichStep > 0 && React.createElement("button", {
+              className: "onb-mobback", onClick: enrichBack, disabled: busy, type: "button",
+            }, React.createElement(Icon, { name: "arrowLeft", size: 14 }), "Back"),
+            React.createElement("div", { className: "onb-card" },
+              React.createElement("div", { className: "onb-steps optional" },
+                Array.from({ length: ENRICH_STEPS }).map((_, i) => (
+                  React.createElement("span", { key: i, className: "dot" + (i < enrichStep ? " done" : i === enrichStep ? " cur" : "") })
+                ))
+              ),
+              panel,
+              // Single error line for the whole wizard (every panel, not just 0 & 2),
+              // cleared on step change so it never bleeds across panels.
+              submitError && React.createElement("div", { className: "enrich-err", style: { marginTop: 14, fontFamily: "var(--mono)", fontSize: 12.5, color: "var(--c-startup)" } }, "// " + submitError),
+              React.createElement("div", { className: "onb-actions onb-actions-enrich" },
+                enrichStep > 0 && React.createElement("button", { className: "ghost-link enrich-back", onClick: enrichBack, disabled: busy }, "← Back"),
+                React.createElement("button", { className: "ghost-link onb-finishlater", onClick: () => finishEnrichment(true), disabled: busy }, "Finish later →"),
+                React.createElement("span", { className: "spacer" }),
+                !isLast && React.createElement("button", { className: "ghost-link", onClick: enrichNext, disabled: busy }, "Skip"),
+                React.createElement("button", {
+                  className: "btn btn-primary",
+                  disabled: busy, style: busy ? { opacity: 0.5, pointerEvents: "none" } : {},
+                  onClick: enrichNext,
+                },
+                  submitting ? "Just a sec…" : (isLast ? "Enter Nested" : "Continue"),
+                  React.createElement(Icon, { name: "arrowRight", size: 17, stroke: "var(--paper)" })
+                )
+              )
+            ),
+            // Mobile-only "Finish later" — pulled out of the action cluster to a
+            // single de-emphasized link beneath the card (reuses .onb-orgline voice).
+            React.createElement("button", {
+              className: "onb-mobfinish", onClick: () => finishEnrichment(true), disabled: busy, type: "button",
+            }, "Finish later →")
+          )
+        )
+      );
+    }
+
+    // Email-confirmation code screen — a terminal step shown only when signup
+    // needs the .edu inbox confirmed. Mirrors the password-reset code UX.
+    if (awaitingCode) {
+      return (
+        React.createElement("div", { className: "onb onb-signup" },
+          React.createElement("div", { className: "onb-aside corkbg grain" },
+            React.createElement("div", { className: "a-top" },
+              React.createElement("div", { className: "brand" },
+                React.createElement("span", { className: "mark" }, React.createElement(Icon, { name: "pin", size: 21, stroke: "var(--paper)" })),
+                React.createElement("span", { className: "name" }, "Nested", React.createElement("span", null, "."))
+              )
+            ),
+            React.createElement("div", { className: "onb-pitch" },
+              React.createElement("h2", null, "Check your", React.createElement("br"), "inbox.")
+            )
+          ),
+          React.createElement("div", { className: "onb-main grain" },
+            React.createElement("div", { className: "onb-mobhead" },
+              React.createElement("div", { className: "brand" },
+                React.createElement("span", { className: "mark" }, React.createElement(Icon, { name: "pin", size: 21, stroke: "var(--paper)" })),
+                React.createElement("span", { className: "name" }, "Nested", React.createElement("span", null, "."))
+              ),
+              React.createElement("p", { className: "onb-mobpitch" }, "Find your people for the thing you're building.")
+            ),
+            React.createElement("div", { className: "onb-card" },
+              React.createElement("div", { className: "fade-up" },
+                React.createElement("span", { className: "onb-kicker" }, "Last step · Confirm your .edu"),
+                React.createElement("h1", null, "Enter the code."),
+                React.createElement("p", { className: "desc" }, "We sent a 6-digit code to ", React.createElement("b", null, email.trim()), ". Check your inbox (and spam, just in case)."),
+                React.createElement("p", { style: { fontFamily: "var(--mono)", fontSize: 11, color: "var(--ink-faint)", margin: "-4px 0 14px", letterSpacing: "0.02em" } }, "// psst — it loves to hide in spam. peek there."),
+                React.createElement("div", { className: "field" },
+                  React.createElement("label", null, "6-digit code"),
+                  React.createElement("div", { style: { display: "flex", gap: 10 }, onPaste: onCodePaste },
+                    code.map((d, i) => (
+                      React.createElement("input", {
+                        key: i,
+                        ref: (el) => { codeRefs.current[i] = el; },
+                        type: "text", inputMode: "numeric", maxLength: 1, autoFocus: i === 0,
+                        value: d, className: "code-box", style: CODE_BOX_STYLE,
+                        onChange: (e) => setCodeDigit(i, e.target.value),
+                        onKeyDown: (e) => onCodeKeyDown(i, e),
+                      })
+                    ))
+                  ),
+                  submitError
+                    ? React.createElement("div", { className: "hint err" }, "// " + submitError)
+                    : React.createElement("div", { className: "hint" }, "// paste the full code if it's easier")
+                ),
+                React.createElement("div", { style: { marginTop: 14, fontFamily: "var(--mono)", fontSize: 12 } },
+                  resendCooldown > 0
+                    ? React.createElement("span", { style: { color: "var(--ink-faint)" } }, "// resend available in " + resendCooldown + "s")
+                    : React.createElement("button", { className: "ghost-link", onClick: resendSignupCode, disabled: submitting }, "Didn't get it? Resend the code →")
+                )
+              ),
+              React.createElement("div", { className: "onb-actions" },
+                React.createElement("button", { className: "ghost-link", onClick: () => { setAwaitingCode(false); setSubmitError(""); }, disabled: submitting }, "← Back"),
+                React.createElement("span", { className: "spacer" }),
+                React.createElement("button", {
+                  className: "btn btn-primary",
+                  disabled: !codeReady || submitting,
+                  style: (!codeReady || submitting) ? { opacity: 0.4, pointerEvents: "none" } : {},
+                  onClick: verifyCodeAndFinish,
+                },
+                  submitting ? "Just a sec…" : "Verify & enter Nested",
+                  React.createElement(Icon, { name: "arrowRight", size: 17, stroke: "var(--paper)" })
+                )
+              )
+            )
+          )
+        )
+      );
     }
 
     // ---------- step bodies ----------
@@ -740,246 +1017,6 @@ import { toDbProfile, fromDbProfile, dataUrlToFile } from './profileAdapter'
       if (onLastStep) return "Enter Nested";
       return "Continue";
     })();
-
-    // Post-confirmation enrichment wizard — same chrome, optional + skippable.
-    // Reached only after the account is confirmed and the core profile saved,
-    // so the live session is available for the photo upload.
-    if (enrich) {
-      const isLast = enrichStep === ENRICH_STEPS - 1;
-      const busy = submitting || photoUploading;
-
-      let panel;
-      if (enrichStep === 0) {
-        panel = (
-          React.createElement("div", { className: "fade-up", key: "e0" },
-            React.createElement("span", { className: "onb-kicker" }, "You're in · Put a face to it"),
-            React.createElement("h1", null, "Make it yours."),
-            React.createElement("p", { className: "desc" }, "Add your name and a photo so teammates recognize you — or skip and add these later from your profile."),
-            React.createElement("div", { className: "onb-id-row" },
-              React.createElement("div", { className: "onb-snap" },
-                React.createElement(Polaroid, {
-                  src: photoPreview || photoUrl, editable: true,
-                  onPick: pickEnrichPhoto, onClear: clearEnrichPhoto,
-                }),
-                React.createElement("div", { className: "onb-snap-hint" }, photoUploading ? "uploading…" : "// one good snap")
-              ),
-              React.createElement("div", { className: "onb-id-fields" },
-                React.createElement("div", { className: "field" },
-                  React.createElement("label", null, "First name"),
-                  React.createElement("div", { className: "input-wrap" + (firstName ? " good" : "") },
-                    React.createElement(Icon, { name: "user", size: 19 }),
-                    React.createElement("input", { placeholder: "Maya", value: firstName, autoFocus: true, onChange: (e) => setFirstName(e.target.value) })
-                  )
-                ),
-                React.createElement("div", { className: "field", style: { marginBottom: 0 } },
-                  React.createElement("label", null, "Last name"),
-                  React.createElement("div", { className: "input-wrap" + (lastName ? " good" : "") },
-                    React.createElement(Icon, { name: "user", size: 19 }),
-                    React.createElement("input", { placeholder: "Rivera", value: lastName, onChange: (e) => setLastName(e.target.value) })
-                  )
-                )
-              )
-            )
-          )
-        );
-      } else if (enrichStep === 1) {
-        panel = (
-          React.createElement("div", { className: "fade-up", key: "e1" },
-            React.createElement("span", { className: "onb-kicker" }, "Optional · What you bring"),
-            React.createElement("h1", null, "What do you do?"),
-            React.createElement("p", { className: "desc" }, "Pick the skills you'd bring to a team — it's how projects find you. ", React.createElement("b", null, skills.length + " selected")),
-            React.createElement("div", { className: "field" },
-              React.createElement("div", { className: "chips-grid" },
-                SKILLS.map((s) => {
-                  const on = skills.includes(s);
-                  return React.createElement("button", { key: s, className: "pick" + (on ? " on accent" : ""), onClick: () => toggleSkill(s) },
-                    on && React.createElement(Icon, { name: "check", size: 14, width: 2.4 }), s);
-                })
-              )
-            )
-          )
-        );
-      } else {
-        panel = (
-          React.createElement("div", { className: "fade-up", key: "e2" },
-            React.createElement("span", { className: "onb-kicker" }, "Optional · The details"),
-            React.createElement("h1", null, "Round it out."),
-            React.createElement("p", { className: "desc" }, "A line about you, what you're building, and where to reach you."),
-            React.createElement("div", { className: "field" },
-              React.createElement("label", null, "Bio"),
-              React.createElement("textarea", {
-                className: "onb-bio", placeholder: "Who you are, what you're into…",
-                value: bio, maxLength: 280, rows: 3, onChange: (e) => setBio(e.target.value),
-              }),
-              React.createElement("div", { className: "hint" }, "// " + bio.length + " / 280")
-            ),
-            React.createElement("div", { className: "onb-twocol" },
-              React.createElement("div", { className: "field" },
-                React.createElement("label", null, "Building"),
-                React.createElement("div", { className: "input-wrap" + (building ? " good" : "") },
-                  React.createElement(Icon, { name: "flag", size: 18 }),
-                  React.createElement("input", { placeholder: "what you're shipping", value: building, onChange: (e) => setBuilding(e.target.value) })
-                )
-              ),
-              React.createElement("div", { className: "field" },
-                React.createElement("label", null, "Year"),
-                React.createElement("div", { className: "input-wrap" + (gradYear ? " good" : "") },
-                  React.createElement(Icon, { name: "calendar", size: 18 }),
-                  React.createElement("input", { placeholder: "'27", value: gradYear, onChange: (e) => setGradYear(e.target.value) })
-                )
-              )
-            ),
-            React.createElement("div", { className: "field", style: { marginBottom: 0 } },
-              React.createElement("label", null, "Reach me"),
-              LINK_KINDS.map((lk) =>
-                React.createElement("div", {
-                  key: lk.key,
-                  className: "input-wrap" + ((links[lk.key] || "").trim() ? " good" : ""),
-                  style: { marginTop: 10 },
-                },
-                  React.createElement(Icon, { name: LINK_ICON[lk.key] || "link", size: 18 }),
-                  React.createElement("input", { placeholder: lk.placeholder, value: links[lk.key] || "", onChange: (e) => setLink(lk.key, e.target.value) })
-                )
-              )
-            )
-          )
-        );
-      }
-
-      return (
-        React.createElement("div", { className: "onb onb-signup" },
-          React.createElement("div", { className: "onb-aside corkbg grain" },
-            React.createElement("div", { className: "a-top" },
-              React.createElement("div", { className: "brand" },
-                React.createElement("span", { className: "mark" }, React.createElement(Icon, { name: "pin", size: 21, stroke: "var(--paper)" })),
-                React.createElement("span", { className: "name" }, "Nested", React.createElement("span", null, "."))
-              )
-            ),
-            React.createElement("div", { className: "onb-pitch" },
-              React.createElement("h2", null, "You're in.", React.createElement("br"), "Now make it", React.createElement("br"), "yours."),
-              React.createElement("p", null, "A name, a face, a few skills — that's how the right people find you on the board. Every step here is optional; skip anything and finish later.")
-            )
-          ),
-          React.createElement("div", { className: "onb-main grain" },
-            React.createElement("div", { className: "onb-mobhead" },
-              React.createElement("div", { className: "brand" },
-                React.createElement("span", { className: "mark" }, React.createElement(Icon, { name: "pin", size: 21, stroke: "var(--paper)" })),
-                React.createElement("span", { className: "name" }, "Nested", React.createElement("span", null, "."))
-              ),
-              React.createElement("p", { className: "onb-mobpitch" }, "You're in — round out your profile so people can find you.")
-            ),
-            // Mobile-only Back — relocated out of the cramped sticky action bar to
-            // a top-left affordance (reuses the org screens' .onb-mobback pattern).
-            enrichStep > 0 && React.createElement("button", {
-              className: "onb-mobback", onClick: enrichBack, disabled: busy, type: "button",
-            }, React.createElement(Icon, { name: "arrowLeft", size: 14 }), "Back"),
-            React.createElement("div", { className: "onb-card" },
-              React.createElement("div", { className: "onb-steps optional" },
-                Array.from({ length: ENRICH_STEPS }).map((_, i) => (
-                  React.createElement("span", { key: i, className: "dot" + (i < enrichStep ? " done" : i === enrichStep ? " cur" : "") })
-                ))
-              ),
-              panel,
-              // Single error line for the whole wizard (every panel, not just 0 & 2),
-              // cleared on step change so it never bleeds across panels.
-              submitError && React.createElement("div", { className: "enrich-err", style: { marginTop: 14, fontFamily: "var(--mono)", fontSize: 12.5, color: "var(--c-startup)" } }, "// " + submitError),
-              React.createElement("div", { className: "onb-actions onb-actions-enrich" },
-                enrichStep > 0 && React.createElement("button", { className: "ghost-link enrich-back", onClick: enrichBack, disabled: busy }, "← Back"),
-                React.createElement("button", { className: "ghost-link onb-finishlater", onClick: () => finishEnrichment(true), disabled: busy }, "Finish later →"),
-                React.createElement("span", { className: "spacer" }),
-                !isLast && React.createElement("button", { className: "ghost-link", onClick: enrichNext, disabled: busy }, "Skip"),
-                React.createElement("button", {
-                  className: "btn btn-primary",
-                  disabled: busy, style: busy ? { opacity: 0.5, pointerEvents: "none" } : {},
-                  onClick: enrichNext,
-                },
-                  submitting ? "Just a sec…" : (isLast ? "Enter Nested" : "Continue"),
-                  React.createElement(Icon, { name: "arrowRight", size: 17, stroke: "var(--paper)" })
-                )
-              )
-            ),
-            // Mobile-only "Finish later" — pulled out of the action cluster to a
-            // single de-emphasized link beneath the card (reuses .onb-orgline voice).
-            React.createElement("button", {
-              className: "onb-mobfinish", onClick: () => finishEnrichment(true), disabled: busy, type: "button",
-            }, "Finish later →")
-          )
-        )
-      );
-    }
-
-    // Email-confirmation code screen — a terminal step shown only when signup
-    // needs the .edu inbox confirmed. Mirrors the password-reset code UX.
-    if (awaitingCode) {
-      return (
-        React.createElement("div", { className: "onb onb-signup" },
-          React.createElement("div", { className: "onb-aside corkbg grain" },
-            React.createElement("div", { className: "a-top" },
-              React.createElement("div", { className: "brand" },
-                React.createElement("span", { className: "mark" }, React.createElement(Icon, { name: "pin", size: 21, stroke: "var(--paper)" })),
-                React.createElement("span", { className: "name" }, "Nested", React.createElement("span", null, "."))
-              )
-            ),
-            React.createElement("div", { className: "onb-pitch" },
-              React.createElement("h2", null, "Check your", React.createElement("br"), "inbox.")
-            )
-          ),
-          React.createElement("div", { className: "onb-main grain" },
-            React.createElement("div", { className: "onb-mobhead" },
-              React.createElement("div", { className: "brand" },
-                React.createElement("span", { className: "mark" }, React.createElement(Icon, { name: "pin", size: 21, stroke: "var(--paper)" })),
-                React.createElement("span", { className: "name" }, "Nested", React.createElement("span", null, "."))
-              ),
-              React.createElement("p", { className: "onb-mobpitch" }, "Find your people for the thing you're building.")
-            ),
-            React.createElement("div", { className: "onb-card" },
-              React.createElement("div", { className: "fade-up" },
-                React.createElement("span", { className: "onb-kicker" }, "Last step · Confirm your .edu"),
-                React.createElement("h1", null, "Enter the code."),
-                React.createElement("p", { className: "desc" }, "We sent a 6-digit code to ", React.createElement("b", null, email.trim()), ". Check your inbox (and spam, just in case)."),
-                React.createElement("p", { style: { fontFamily: "var(--mono)", fontSize: 11, color: "var(--ink-faint)", margin: "-4px 0 14px", letterSpacing: "0.02em" } }, "// psst — it loves to hide in spam. peek there."),
-                React.createElement("div", { className: "field" },
-                  React.createElement("label", null, "6-digit code"),
-                  React.createElement("div", { style: { display: "flex", gap: 10 }, onPaste: onCodePaste },
-                    code.map((d, i) => (
-                      React.createElement("input", {
-                        key: i,
-                        ref: (el) => { codeRefs.current[i] = el; },
-                        type: "text", inputMode: "numeric", maxLength: 1, autoFocus: i === 0,
-                        value: d, className: "code-box", style: CODE_BOX_STYLE,
-                        onChange: (e) => setCodeDigit(i, e.target.value),
-                        onKeyDown: (e) => onCodeKeyDown(i, e),
-                      })
-                    ))
-                  ),
-                  submitError
-                    ? React.createElement("div", { className: "hint err" }, "// " + submitError)
-                    : React.createElement("div", { className: "hint" }, "// paste the full code if it's easier")
-                ),
-                React.createElement("div", { style: { marginTop: 14, fontFamily: "var(--mono)", fontSize: 12 } },
-                  resendCooldown > 0
-                    ? React.createElement("span", { style: { color: "var(--ink-faint)" } }, "// resend available in " + resendCooldown + "s")
-                    : React.createElement("button", { className: "ghost-link", onClick: resendSignupCode, disabled: submitting }, "Didn't get it? Resend the code →")
-                )
-              ),
-              React.createElement("div", { className: "onb-actions" },
-                React.createElement("button", { className: "ghost-link", onClick: () => { setAwaitingCode(false); setSubmitError(""); }, disabled: submitting }, "← Back"),
-                React.createElement("span", { className: "spacer" }),
-                React.createElement("button", {
-                  className: "btn btn-primary",
-                  disabled: !codeReady || submitting,
-                  style: (!codeReady || submitting) ? { opacity: 0.4, pointerEvents: "none" } : {},
-                  onClick: verifyCodeAndFinish,
-                },
-                  submitting ? "Just a sec…" : "Verify & enter Nested",
-                  React.createElement(Icon, { name: "arrowRight", size: 17, stroke: "var(--paper)" })
-                )
-              )
-            )
-          )
-        )
-      );
-    }
 
     return (
       React.createElement("div", { className: "onb onb-signup" },

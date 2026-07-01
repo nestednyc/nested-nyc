@@ -361,4 +361,3 @@ import { avColor, initials, UNI, ORG_TYPES } from './data'
   }
 
   export { Av, Facepile, CatTag, Pin, Stamp, Toasts, UniLogo, formatEventDate, Skeleton, CodeBoxes, ConfirmModal, OrgMini, Polaroid, resizePhoto, LINK_KINDS };
-  export const UI = { Av, Facepile, CatTag, Pin, Stamp, Toasts, UniLogo, formatEventDate, Skeleton, CodeBoxes, ConfirmModal, OrgMini, Polaroid };

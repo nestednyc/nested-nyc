@@ -672,7 +672,7 @@ input, textarea, select { font-family: inherit; }
 .onb-actions .ghost-link { background: none; border: 0; color: var(--ink-soft); font-weight: 600; font-size: 14px; }
 .onb-actions .ghost-link:hover { color: var(--ink); }
 .spacer { flex: 1; }
-.onb-actions { flex-wrap: wrap; }
+.onb-actions-enrich { flex-wrap: wrap; }
 
 /* enrichment (post-confirmation) wizard — optional, skippable steps */
 .onb-steps.optional .dot { background: var(--paper-edge); opacity: .6; }
