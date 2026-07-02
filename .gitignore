@@ -62,3 +62,6 @@ outreach/
 
 # Email preview screenshots — regenerable from the HTML, not part of the codebase
 email-preview/out/*.png
+
+# e2e screenshot output — regenerable by the e2e/*.mjs scripts
+e2e/shots/

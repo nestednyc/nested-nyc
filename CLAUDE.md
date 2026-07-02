@@ -11,11 +11,11 @@ A student-only project network for NYC universities, live at **[nested.social](h
 
 ## Architecture
 
-Render path: `src/main.jsx` → `src/App.jsx` → `src/design/NestedApp.jsx`. **The live app is `src/design/` + `src/services/` + `src/lib/supabase.js` — nothing else.**
+Render path: `src/main.jsx` → `src/App.jsx` → `src/design/NestedApp.jsx`. **The live client app is `src/design/` + `src/services/` + `src/lib/supabase.js` — nothing else in `src/`.** (Server-side code lives in `api/` — see the Serverless layer section.)
 
 - `main.jsx` imports `design/styles.css` and side-loads `utils/migrateLocalStorage` (console-only helper exposing `window.migrateToSupabase`).
 - `App.jsx` fails loud if a prod build is missing Supabase env vars, wraps the app in `design/ErrorBoundary`, and mounts Vercel `<Analytics />` (which auto-instruments `pushState`, so per-URL pageviews work).
-- `NestedApp.jsx` (~1,700 lines) is the app shell: all state, data loading, and a **string-based view state machine** (`useState(route)` + conditional renders).
+- `NestedApp.jsx` (~2,700 lines) is the app shell: all state, data loading, and a **string-based view state machine** (`useState(route)` + conditional renders).
 
 ### URL routing — a mirror, not a router
 
@@ -25,13 +25,13 @@ The `route` state stays the source of truth; `src/design/router.js` (pure, zero 
 2. **Write-only sync effect** — runs on every commit (deliberately no dep array — one-shot refs must be consumed by the *next* commit), builds the canonical path, sets `document.title`, and `pushState`s navigations / `replaceState`s corrections.
 3. **popstate listener** — Back/Forward re-parse the URL through `applyParsed`, which role-gates via `accessOf` (guest→gated stashes a returnTo and shows the auth wall; org↔student URLs bounce to their home).
 
-URL scheme: `/` (discover) · `/events[/:id]` · `/projects/:id[/edit]` · `/create` `/people` `/saved` `/notifications` `/profile` · `/u/:username` · `/org/:slug` (an org owner's own slug upgrades to `orgPublic`) · `/login` `/signup` `/forgot` `/org/signup` `/org/onboarding` · `/dashboard`, `/dashboard/edit`, `/dashboard/events/new`, `/dashboard/events/:id/edit` · `/auth/*` is reserved for Supabase email links (never routed; `?next=` is validated by `validateNext` against open redirects). `soon` has no URL. Unknown paths land on discover with the bar replaced to `/`.
+URL scheme: `/` (discover) · `/events[/:id]` · `/projects/:id[/edit]` · `/create` `/people` `/saved` `/notifications` `/profile` · `/messages[/:username]` (inbox / open thread) · `/u/:username` · `/org/:slug` (an org owner's own slug upgrades to `orgPublic`) · `/login` `/signup` `/forgot` `/org/signup` `/org/onboarding` · `/dashboard`, `/dashboard/edit`, `/dashboard/events/new`, `/dashboard/events/:id/edit` · `/auth/*` is reserved for Supabase email links (never routed; `?next=` is validated by `validateNext` against open redirects). `soon` has no URL. Unknown paths land on discover with the bar replaced to `/`.
 
 Deep-linked projects absent from the feed cold-load via `projectService.getProject` (`detailFetch` state: loading → skeleton, missing → empty state); org event edits wait on `orgEventsLoading` instead of bouncing. `returnTo` (sessionStorage, re-validated on read) survives the signup email round-trip as `?next=` on `emailRedirectTo`.
 
 ### Views
 
-- Student: `discover` `events` `detail` `people` `saved` `notifications` `profile` `userProfile` `create` `edit` `eventDetail` `onboarding` `forgot` `soon`
+- Student: `discover` `events` `detail` `people` `saved` `notifications` `messages` `messageThread` `profile` `userProfile` `create` `edit` `eventDetail` `onboarding` `forgot` `soon`
 - Org: `orgSignup` `orgOnboarding` `orgDashboard` `orgEditMe` `orgPublic` `orgView` `eventCreate` `eventEdit`
 
 Access classes live in router.js (`accessOf`): **public** (discover, events, eventDetail, detail, orgView) renders for anonymous visitors; **student** / **org** routes gate via `applyParsed` (deep link → returnTo stash → auth wall) and gated *actions* toast + `requireAuth` to `onboarding`; **anon** routes (auth screens) bounce signed-in users home.
@@ -45,14 +45,19 @@ Access classes live in router.js (`accessOf`): **public** (discover, events, eve
 ### Auth
 
 - Client: implicit flow, `persistSession`, `detectSessionInUrl` (`src/lib/supabase.js`, which exports the client + `authService`).
-- **Students must use a `.edu` email** — checked client-side (`authService.validateEduEmail`) and enforced server-side (the `handle_new_user` trigger rejects non-`.edu` signups unless `account_type = 'org_admin'`).
+- **Students must use a supported NYC-university email** — not just any `.edu`: since `20260625000002` the `handle_new_user` trigger checks a domain **allowlist** (`is_supported_edu_email`: the `UNIVERSITIES[].domain` entries from `data.jsx`, exact or subdomain match — keep the SQL list in sync with `data.jsx`). Mirrored client-side by `authService.validateEduEmail`; `account_type = 'org_admin'` signups are exempt and existing users are grandfathered.
 - **Orgs** sign up via `authService.signUpAsOrg()` (no `.edu` requirement) and land on `orgDashboard`.
 - Supabase emails (confirm / magic link / recovery) link to `/auth/confirm` and `/auth/reset`, optionally carrying `?next=<internal path>` (signup forwards a stashed returnTo; org signup sends `next=/org/onboarding`). These are **not React routes** — the SPA fallback serves the app, the boot parse freezes the URL mirror (`authCallbackRef`), `detectSessionInUrl` consumes the token hash, and `hydrateSession()` routes the fresh session: validated `next` → that page; org owner → `orgDashboard`; mid-onboarding → `onboarding`/`orgOnboarding`; otherwise the URL/`/`. Dead links toast and fall home. **Prod requires** Supabase Auth → URL Configuration → Redirect URLs to cover `https://nested.social/*`, else GoTrue drops the `?next=` param.
 - Supported methods: email + password, magic link / 6-digit OTP, password reset.
 
 ### Realtime
 
-One subscription: `team_members` filtered to `user_id=eq.<me>` (channel authed via `supabase.realtime.setAuth`), so join-request approvals/rejections by project owners update the UI live.
+Four channels, all authed via `supabase.realtime.setAuth` before subscribing (RLS hides rows from an unauthed socket); no-ops in mock mode:
+
+- `tm-self-<uid>` — postgres_changes on `team_members` filtered `user_id=eq.<me>`: join-request approvals/rejections update Requests / My projects live, no refetch.
+- `dm-self-<uid>` — postgres_changes INSERT on `messages` filtered `recipient_id=eq.<me>`. The row's `body_enc` is ciphertext, so this is a **ping only** — the handler never reads the payload body; it refetches through the decrypting RPCs (open thread merges in place, anything else refreshes the inbox). Resyncs on socket rejoin, tab refocus, and browser `online`.
+- `dm-readsync:<uid>` — broadcast: when I read a thread in another tab, this tab clears that peer's unread badge.
+- `dm-receipts:<pair>` — per-conversation broadcast of ephemeral "read up to `<t>`" pings so the sender's bubbles flip to "Seen" instantly; the persistent `read_at` stays the source of truth for unread counts.
 
 ## Source map
 
@@ -64,6 +69,9 @@ src/
 │   ├── discover.jsx detail.jsx create.jsx edit.jsx projectForm.jsx
 │   ├── events.jsx eventDetail.jsx eventForm.jsx
 │   ├── people.jsx profile.jsx matches.jsx notifications.jsx   # matches.jsx renders the "saved" view
+│   ├── messages.jsx messageThread.jsx messageAttachments.jsx  # DM inbox / open thread / attachment UI
+│   ├── peopleRank.js    # pure ranking for People → Browse ordering (completeness + relevance)
+│   ├── headerMenus.jsx  # desktop topbar popovers (bell + account chip); mobile uses the account sheet
 │   ├── userProfile.jsx  # /u/:username — self-fetching student profile page
 │   ├── onboarding.jsx forgot.jsx                              # student auth screens
 │   ├── org*.jsx                                               # org account screens
@@ -71,7 +79,7 @@ src/
 │   ├── icons.jsx        # custom SVG icon set — do NOT add lucide
 │   ├── data.jsx         # taxonomy constants (CATEGORIES, UNIVERSITIES, MAJORS,
 │   │                    #   SKILLS, EVENT_TYPES…) — NOT mock data
-│   ├── *Adapter.js      # pure DB-row ↔ UI-shape transforms (project/profile/people)
+│   ├── *Adapter.js      # pure DB-row ↔ UI-shape transforms (project/profile/people/message)
 │   ├── styles.css       # all styling: tokens, surfaces, responsive rules
 │   ├── tweaks-panel.jsx # dev-only live design-token editor
 │   └── ErrorBoundary.jsx
@@ -81,7 +89,7 @@ src/
 └── utils/migrateLocalStorage.js  # console-only migration helper (side-loaded by main.jsx)
 ```
 
-Services: `profileService` (own/public profiles, upsert), `projectService` (discover feed, CRUD, join requests, approve/reject), `eventService` (events + RSVPs), `orgService` (orgs by slug/id, members), `connectionService` (directed student→student connects), `storageService` (photo uploads), `lookupService` (username/email availability via RPCs). Import services directly from their files — `services/index.js` is itself unused (nothing imports it).
+Services: `profileService` (own/public profiles, upsert), `projectService` (discover feed, CRUD, join requests, approve/reject), `eventService` (events + RSVPs), `orgService` (orgs by slug/id, members), `connectionService` (directed student→student connects), `messageService` (DM inbox/thread/send/block behind the SECURITY DEFINER RPCs; maps PT4xx `error.code`s to friendly messages; signs `dm-attachments` paths into 1-hour URLs), `storageService` (photo uploads), `lookupService` (username/email availability). Import services directly from their files — `services/index.js` is itself unused (nothing imports it).
 
 ## Backend (Supabase)
 
@@ -98,14 +106,32 @@ Migrations live in `supabase/migrations/`, applied in order. ⚠️ Prod migrati
 | `org_members` | org owner/admin junction |
 | `connections` | directed student→student edges (PK `user_id, target_id`) |
 | `saved_projects` | bookmarks (unique `user_id, project_id`) |
+| `messages` | 1:1 DMs — client-supplied UUID PK (the idempotency key, deliberately no default), `body_enc` encrypted at rest, `read_at` |
+| `message_attachments` | child of `messages`: storage path, mime, size, filename; participant-read RLS |
+| `blocks` | directed blocker→blocked pairs (PK `blocker_id, blocked_id`); blocks DMs in both directions |
+| `conversation_clears` | per-user "delete chat" watermark — hides messages ≤ `cleared_at` for the caller only, peer unaffected |
+| `message_notify_log` | once-ever unordered-pair log: first-DM email dedupe + per-sender hourly spray cap (service-role only) |
+| `connection_notify_log` | once-ever source→target log so connect/disconnect/reconnect churn can't re-email (service-role only) |
+| `rate_limits` | generic per-IP counters for the `api/` layer via `rate_limit_hit()` (service-role only) |
 
 (`nests` / `nest_members` were dropped in `20260606000000`.)
 
-- **Storage**: buckets `avatars` and `project-icons` — public read; authed users can write/delete only inside their own `${auth.uid()}/` folder.
-- **RPCs**: `check_email_exists`, `check_username_available` (anon-callable pre-signup checks), `is_org_member`, `is_org_owner`.
-- **Triggers worth knowing**: `handle_new_user` (creates the profile row, enforces `.edu` for students), `profile_lock_account_type` + `org_lock_verified` (privilege fields can't be self-escalated), `sync_avatar_from_photos`, attendee/`updated_at` counters.
-- **RLS posture**: anon can read published projects, approved team members, the `public_profiles` view, and verified orgs/events. Authenticated profile reads are relationship-scoped (self, connections, teammates). Writes are self-scoped; event creation requires verified-org membership.
-- **Realtime publication**: `team_members` only.
+- **Storage**: buckets `avatars` and `project-icons` — public read; authed users can write/delete only inside their own `${auth.uid()}/` folder. `dm-attachments` is **private** (10 MB/file + mime allowlist enforced by Storage itself): path is `<sender_uid>/<message_id>/<file>`, own-folder upload/delete, participant-only read, rendered client-side via 1-hour signed URLs.
+- **RPCs**: `check_username_available` (anon pre-signup check), `check_email_exists` (**no longer anon-callable** — EXECUTE revoked in `20260625000001`; only the per-IP-rate-limited `/api/check-email` proxy calls it with the service-role key), `is_org_member`, `is_org_owner`, `is_connected_to`, `is_blocked_with`, `is_supported_edu_email`, `rate_limit_hit` (service-role only). All DM reads/writes go through SECURITY DEFINER RPCs: `send_message`, `get_thread`, `get_inbox`, `mark_thread_read`, `block_user`, `unblock_user`, `delete_conversation` — they raise PT401/PT403/PT422/PT429 SQLSTATEs, which PostgREST maps to those HTTP statuses and the services branch on `error.code`.
+- **Triggers worth knowing**: `handle_new_user` (creates the profile row, enforces the university-domain allowlist for students), `profile_lock_account_type` + `org_lock_verified` (privilege fields can't be self-escalated), `sync_avatar_from_photos`, attendee/`updated_at` counters, and the BEFORE INSERT rate limiters `rl_team_members` / `rl_connections` / `rl_event_registrations` / `rl_events` (rolling-window caps → PT429).
+- **RLS posture**: anon can read published projects, approved team members, the `public_profiles` view, and verified orgs/events. Authenticated profile reads are relationship-scoped (self, connections, teammates). Writes are self-scoped; event creation requires verified-org membership. DM tables are locked harder: direct DML is REVOKEd from `authenticated` — the DEFINER RPCs are the only write path, so idempotency, block checks, and rate limits can't be bypassed.
+- **Realtime publication**: `team_members` and `messages`.
+
+### Direct messages (DMs)
+
+1:1 student↔student chat at `/messages`, built as migrations `20260621`–`20260628`. Key semantics:
+
+- **No connection required** (`20260627000000`): any authenticated student can DM any student (the old connection gate was self-satisfiable — connects are unilateral). Blocks still stop sends in both directions, and the RPC verifies the recipient is a real student account.
+- **Encrypted at rest** (`20260623000000`): bodies are `pgp_sym_encrypt`-ed inside the RPCs with a 256-bit key in Supabase Vault (`dm_body_key`, never in git). Realtime payloads are therefore ciphertext — the client treats INSERT events as pings and refetches via RPC (see Realtime).
+- **Idempotent sends**: `messages.id` is client-generated (`messageService.newId()`); a retried send reuses the id and lands on `ON CONFLICT DO NOTHING` instead of minting a duplicate.
+- **Limits** (client-mirrored in `messageService`, enforced in the RPC): 4,000-char body, ≤5 attachments × 10 MB, 10 sends / 10 s (PT429).
+- **Delete conversation** is delete-for-me only: a `conversation_clears` watermark hides older messages from the caller; the peer keeps their copy and the thread reappears if they message again.
+- Read receipts: persistent `read_at` via `mark_thread_read`; live "Seen" + cross-tab unread clearing ride the broadcast channels.
 
 ### Email notifications (transactional)
 
@@ -155,15 +181,25 @@ npm install
 npm run dev        # localhost:5173
 npm run build      # production build → dist/
 npm run preview
+npm test           # node --test: router.test.js + messageAdapter.test.js
 ```
 
 - Env (`.env`, see `.env.example`): `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`.
 - Local Supabase stack via the CLI/Docker (`supabase/config.toml`): API :54321, DB :54322, Studio :54323; email confirmations auto-pass locally.
-- **No test suite** — verify changes manually in the browser.
+- **Tests cover only the two pure modules** (`router.js`, `messageAdapter.js`) via `node --test` — no framework. Everything else is verified manually in the browser (Playwright is a devDependency for ad-hoc verification scripts, not a checked-in suite).
 
 ## Deployment
 
 Vercel, auto-deploy from `main`. `public/robots.txt` is fully permissive (Google + AI crawlers welcome; profile privacy rests on the auth gate, not robots) and is served as a static file ahead of the SPA rewrite. `vercel.json` provides the SPA fallback rewrite plus security headers (HSTS, `X-Frame-Options: DENY`, nosniff, Referrer-Policy, Permissions-Policy; CSP is currently **report-only**). Env vars are set in the Vercel dashboard.
+
+### Serverless layer (`api/`)
+
+- `notify.js` — email-notification webhook target (see Email notifications).
+- `unsubscribe.js` — one-click email opt-out (GET read-only, POST applies).
+- `check-email.js` — per-IP-rate-limited proxy for the email-existence signup hint (fails open to `{ exists: false }`; 404s harmlessly under plain `vite` dev).
+- `prerender.js` — per-entity `<head>` injection (title / OG / canonical / JSON-LD) for the public entity routes, served to bots and humans alike; reads with the **anon** key so RLS keeps private rows out of cacheable HTML. Must start from the freshly built `dist/index.html` (bundled via `vercel.json` `includeFiles`).
+- `sitemap.js` — dynamic `/sitemap.xml` (rewritten there by `vercel.json`; anon-key reads only emit publicly visible URLs).
+- `_rate-limit.js` + `_email/template.js` — shared helpers; the leading underscore keeps Vercel from routing them.
 
 ## Legacy code
 
