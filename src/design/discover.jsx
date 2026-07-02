@@ -292,17 +292,22 @@ import { Facepile, CatTag, Pin, Skeleton } from './shared'
     }, [projects]);
 
     // Build the discovery shelves from the live projects: the four most-joined
-    // go to "Popular now", and every remaining project goes to "Featured",
+    // go to "Popular now", the next four to "Featured" (both fixed at 4 so each
+    // fills a full desktop row), and every remaining project goes to "Marquee",
     // which paginates (FeedRow flip-pagination) so no project is ever dropped.
+    // The split is purely positional for now — real per-project categorization
+    // comes once there's enough inventory to justify it.
     // NO project repeats across shelves, and empty shelves drop via the filter.
     const feeds = useMemo(() => {
       const byJoined = [...projects].sort((a, b) => b.joinedCount - a.joinedCount);
       const popular = byJoined.slice(0, 4);
-      const featured = byJoined.slice(4);
+      const featured = byJoined.slice(4, 8);
+      const marquee = byJoined.slice(8);
 
       return [
-        { id: "popular",  label: "Popular now", sub: "most students joining",    color: "var(--c-startup)", cols: 4, rows: 1, items: popular },
-        { id: "featured", label: "Featured",    sub: "editors' picks this week", color: "var(--c-hack)",    cols: 4, rows: 1, items: featured },
+        { id: "popular",  label: "Popular now", sub: "most students joining",    color: "var(--c-startup)",  cols: 4, rows: 1, items: popular },
+        { id: "featured", label: "Featured",    sub: "editors' picks this week", color: "var(--c-hack)",     cols: 4, rows: 1, items: featured },
+        { id: "marquee",  label: "Marquee",     sub: "now showing",              color: "var(--c-research)", cols: 4, rows: 1, items: marquee },
       ].filter((f) => f.items.length > 0);
     }, [projects]);
 
