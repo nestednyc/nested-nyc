@@ -1,7 +1,9 @@
-/* Post-refactor smoke: useToasts + useMessaging extraction (move-only).
-   Server A :5173 — default env (configured mode): guest gating + toast path.
-   Server B :5174 — env blanked (mock mode) + seeded LS profile: authed DM
-   surfaces render through the hook; sign-out exercises resetMessaging. */
+/* Domain-hooks refactor smoke, extended per step.
+   Server A :5173 — default env (configured mode): guest gating + toast path
+   (exercises applyParsed/requireAuth/useSession's hydration routing).
+   Server B :5174 — env blanked (mock mode) + seeded LS profile: authed
+   surfaces render through the hooks; sign-out exercises the composer
+   (signOutAuth + domain resets); /profile exercises useSession's joinedAt. */
 const { createRequire } = require('module');
 const req = createRequire('/Users/hamza/Desktop/nested/package.json');
 const { chromium } = req('playwright');
@@ -45,6 +47,12 @@ const check = (name, ok, extra) => {
       check('A4 guest: /messages deep link gates to /signup', true);
     } catch (e) { check('A4 guest: /messages deep link gates to /signup', false, await page.evaluate(() => location.pathname)); }
 
+    await page.goto('http://localhost:5173/forgot', { waitUntil: 'domcontentloaded' });
+    try {
+      await page.waitForSelector('h1:has-text("Forgot password?")', { timeout: 15000 });
+      check('A6 guest: /forgot renders the reset flow', true);
+    } catch (e) { check('A6 guest: /forgot renders the reset flow', false, e.message); }
+
     check('A5 guest: no uncaught page errors', pageErrors.length === 0, pageErrors.join(' | '));
     if (consoleErrors.length) console.log('  (info) guest console.error:', consoleErrors.slice(0, 3).join(' | ').slice(0, 300));
     await page.close();
@@ -73,6 +81,12 @@ const check = (name, ok, extra) => {
       await page.waitForSelector('.dm.show-thread', { timeout: 20000 });
       check('B2 mock-auth: /messages/:user renders thread pane', true);
     } catch (e) { check('B2 mock-auth: /messages/:user renders thread pane', false, e.message); }
+
+    await page.goto('http://localhost:5174/profile', { waitUntil: 'domcontentloaded' });
+    try {
+      await page.waitForSelector(':text("tester")', { timeout: 15000 });
+      check('B6 mock-auth: /profile renders (joinedAt from useSession)', true);
+    } catch (e) { check('B6 mock-auth: /profile renders (joinedAt from useSession)', false, e.message); }
 
     // Sign-out end-to-end: chip → panel → confirm → resetMessaging + toast + home.
     await page.goto('http://localhost:5174/', { waitUntil: 'domcontentloaded' });
