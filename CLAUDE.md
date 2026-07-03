@@ -15,7 +15,7 @@ Render path: `src/main.jsx` → `src/App.jsx` → `src/design/NestedApp.jsx`. **
 
 - `main.jsx` imports `design/styles.css` and side-loads `utils/migrateLocalStorage` (console-only helper exposing `window.migrateToSupabase`).
 - `App.jsx` fails loud if a prod build is missing Supabase env vars, wraps the app in `design/ErrorBoundary`, and mounts Vercel `<Analytics />` (which auto-instruments `pushState`, so per-URL pageviews work).
-- `NestedApp.jsx` (~2,700 lines) is the app shell: all state, data loading, and a **string-based view state machine** (`useState(route)` + conditional renders).
+- `NestedApp.jsx` (~2,250 lines) is the app shell and **composition root**: the string-based view state machine (`useState(route)` + conditional renders), the URL mirror, cross-domain data loading, and the render wiring. Self-contained domains live as hooks in `src/design/hooks/` (currently `useToasts` and `useMessaging` — the whole DM domain); NestedApp calls each hook, injects its cross-domain deps (profile, people, route, toast, requireAuth, …) as arguments, and passes the returns to the screens as props. **Hooks never import each other** — anything cross-domain flows through NestedApp explicitly. New domains (and any feature adding hook-sized weight) ship as a hook + screen, not as inline additions to NestedApp.
 
 ### URL routing — a mirror, not a router
 
@@ -38,7 +38,7 @@ Access classes live in router.js (`accessOf`): **public** (discover, events, eve
 
 ### Data flow
 
-**Supabase is the source of truth.** Screen components are presentational; `NestedApp` owns all state, calls `src/services/*`, converts rows through the adapters, and surfaces every failure as a toast (services never throw).
+**Supabase is the source of truth.** Screen components are presentational; all state is owned by `NestedApp` and the domain hooks it composes (screens still receive everything as props from the shell), which call `src/services/*`, convert rows through the adapters, and surface every failure as a toast (services never throw). The signed-in initial load stays a single `Promise.all` barrier in NestedApp; domain hooks expose the few setters it hydrates (e.g. `setInbox`/`setBlocked`) plus a `reset*()` that `signOut` composes into its full state wipe.
 
 `localStorage["nested.nyc.v1"]` is only a light identity cache — `{ profile, joinedAt }`. Position lives in the URL: reload restores whatever the address bar says, and reopening bare `nested.social` lands on Discover.
 
@@ -64,7 +64,8 @@ Four channels, all authed via `supabase.realtime.setAuth` before subscribing (RL
 ```
 src/
 ├── design/              # THE live app — every screen the user sees
-│   ├── NestedApp.jsx    # shell: view state machine, URL mirror, data loading, TWEAK_DEFAULTS
+│   ├── NestedApp.jsx    # shell/composition root: view state machine, URL mirror, data loading, TWEAK_DEFAULTS
+│   ├── hooks/           # domain hooks wired by NestedApp: useToasts, useMessaging (all DM state/realtime/handlers)
 │   ├── router.js        # pure URL codec: parse/build/accessOf/validateNext/titleFor
 │   ├── discover.jsx detail.jsx create.jsx edit.jsx projectForm.jsx
 │   ├── events.jsx eventDetail.jsx eventForm.jsx
