@@ -47,6 +47,12 @@ const check = (name, ok, extra) => {
       check('A4 guest: /messages deep link gates to /signup', true);
     } catch (e) { check('A4 guest: /messages deep link gates to /signup', false, await page.evaluate(() => location.pathname)); }
 
+    await page.goto('http://localhost:5173/projects/00000000-0000-0000-0000-000000000000', { waitUntil: 'domcontentloaded' });
+    try {
+      await page.waitForSelector(':text("not on the board")', { timeout: 25000 });
+      check('A7 guest: bogus project deep link lands on the missing state (cold-load)', true);
+    } catch (e) { check('A7 guest: bogus project deep link lands on the missing state (cold-load)', false, e.message); }
+
     await page.goto('http://localhost:5173/forgot', { waitUntil: 'domcontentloaded' });
     try {
       await page.waitForSelector('h1:has-text("Forgot password?")', { timeout: 15000 });
@@ -81,6 +87,12 @@ const check = (name, ok, extra) => {
       await page.waitForSelector('.dm.show-thread', { timeout: 20000 });
       check('B2 mock-auth: /messages/:user renders thread pane', true);
     } catch (e) { check('B2 mock-auth: /messages/:user renders thread pane', false, e.message); }
+
+    await page.goto('http://localhost:5174/saved', { waitUntil: 'domcontentloaded' });
+    try {
+      await page.waitForSelector('.match-empty', { timeout: 15000 });
+      check('B7 mock-auth: /saved renders the Matches empty state (useProjects buckets)', true);
+    } catch (e) { check('B7 mock-auth: /saved renders the Matches empty state (useProjects buckets)', false, e.message); }
 
     await page.goto('http://localhost:5174/profile', { waitUntil: 'domcontentloaded' });
     try {
