@@ -4,7 +4,8 @@
 import React from 'react'
 import { isProjectAdmin } from './data'
 import { Toasts, Skeleton, NAV } from './shared'
-import { useTweaks, ACCENTS } from './tweaks-panel'
+import { useTweaks } from './tweaks-panel'
+import { ACCENTS } from './accents'
 import FullScreens from './shells/FullScreens'
 import OrgShell from './shells/OrgShell'
 import StudentShell from './shells/StudentShell'
@@ -158,11 +159,13 @@ import { useOrg } from './hooks/useOrg'
     const authCallbackRef = useRef(boot && boot.authCallback ? { kind: boot.kind, next: boot.next } : null);
     // Latest profile/orgAccount for the popstate listener + applyParsed: the
     // listener binds once (mount) and must read current auth state without
-    // re-subscribing; hydrateSession also writes these refs synchronously so
-    // its own applyParsed call can't see a stale value. Seeded null rather
-    // than from state: nothing reads them before the first effect flush —
-    // popstate binds in an effect and hydrateSession awaits getSession()
-    // first — and the sync effects below the mirror keep them current.
+    // re-subscribing. useSession owns every synchronous write — hydrateSession
+    // inline, adoptProfile/adoptOrgAccount for the shells — each pairing the
+    // ref with its state so an applyParsed in the same tick can't role-gate
+    // against a stale value. Seeded null rather than from state: nothing
+    // reads them before the first effect flush — popstate binds in an effect
+    // and hydrateSession awaits getSession() first — and the sync effects
+    // below the mirror keep them current.
     const profileRef = useRef(null);
     const orgAccountRef = useRef(null);
 
@@ -175,7 +178,8 @@ import { useOrg } from './hooks/useOrg'
     // each domain's reset*.
     const { toasts, toast } = useToasts();
     const {
-      profile, setProfile, orgAccount, setOrgAccount, sessionPending, joinedAt,
+      profile, orgAccount, sessionPending, joinedAt,
+      adoptProfile, adoptOrgAccount,
       hydrateSession, saveProfileToSupabase, signOutAuth,
     } = useSession({
       applyParsed, authCallbackRef, replaceNextRef, profileRef, orgAccountRef,
@@ -187,7 +191,7 @@ import { useOrg } from './hooks/useOrg'
       incomingPending, onConnect, onDisconnect, resetPeople,
     } = usePeople({ profile, toast, requireAuth });
     const {
-      inbox, setInbox, blocked, setBlocked, conversations, unreadMessages,
+      setInbox, blocked, setBlocked, conversations, unreadMessages,
       thread, threadStatus, threadPeer, threadHasMore, loadingEarlier,
       confirmBlock, setConfirmBlock, confirmDelete, setConfirmDelete,
       openThread, sendThreadMessage, retryThreadMessage, discardFailedMessage,
@@ -640,11 +644,11 @@ import { useOrg } from './hooks/useOrg'
       t, setTweak, toasts, rootClass, rootStyle,
       // router state machine + params (root-owned)
       route, setRoute, goNav, goAuth, requireAuth, applyParsed,
-      peekReturnTo, takeReturnTo, profileRef,
-      detailId, setDetailId, editId, setEditId,
+      peekReturnTo, takeReturnTo,
+      detailId, editId, setEditId,
       eventViewId, setEventViewId, eventViewFrom,
       orgViewSlug, setOrgViewSlug, profileViewUsername,
-      messageThreadHandle, eventDraftId, setEventDraftId,
+      messageThreadHandle, setEventDraftId,
       openEventDetail, openOrgView, openPerson, openProfile,
       // chrome state
       query, setQuery, soonLabel, modal, setModal, submitModal,
@@ -657,8 +661,8 @@ import { useOrg } from './hooks/useOrg'
       profileEditOnArrive, setProfileEditOnArrive,
       // root hydration-barrier surface
       projectsLoading, loadErrors, retrySurface,
-      // session
-      profile, setProfile, orgAccount, setOrgAccount, joinedAt,
+      // session — identity installs go through adopt* (ref + state together)
+      profile, adoptProfile, orgAccount, adoptOrgAccount, joinedAt,
       hydrateSession, saveProfileToSupabase, signOut,
       // people
       people, connected, incoming, incomingPending, onConnect, onDisconnect,

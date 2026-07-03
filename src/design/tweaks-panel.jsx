@@ -1,5 +1,6 @@
 import React from 'react'
 import { SHOW_TWEAKS } from '../config/features'
+import { ACCENTS } from './accents'
 
 /* BEGIN USAGE */
 // tweaks-panel.jsx
@@ -542,14 +543,9 @@ export {
 };
 
 // ---------- App-level pieces shared by every shell ----------
-// The accent palette (NestedApp resolves the active accent from it) and
-// the dev-only StyleTweaks wrapper every shell renders.
-export const ACCENTS = [
-    { v: "oklch(0.60 0.185 30)",  ink: "oklch(0.42 0.16 32)",  wash: "oklch(0.60 0.185 30 / 0.12)" },
-    { v: "oklch(0.55 0.13 255)",  ink: "oklch(0.40 0.11 255)", wash: "oklch(0.55 0.13 255 / 0.12)" },
-    { v: "oklch(0.55 0.13 152)",  ink: "oklch(0.40 0.11 152)", wash: "oklch(0.55 0.13 152 / 0.12)" },
-    { v: "oklch(0.52 0.15 310)",  ink: "oklch(0.40 0.13 310)", wash: "oklch(0.52 0.15 310 / 0.12)" },
-];
+// The dev-only StyleTweaks wrapper every shell renders. The accent palette it
+// offers lives in accents.js — production code resolves the active accent
+// from that module, so it must not live here in dev tooling.
 
   // ---------- Tweaks ----------
 export function StyleTweaks({ t, setTweak }) {
