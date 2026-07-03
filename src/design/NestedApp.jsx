@@ -3,7 +3,7 @@
    ============================================================ */
 import React from 'react'
 import Icon from './icons'
-import { NestedData, CAT, isProjectAdmin, isProjectOwner } from './data'
+import { NestedData, CAT, isProjectAdmin } from './data'
 import { Av, Toasts, Stamp, Skeleton, ConfirmModal } from './shared'
 import { useTweaks, TweaksPanel, TweakSection, TweakColor, TweakRadio, TweakToggle } from './tweaks-panel'
 import Onboarding from './onboarding'
@@ -33,8 +33,8 @@ import { isSupabaseConfigured, authService, supabase } from '../lib/supabase'
 import { profileService } from '../services/profileService'
 import { orgService } from '../services/orgService'
 import { eventService } from '../services/eventService'
-import { projectService, closeRole } from '../services/projectService'
-import { toDbProject, fromDbProject, creatorTeamMember } from './projectAdapter'
+import { projectService } from '../services/projectService'
+import { fromDbProject } from './projectAdapter'
 import { toPerson } from './peopleAdapter'
 import { rankPeople } from './peopleRank'
 import { connectionService } from '../services/connectionService'
@@ -42,7 +42,9 @@ import { messageService } from '../services/messageService'
 import { parse as parseLocation, build as buildPath, accessOf, validateNext, titleFor, describeFor } from './router'
 import { useToasts } from './hooks/useToasts'
 import { useSession } from './hooks/useSession'
+import { usePeople } from './hooks/usePeople'
 import { useMessaging } from './hooks/useMessaging'
+import { useProjects } from './hooks/useProjects'
 
   const { useState, useEffect, useRef } = React;
 
@@ -99,11 +101,6 @@ import { useMessaging } from './hooks/useMessaging'
     "tilt": true
   }/*EDITMODE-END*/;
 
-  // Project ids whose view was already recorded this browser session (per-tab,
-  // survives reloads). Applies to guests AND signed-in users — for the
-  // signed-in the server still dedupes per day; this just skips pointless RPCs.
-  const VIEWED_SS = "nested.nyc.viewed.v1";
-
   const NAV = [
     { id: "discover", label: "Discover", icon: "grid" },
     { id: "events",   label: "Events",   icon: "calendar" },
@@ -112,7 +109,6 @@ import { useMessaging } from './hooks/useMessaging'
 
   function App() {
     const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
-    const viewedThisSession = useRef(null); // lazy Set, hydrated from sessionStorage
 
     // ─── Boot parse: the URL owns the initial position ──────────────────────
     // parse() → {route, params, state} | {authCallback, kind, next} | null.
@@ -131,23 +127,8 @@ import { useMessaging } from './hooks/useMessaging'
     const [route, setRoute] = useState(boot && !boot.authCallback ? boot.route : "discover");
     const [detailId, setDetailId] = useState(bootParams.detailId || null);
     const [editId, setEditId] = useState(bootParams.editId || null);
-    // Supabase is the source of truth for these now — start empty and hydrate
-    // from the services on login (see the project load effect below). `connected`
-    // (outgoing) and `incoming` (who connected with you) are both persisted.
-    const [saved, setSaved] = useState(new Set());
-    // `joined` = projects you're an APPROVED member of ("You're in").
-    // `requested` = projects you've asked to join, still pending approval
-    // ("Request sent"). Two distinct states — never conflate them.
-    const [joined, setJoined] = useState(new Set());
-    const [requested, setRequested] = useState(new Set());
-    const [rejected, setRejected] = useState(new Set());
+    // Event RSVPs (events domain — extracted in the next step).
     const [rsvped, setRsvped] = useState(new Set());
-    const [connected, setConnected] = useState([]);
-    const [projects, setProjects] = useState([]);
-    const [people, setPeople] = useState([]);
-    const [incoming, setIncoming] = useState([]);
-    const [projectRequests, setProjectRequests] = useState([]);
-    const [pendingRequests, setPendingRequests] = useState([]);
     // /u/:username — the handle on the userProfile route. Set by openProfile
     // (in-app navigation) or the boot/popstate URL parse (deep link).
     const [profileViewUsername, setProfileViewUsername] = useState(bootParams.profileViewUsername || null);
@@ -165,10 +146,6 @@ import { useMessaging } from './hooks/useMessaging'
     // guest fetch on mount (the guest gets the public Discover feed), so paint a
     // skeleton, not an empty-state flash. Mock mode (unconfigured) loads nothing.
     const [projectsLoading, setProjectsLoading] = useState(() => isSupabaseConfigured());
-    // Deep-linked /projects/:id (view or edit) that isn't in the loaded feed:
-    // "loading" while projectService.getProject resolves it, "missing" when it
-    // doesn't exist / isn't visible to this viewer. "idle" otherwise.
-    const [detailFetch, setDetailFetch] = useState("idle");
     // Surface hydration error + retry. loadErrors is { discover, people, saved }
     // (each a Supabase error or undefined) so each page shows its own error
     // state; retrySurface bumps reloadNonce, which the loader effect depends on.
@@ -269,6 +246,10 @@ import { useMessaging } from './hooks/useMessaging'
       onSignedOut: () => setRoute("discover"), // back to guest browsing, not the auth wall
     });
     const {
+      people, setPeople, connected, setConnected, incoming, setIncoming,
+      incomingPending, onConnect, onDisconnect, resetPeople,
+    } = usePeople({ profile, toast, requireAuth });
+    const {
       inbox, setInbox, blocked, setBlocked, conversations, unreadMessages,
       thread, threadStatus, threadPeer, threadHasMore, loadingEarlier,
       confirmBlock, setConfirmBlock, confirmDelete, setConfirmDelete,
@@ -279,6 +260,18 @@ import { useMessaging } from './hooks/useMessaging'
       profile, people, route, setRoute,
       messageThreadHandle, setMessageThreadHandle,
       toast, requireAuth,
+    });
+    const {
+      projects, setProjects, saved, setSaved, joined, setJoined,
+      requested, setRequested, rejected, setRejected,
+      projectRequests, setProjectRequests, pendingRequests,
+      detailFetch, myProjects, detailProject,
+      openProject, openEdit, toggleSave, submitJoinRequest,
+      updateProjectStatus, setCoLead, kickMember, approveRequest, rejectRequest,
+      createProject, saveProjectEdits, deleteProjectById, resetProjects,
+    } = useProjects({
+      profile, route, detailId, editId, projectsLoading,
+      setDetailId, setEditId, setRoute, toast, requireAuth,
     });
 
     // Dismiss whichever dropdown is open on outside-click / Escape.
@@ -596,110 +589,15 @@ import { useMessaging } from './hooks/useMessaging'
       return () => { cancelled = true; };
     }, [profile && profile.id, reloadNonce]);
 
-    // Cold-load: a deep-linked project missing from the hydrated feed (beyond
-    // the feed page, fetched before the feed, or a direct link to something the
-    // feed never carries). Wait for the feed to settle, then fetch by id —
-    // anon-readable for published rows — and append-if-absent into `projects`
-    // so the existing admin/saved/derived logic works unchanged.
-    useEffect(() => {
-      const wantedId = route === "detail" ? detailId : route === "edit" ? editId : null;
-      if (!wantedId || !isSupabaseConfigured()) { setDetailFetch("idle"); return; }
-      if (projectsLoading) return;
-      if (projects.some((p) => p.id === wantedId)) { setDetailFetch("idle"); return; }
-      let cancelled = false;
-      setDetailFetch("loading");
-      projectService.getProject(wantedId).then(({ data, error }) => {
-        if (cancelled) return;
-        if (error || !data) { setDetailFetch("missing"); return; }
-        const ui = fromDbProject(data);
-        setProjects((arr) => (arr.some((p) => p.id === ui.id) ? arr : [...arr, ui]));
-        setDetailFetch("idle");
-      }).catch(() => { if (!cancelled) setDetailFetch("missing"); });
-      return () => { cancelled = true; };
-    }, [route, detailId, editId, projectsLoading, projects]);
-
-    // Latest projects list, for realtime handlers below: they subscribe once per
-    // session and must read the current projects without re-binding the channel.
-    const projectsRef = useRef([]);
-    useEffect(() => { projectsRef.current = projects; }, [projects]);
-
-    // ─── REALTIME: requester side ───────────────────────────────────────────
-    // When a project owner approves (or declines / I withdraw) my join request,
-    // my team_members row changes server-side. We subscribe to just MY rows and
-    // patch the two Sets in place — so an approved project slides out of
-    // "Requests" and into "My projects" live, with no refetch (hence no skeleton
-    // flash). Approved projects are already published, so they're in `projects`
-    // and render immediately. RLS hides every row unless the socket carries the
-    // user's JWT, so we set it before subscribing. No-op in mock mode.
-    useEffect(() => {
-      if (!profile || !profile.id || !isSupabaseConfigured() || !supabase) return;
-      let channel;
-      let cancelled = false;
-      (async () => {
-        const { data } = await authService.getSession();
-        if (cancelled) return;
-        const token = data && data.session && data.session.access_token;
-        if (token) await supabase.realtime.setAuth(token);
-        if (cancelled) return;
-        channel = supabase
-          .channel("tm-self-" + profile.id)
-          .on("postgres_changes", {
-            event: "*", schema: "public", table: "team_members",
-            filter: "user_id=eq." + profile.id,
-          }, (payload) => {
-            // DELETE carries only the old row; UPDATE/INSERT the new one.
-            const row = (payload.new && payload.new.project_id) ? payload.new : payload.old;
-            const pid = row && row.project_id;
-            if (!pid) return;
-            const status = payload.new && payload.new.status;
-            if (payload.eventType === "DELETE" || status === "rejected") {
-              // Request withdrawn or declined — drop it from both buckets.
-              setRequested((r) => { if (!r.has(pid)) return r; const n = new Set(r); n.delete(pid); return n; });
-              setJoined((j) => { if (!j.has(pid)) return j; const n = new Set(j); n.delete(pid); return n; });
-            } else if (status === "approved") {
-              setRequested((r) => { const n = new Set(r); n.delete(pid); return n; });
-              setJoined((j) => new Set(j).add(pid));
-              const proj = projectsRef.current.find((p) => p.id === pid);
-              toast((proj ? "“" + proj.title.split(" — ")[0] + "”" : "A project") + " accepted you — it's in My projects", "check");
-            } else if (status === "pending") {
-              // Request created on another device — keep this tab in sync.
-              setRequested((r) => new Set(r).add(pid));
-            }
-          })
-          .subscribe();
-      })();
-      return () => { cancelled = true; if (channel) supabase.removeChannel(channel); };
-    }, [profile && profile.id]);
-
-    // Owner-only: load pending join requests for the project being viewed, so
-    // the owner can approve/decline from the project page.
-    useEffect(() => {
-      if (route !== "detail" || !detailId || !profile || !profile.id || !isSupabaseConfigured()) {
-        setPendingRequests([]);
-        return;
-      }
-      const proj = projects.find((p) => p.id === detailId);
-      if (!proj || !isProjectAdmin(proj, profile)) { setPendingRequests([]); return; }
-      let cancelled = false;
-      projectService.getPendingRequests(detailId).then(({ data }) => {
-        if (!cancelled) setPendingRequests(data || []);
-      });
-      return () => { cancelled = true; };
-    }, [route, detailId, profile && profile.id, projects]);
-
     // The cross-domain sign-out composer: useSession owns the auth slice
     // (Supabase session, profile/orgAccount identity, cached LS blob); every
     // other domain contributes its reset*; the router-param clears are
     // root-owned and must stay listed here explicitly.
     async function signOut() {
       await signOutAuth();
-      setProjects([]);
-      setSaved(new Set());
-      setJoined(new Set());
-      setRequested(new Set());
+      resetProjects();    // feed + the saved/joined/requested buckets
       setRsvped(new Set());
-      setConnected([]);
-      setIncoming([]);
+      resetPeople();      // connection edges
       resetMessaging();   // inbox, open thread + peer, block set, failed-send stash
       setOrgEvents([]);
       setEventDraftId(null);
@@ -714,221 +612,6 @@ import { useMessaging } from './hooks/useMessaging'
     function requestSignOut() { setNotifOpen(false); setAcctOpen(false); setSheetOpen(false); setConfirmSignOut(true); }
     function confirmSignOutNow() { setConfirmSignOut(false); signOut(); }
 
-    function sessionViewed() {
-      if (!viewedThisSession.current) {
-        let ids = [];
-        try { ids = JSON.parse(sessionStorage.getItem(VIEWED_SS)) || []; } catch (e) {}
-        viewedThisSession.current = new Set(Array.isArray(ids) ? ids : []);
-      }
-      return viewedThisSession.current;
-    }
-    // Background telemetry — fire-and-forget and SILENT on failure (the one
-    // deliberate exception to the "every service failure toasts" rule: a lost
-    // view isn't worth interrupting anyone over). The server is the authority
-    // on every rule here (owner never counts, signed-in once/day); the checks
-    // below just skip RPCs whose answer we already know.
-    function recordProjectView(id) {
-      if (!isSupabaseConfigured()) return;
-      const proj = projectsList.find((p) => p.id === id);
-      if (profile && proj && proj.ownerId === profile.id) return; // own opens never count
-      const seen = sessionViewed();
-      if (seen.has(id)) return; // once per browser session
-      seen.add(id);
-      try { sessionStorage.setItem(VIEWED_SS, JSON.stringify([...seen])); } catch (e) {}
-      projectService.recordView(id).then(({ data }) => {
-        // The RPC returns the fresh total — sync it so the visitor watches
-        // their own hit land on the detail page's counter.
-        if (typeof data === "number") {
-          setProjects((arr) => arr.map((p) => (p.id === id ? { ...p, views: data } : p)));
-        }
-      }).catch(() => {});
-    }
-    function openProject(id) { recordProjectView(id); setDetailId(id); setRoute("detail"); window.scrollTo({ top: 0 }); }
-    function openEdit(id) {
-      // Only an admin (owner or promoted co-admin) may open the editor.
-      const proj = projectsList.find((p) => p.id === id);
-      if (!proj || !isProjectAdmin(proj, profile)) {
-        toast("Only the person who pinned this can edit it", "x");
-        return;
-      }
-      setEditId(id); setRoute("edit"); window.scrollTo({ top: 0 });
-    }
-    // Inline status/alert update from the project page. Admin-only (the page
-    // also hides the controls from non-admins; this is the backstop). Patch is
-    // {status} or {alert} — both are real columns now. Optimistic, reverts with
-    // a toast if the write fails.
-    async function updateProjectStatus(id, patch) {
-      const prev = projectsList.find((p) => p.id === id);
-      if (!prev || !isProjectAdmin(prev, profile)) {
-        toast("Only an admin can update this project", "x");
-        return;
-      }
-      setProjects((arr) => arr.map((p) =>
-        p.id === id ? { ...p, ...patch, updatedAt: new Date().toISOString() } : p));
-      toast("status" in patch ? "Status updated" : "Update posted", "check");
-      if (!isSupabaseConfigured()) return;
-      const { error } = await projectService.updateProject(id, patch);
-      if (error) {
-        setProjects((arr) => arr.map((p) => p.id === id ? prev : p));
-        toast("Couldn't save — " + (error.message || "try again"), "x");
-      }
-    }
-    // Owner-only: promote a crew member into projects.admins (co-lead) or
-    // demote them. Co-leads can edit the flyer / post updates / run the join
-    // inbox, but only the OWNER may change the admins list itself — the DB
-    // enforces that with the projects_guard_ownership trigger; this check is
-    // the client-side mirror. Optimistic; the failure path undoes THIS toggle
-    // against current state (never restores a whole snapshot, which would
-    // clobber other crew ops that landed in between).
-    async function setCoLead(projectId, userId, make) {
-      const prev = projectsList.find((p) => p.id === projectId);
-      if (!prev || !isProjectOwner(prev, profile)) {
-        toast("Only the owner can change co-leads", "x");
-        return;
-      }
-      if (!userId || userId === prev.ownerId) return;
-      const base = Array.isArray(prev.admins) ? prev.admins : [];
-      const admins = make
-        ? [...new Set([...base, userId])]
-        : base.filter((a) => a !== userId);
-      const toggleAdmin = (list, on) => {
-        const cur = Array.isArray(list) ? list : [];
-        return on ? [...new Set([...cur, userId])] : cur.filter((a) => a !== userId);
-      };
-      setProjects((arr) => arr.map((p) => (p.id === projectId ? { ...p, admins: toggleAdmin(p.admins, make) } : p)));
-      const member = (prev.team || []).find((t) => t.userId === userId);
-      const who = member ? member.name.split(" ")[0] : "They";
-      toast(make ? who + " now co-leads this project" : who + " is no longer a co-lead", make ? "sparkle" : "x");
-      if (!isSupabaseConfigured()) return;
-      const { error } = await projectService.setProjectAdmins(projectId, admins);
-      if (error) {
-        setProjects((arr) => arr.map((p) => (p.id === projectId ? { ...p, admins: toggleAdmin(p.admins, !make) } : p)));
-        toast("Couldn't update co-leads — " + (error.message || "try again"), "x");
-      }
-    }
-    // Owner-only: remove a crew member entirely. ONE call — deleting the
-    // team_members row also revokes any co-lead grant atomically via the
-    // team_members_revoke_admin DB trigger, so there's no two-step partial
-    // state to manage. Optimistic; failure re-inserts THIS member against
-    // current state rather than restoring a stale snapshot.
-    async function kickMember(projectId, userId) {
-      const prev = projectsList.find((p) => p.id === projectId);
-      if (!prev || !isProjectOwner(prev, profile)) {
-        toast("Only the owner can remove crew", "x");
-        return;
-      }
-      if (!userId || userId === prev.ownerId) return;
-      const member = (prev.team || []).find((t) => t.userId === userId);
-      if (!member) return;
-      const wasCoLead = (Array.isArray(prev.admins) ? prev.admins : []).includes(userId);
-      const applyKick = (p) => ({
-        ...p,
-        team: (p.team || []).filter((t) => t.userId !== userId),
-        admins: (Array.isArray(p.admins) ? p.admins : []).filter((a) => a !== userId),
-        joinedCount: Math.max(0, (p.joinedCount || 0) - 1),
-      });
-      const undoKick = (p) => ({
-        ...p,
-        team: (p.team || []).some((t) => t.userId === userId) ? p.team : [...(p.team || []), member],
-        admins: wasCoLead ? [...new Set([...(Array.isArray(p.admins) ? p.admins : []), userId])] : p.admins,
-        joinedCount: (p.joinedCount || 0) + 1,
-      });
-      setProjects((arr) => arr.map((p) => (p.id === projectId ? applyKick(p) : p)));
-      toast(member.name.split(" ")[0] + " was removed from the crew", "x");
-      if (!isSupabaseConfigured()) return;
-      if (!member.memberId) {
-        setProjects((arr) => arr.map((p) => (p.id === projectId ? undoKick(p) : p)));
-        toast("Couldn't remove them — try again", "x");
-        return;
-      }
-      const { error } = await projectService.removeTeamMember(member.memberId);
-      if (error) {
-        setProjects((arr) => arr.map((p) => (p.id === projectId ? undoKick(p) : p)));
-        toast("Couldn't remove them — " + (error.message || "try again"), "x");
-      }
-    }
-    // Owner-only: approve/decline a pending join request (team_members status).
-    // Requests can be acted on from the project detail page (pendingRequests, one
-    // project) OR the Notifications inbox (projectRequests, all projects). Update
-    // whichever list(s) held the row so both surfaces stay in sync.
-    async function approveRequest(memberId) {
-      const inPending = pendingRequests.find((r) => r.id === memberId);
-      const inInbox = projectRequests.find((r) => r.id === memberId);
-      const req = inPending || inInbox;
-      if (inPending) setPendingRequests((arr) => arr.filter((r) => r.id !== memberId));
-      if (inInbox) setProjectRequests((arr) => arr.filter((r) => r.id !== memberId));
-      const { error } = await projectService.approveRequest(memberId);
-      if (error) {
-        toast("Couldn't approve — " + (error.message || "try again"), "x");
-        if (inPending) setPendingRequests((arr) => [inPending, ...arr]);
-        if (inInbox) setProjectRequests((arr) => [inInbox, ...arr]);
-        return;
-      }
-      // Reflect the new crew member on the flyer optimistically: bump joined,
-      // close the role they applied for so "N roles open" drops in the same
-      // render (mirrors close_project_role server-side), AND carry the ids the
-      // crew-manager features key off (promote needs userId, kick needs
-      // memberId) so the fresh member is manageable without a reload.
-      if (req) setProjects((arr) => arr.map((p) => p.id === req.project_id
-        ? { ...p, joinedCount: (p.joinedCount || 0) + 1, roles: closeRole(p.roles, req.role), team: [...(p.team || []), { name: req.name, handle: req.handle, role: req.role || "Member", userId: req.user_id || null, memberId: req.id || null }] }
-        : p));
-      toast("Added to the crew", "check");
-    }
-    async function rejectRequest(memberId) {
-      const inPending = pendingRequests.find((r) => r.id === memberId);
-      const inInbox = projectRequests.find((r) => r.id === memberId);
-      if (inPending) setPendingRequests((arr) => arr.filter((r) => r.id !== memberId));
-      if (inInbox) setProjectRequests((arr) => arr.filter((r) => r.id !== memberId));
-      const { error } = await projectService.rejectRequest(memberId);
-      if (error) {
-        toast("Couldn't decline — " + (error.message || "try again"), "x");
-        if (inPending) setPendingRequests((arr) => [inPending, ...arr]);
-        if (inInbox) setProjectRequests((arr) => [inInbox, ...arr]);
-      } else {
-        toast("Request declined", "x");
-      }
-    }
-    async function toggleSave(id) {
-      if (!profile) return requireAuth("Sign up to save projects");
-      const wasSaved = saved.has(id);
-      setSaved((s) => { const n = new Set(s); wasSaved ? n.delete(id) : n.add(id); return n; });
-      toast(wasSaved ? "Removed from saved" : "Saved to your board", "bookmark");
-      if (!isSupabaseConfigured()) return;
-      const { error } = wasSaved
-        ? await projectService.unsaveProject(id)
-        : await projectService.saveProject(id);
-      if (error) {
-        setSaved((s) => { const n = new Set(s); wasSaved ? n.add(id) : n.delete(id); return n; });
-        toast("Couldn't update saved — " + (error.message || "try again"), "x");
-      }
-    }
-    // Connections: optimistic add/remove with revert-on-failure (mirrors
-    // toggleSave). People is controlled — it owns no connection state.
-    // connect() treats a duplicate (23505) as success and a 0-row delete is a
-    // no-op, so redundant calls are harmless.
-    async function onConnect(id) {
-      if (!profile) return requireAuth("Sign in to connect with students");
-      if (connected.includes(id)) return;
-      setConnected((arr) => [...arr, id]);
-      const p = people.find((x) => x.id === id);
-      toast("Connected with " + (p ? p.name.split(" ")[0] : "them") + " — reach out via their links", "heart");
-      if (!isSupabaseConfigured()) return;
-      const { error } = await connectionService.connect(id);
-      if (error) {
-        setConnected((arr) => arr.filter((x) => x !== id));
-        toast("Couldn't connect — " + (error.message || "try again"), "x");
-      }
-    }
-    async function onDisconnect(id) {
-      if (!connected.includes(id)) return;
-      setConnected((arr) => arr.filter((x) => x !== id));
-      if (!isSupabaseConfigured()) return;
-      const { error } = await connectionService.disconnect(id);
-      if (error) {
-        setConnected((arr) => [...arr, id]);
-        toast("Couldn't disconnect — " + (error.message || "try again"), "x");
-      }
-    }
     function goNav(id) {
       // People & Saved need an account — nudge guests to sign in instead.
       if (!profile && (id === "people" || id === "saved")) {
@@ -996,35 +679,18 @@ import { useMessaging } from './hooks/useMessaging'
       openPerson(row.username);
     }
 
-    async function submitModal(text, role) {
+    // Thin modal shim: the modal state is chrome (root-owned); the join
+    // submission itself is projects-domain (useProjects.submitJoinRequest).
+    function submitModal(text, role) {
       if (!modal) return;
       // Only the join flow submits; the contact modal just surfaces real links.
       if (modal.type !== "join") { setModal(null); return; }
       const proj = modal.project;
-      // A sent request is PENDING, not membership — track it in `requested`.
-      // It graduates to `joined` only when the owner approves (next load).
-      setRequested((r) => new Set(r).add(proj.id)); // optimistic
       setModal(null);
-      toast("Request sent to " + proj.lead.name.split(" ")[0], "check");
-      if (!isSupabaseConfigured()) return;
-      // Inserts a pending team_members row (RLS: a user may add self as 'pending').
-      // role = the specific open role the applicant picked (or "" when the project
-      // has no open roles / a single one was auto-targeted by the modal).
-      const { error } = await projectService.joinProject(proj.id, role || "", text || "");
-      if (error) {
-        setRequested((r) => { const n = new Set(r); n.delete(proj.id); return n; });
-        toast("Request didn't send — " + (error.message || "try again"), "x");
-      }
+      submitJoinRequest(proj, text, role);
     }
 
     const projectsList = projects;
-    // Incoming connections the user hasn't reciprocated yet — drives the bell dot.
-    const incomingPending = incoming.filter((p) => !connected.includes(p.id));
-    // "My projects" = the ones I own OR co-lead (a promoted co-lead runs the
-    // flyer too), derived from the discover list (all my flyers publish to
-    // discover). Drives the profile's pinned-projects rail.
-    const myProjects = profile ? projectsList.filter((p) => isProjectAdmin(p, profile)) : [];
-    const detailProject = projectsList.find((p) => p.id === detailId);
     const accent = ACCENTS.find((a) => a.v === t.accent) || ACCENTS[0];
 
     const rootStyle = {
@@ -1288,26 +954,7 @@ import { useMessaging } from './hooks/useMessaging'
             profile,
             existingIds: new Set(projectsList.map((p) => p.id)),
             onCancel: () => setRoute("discover"),
-            onCreate: async (project) => {
-              setRoute("discover");
-              window.scrollTo({ top: 0 });
-              if (!isSupabaseConfigured()) {
-                setProjects((arr) => [project, ...arr]);
-                toast("Pinned to the board", "pin");
-                return;
-              }
-              const { data: row, error } = await projectService.createProject(toDbProject(project, profile && profile.id));
-              if (error || !row) {
-                toast("Couldn't pin — " + ((error && error.message) || "try again"), "x");
-                return;
-              }
-              // Stamp the creator into the crew so joinedCount + the team join work.
-              const lead = creatorTeamMember(profile, row.owner_id);
-              await projectService.addTeamMember(row.id, lead);
-              const uiProject = fromDbProject({ ...row, team_members: [lead] });
-              setProjects((arr) => [uiProject, ...arr]);
-              toast("Pinned to the board", "pin");
-            },
+            onCreate: createProject,
           }),
           React.createElement(Toasts, { items: toasts }),
           React.createElement(StyleTweaks, { t, setTweak })
@@ -1352,36 +999,8 @@ import { useMessaging } from './hooks/useMessaging'
               setEditId(null);
               setRoute(detailId === editProject.id ? "detail" : "discover");
             },
-            onSave: async (updated) => {
-              // Optimistic: drop the user back on the detail page immediately.
-              setProjects((arr) => arr.map((p) => p.id === updated.id ? updated : p));
-              setEditId(null);
-              setDetailId(updated.id);
-              setRoute("detail");
-              if (!isSupabaseConfigured()) { toast("Flyer updated", "check"); return; }
-              const { error } = await projectService.updateProject(updated.id, toDbProject(updated, updated.ownerId));
-              if (error) toast("Couldn't save — " + (error.message || "try again"), "x");
-              else toast("Flyer updated", "check");
-            },
-            onDelete: async (id) => {
-              // Taking the flyer down is owner-only — co-admins can edit but
-              // not delete. (Editor still guards entry; this is the backstop.)
-              if (!isProjectOwner(editProject, profile)) {
-                toast("Only the owner can take this flyer down", "x");
-                return;
-              }
-              setProjects((arr) => arr.filter((p) => p.id !== id));
-              setSaved((s) => { const n = new Set(s); n.delete(id); return n; });
-              setJoined((j) => { const n = new Set(j); n.delete(id); return n; });
-              setRequested((r) => { const n = new Set(r); n.delete(id); return n; });
-              setEditId(null);
-              if (detailId === id) setDetailId(null);
-              setRoute("discover");
-              toast("Flyer taken down", "x");
-              if (!isSupabaseConfigured()) return;
-              const { error } = await projectService.deleteProject(id);
-              if (error) toast("Delete didn't sync — " + (error.message || "try again"), "x");
-            },
+            onSave: saveProjectEdits,
+            onDelete: deleteProjectById,
           }),
           React.createElement(Toasts, { items: toasts }),
           React.createElement(StyleTweaks, { t, setTweak })
