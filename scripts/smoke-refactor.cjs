@@ -88,6 +88,12 @@ const check = (name, ok, extra) => {
       check('B2 mock-auth: /messages/:user renders thread pane', true);
     } catch (e) { check('B2 mock-auth: /messages/:user renders thread pane', false, e.message); }
 
+    await page.goto('http://localhost:5174/events', { waitUntil: 'domcontentloaded' });
+    try {
+      await page.waitForSelector('.topbar .nav button:has-text("Events")', { timeout: 15000 });
+      check('B8 mock-auth: /events renders through useEvents wiring', true);
+    } catch (e) { check('B8 mock-auth: /events renders through useEvents wiring', false, e.message); }
+
     await page.goto('http://localhost:5174/saved', { waitUntil: 'domcontentloaded' });
     try {
       await page.waitForSelector('.match-empty', { timeout: 15000 });
