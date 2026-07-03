@@ -1,4 +1,5 @@
 import React from 'react'
+import { SHOW_TWEAKS } from '../config/features'
 
 /* BEGIN USAGE */
 // tweaks-panel.jsx
@@ -539,3 +540,40 @@ export {
   TweakSlider, TweakToggle, TweakRadio, TweakSelect,
   TweakText, TweakNumber, TweakColor, TweakButton,
 };
+
+// ---------- App-level pieces shared by every shell ----------
+// The accent palette (NestedApp resolves the active accent from it) and
+// the dev-only StyleTweaks wrapper every shell renders.
+export const ACCENTS = [
+    { v: "oklch(0.60 0.185 30)",  ink: "oklch(0.42 0.16 32)",  wash: "oklch(0.60 0.185 30 / 0.12)" },
+    { v: "oklch(0.55 0.13 255)",  ink: "oklch(0.40 0.11 255)", wash: "oklch(0.55 0.13 255 / 0.12)" },
+    { v: "oklch(0.55 0.13 152)",  ink: "oklch(0.40 0.11 152)", wash: "oklch(0.55 0.13 152 / 0.12)" },
+    { v: "oklch(0.52 0.15 310)",  ink: "oklch(0.40 0.13 310)", wash: "oklch(0.52 0.15 310 / 0.12)" },
+];
+
+  // ---------- Tweaks ----------
+export function StyleTweaks({ t, setTweak }) {
+    if (!SHOW_TWEAKS) return null;
+    return (
+      React.createElement(TweaksPanel, { title: "Tweaks" },
+        React.createElement(TweakSection, { label: "Overall style" }),
+        React.createElement(TweakRadio, {
+          label: "Surface", value: t.surface, options: ["cork", "newsprint", "riso"],
+          onChange: (v) => setTweak("surface", v),
+        }),
+        React.createElement(TweakColor, {
+          label: "Accent", value: t.accent,
+          options: ACCENTS.map((a) => a.v),
+          onChange: (v) => setTweak("accent", v),
+        }),
+        React.createElement(TweakRadio, {
+          label: "Display font", value: t.displayFont, options: ["Bricolage Grotesque", "Anton"],
+          onChange: (v) => setTweak("displayFont", v),
+        }),
+        React.createElement(TweakSection, { label: "Texture" }),
+        React.createElement(TweakToggle, { label: "Paper grain", value: t.texture, onChange: (v) => setTweak("texture", v) }),
+        React.createElement(TweakToggle, { label: "Pinned tilt", value: t.tilt, onChange: (v) => setTweak("tilt", v) })
+      )
+    );
+  }
+

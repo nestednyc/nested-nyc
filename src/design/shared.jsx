@@ -361,3 +361,11 @@ import { avColor, initials, UNI, ORG_TYPES } from './data'
   }
 
   export { Av, Facepile, CatTag, Pin, Stamp, Toasts, UniLogo, formatEventDate, Skeleton, CodeBoxes, ConfirmModal, OrgMini, Polaroid, resizePhoto, LINK_KINDS };
+
+  // Top-bar tabs — shared by NestedApp's goNav, the StudentShell topbar,
+  // and SoonPane's icon lookup.
+  export const NAV = [
+    { id: "discover", label: "Discover", icon: "grid" },
+    { id: "events",   label: "Events",   icon: "calendar" },
+    { id: "people",   label: "People",   icon: "users" },
+  ];

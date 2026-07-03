@@ -2,34 +2,13 @@
    NESTED NYC — App shell, routing, state, tweaks
    ============================================================ */
 import React from 'react'
-import Icon from './icons'
-import { NestedData, CAT, isProjectAdmin } from './data'
-import { Av, Toasts, Stamp, Skeleton, ConfirmModal } from './shared'
-import { useTweaks, TweaksPanel, TweakSection, TweakColor, TweakRadio, TweakToggle } from './tweaks-panel'
-import Onboarding from './onboarding'
-import ForgotPassword from './forgot'
-import Discover, { ProjectCard } from './discover'
-import Events from './events'
-import Matches from './matches'
-import People, { ContactLinks } from './people'
-import UserProfile from './userProfile'
-import Notifications from './notifications'
-import Messages from './messages'
-import MessageThread from './messageThread'
-import { NotifPanel, AccountPanel } from './headerMenus'
-import ProjectDetail from './detail'
-import Profile from './profile'
-import Create from './create'
-import Edit from './edit'
-import OrgSignup from './orgSignup'
-import OrgOnboard from './orgOnboard'
-import OrgDashboard from './orgDashboard'
-import OrgEdit from './orgEdit'
-import OrgView from './orgView'
-import EventForm from './eventForm'
-import EventDetail from './eventDetail'
-import { SHOW_TWEAKS } from '../config/features'
-import { isSupabaseConfigured, authService, supabase } from '../lib/supabase'
+import { isProjectAdmin } from './data'
+import { Toasts, Skeleton, NAV } from './shared'
+import { useTweaks, ACCENTS } from './tweaks-panel'
+import FullScreens from './shells/FullScreens'
+import OrgShell from './shells/OrgShell'
+import StudentShell from './shells/StudentShell'
+import { isSupabaseConfigured } from '../lib/supabase'
 import { profileService } from '../services/profileService'
 import { eventService } from '../services/eventService'
 import { projectService } from '../services/projectService'
@@ -49,19 +28,6 @@ import { useOrg } from './hooks/useOrg'
 
   const { useState, useEffect, useRef } = React;
 
-  // A profile's "pfp" is just its first uploaded photo. Photos arrive as either
-  // bare URL strings or { src } objects (see profileAdapter); return the first
-  // non-empty one — the same rule peopleAdapter uses to derive everyone else's
-  // avatar. null → Av falls back to initials.
-  function firstPhotoUrl(photos) {
-    if (!Array.isArray(photos)) return null;
-    for (const p of photos) {
-      const url = typeof p === "string" ? p : (p && p.src);
-      if (url) return url;
-    }
-    return null;
-  }
-
   // Head sync helpers — the client mirror of api/prerender.js. The URL-mirror
   // effect calls these every commit (next to document.title) so Googlebot's JS
   // render and in-app navigations keep a correct description / canonical. They
@@ -79,21 +45,6 @@ import { useOrg } from './hooks/useOrg'
     el.setAttribute("href", href);
   }
 
-  // Avatar initials for the signed-in user's own handle. Usernames currently
-  // carry a leading "@", so the generic word-split initials would surface that
-  // "@" — strip it and take the first two real letters (the 2nd/3rd characters
-  // while the "@" prefix exists). Stays correct if the "@" is ever dropped.
-  function handleInitials(username) {
-    return String(username || "").replace(/^@+/, "").slice(0, 2).toUpperCase();
-  }
-
-  const ACCENTS = [
-    { v: "oklch(0.60 0.185 30)",  ink: "oklch(0.42 0.16 32)",  wash: "oklch(0.60 0.185 30 / 0.12)" },
-    { v: "oklch(0.55 0.13 255)",  ink: "oklch(0.40 0.11 255)", wash: "oklch(0.55 0.13 255 / 0.12)" },
-    { v: "oklch(0.55 0.13 152)",  ink: "oklch(0.40 0.11 152)", wash: "oklch(0.55 0.13 152 / 0.12)" },
-    { v: "oklch(0.52 0.15 310)",  ink: "oklch(0.40 0.13 310)", wash: "oklch(0.52 0.15 310 / 0.12)" },
-  ];
-
   const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
     "surface": "cork",
     "accent": "oklch(0.60 0.185 30)",
@@ -101,12 +52,6 @@ import { useOrg } from './hooks/useOrg'
     "texture": true,
     "tilt": true
   }/*EDITMODE-END*/;
-
-  const NAV = [
-    { id: "discover", label: "Discover", icon: "grid" },
-    { id: "events",   label: "Events",   icon: "calendar" },
-    { id: "people",   label: "People",   icon: "users" },
-  ];
 
   function App() {
     const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
@@ -687,161 +632,82 @@ import { useOrg } from './hooks/useOrg'
         )
       );
     }
+    // Everything the shells render, one flat bag: each shell destructures the
+    // slice it needs at the top, so the moved JSX stays byte-identical. A new
+    // screen input = a new key here.
+    const api = {
+      // design tokens + chrome shell
+      t, setTweak, toasts, rootClass, rootStyle,
+      // router state machine + params (root-owned)
+      route, setRoute, goNav, goAuth, requireAuth, applyParsed,
+      peekReturnTo, takeReturnTo, profileRef,
+      detailId, setDetailId, editId, setEditId,
+      eventViewId, setEventViewId, eventViewFrom,
+      orgViewSlug, setOrgViewSlug, profileViewUsername,
+      messageThreadHandle, eventDraftId, setEventDraftId,
+      openEventDetail, openOrgView, openPerson, openProfile,
+      // chrome state
+      query, setQuery, soonLabel, modal, setModal, submitModal,
+      justVerified, setJustVerified,
+      forgotEmailSeed, setForgotEmailSeed, forgotFrom, setForgotFrom,
+      orgAuthMode, setOrgAuthMode, authMode,
+      sheetOpen, setSheetOpen, mSearchOpen, setMSearchOpen,
+      notifOpen, setNotifOpen, acctOpen, setAcctOpen,
+      confirmSignOut, setConfirmSignOut, requestSignOut, confirmSignOutNow,
+      profileEditOnArrive, setProfileEditOnArrive,
+      // root hydration-barrier surface
+      projectsLoading, loadErrors, retrySurface,
+      // session
+      profile, setProfile, orgAccount, setOrgAccount, joinedAt,
+      hydrateSession, saveProfileToSupabase, signOut,
+      // people
+      people, connected, incoming, incomingPending, onConnect, onDisconnect,
+      // messaging
+      conversations, unreadMessages, blocked,
+      thread, threadStatus, threadPeer, threadHasMore, loadingEarlier,
+      confirmBlock, setConfirmBlock, confirmDelete, setConfirmDelete,
+      openThread, sendThreadMessage, retryThreadMessage, discardFailedMessage,
+      loadEarlierThread, requestBlock, blockPeerNow, unblockPeer,
+      requestDeleteConversation, deleteConversationNow,
+      // projects
+      projectsList, saved, joined, requested, rejected,
+      projectRequests, pendingRequests, detailFetch, myProjects, detailProject,
+      openProject, openEdit, toggleSave,
+      updateProjectStatus, setCoLead, kickMember, approveRequest, rejectRequest,
+      createProject, saveProjectEdits, deleteProjectById,
+      // events + org
+      rsvped, toggleRsvp, orgEvents, orgEventsLoading,
+      createOrgEvent, updateOrgEvent,
+      toast,
+    };
+
+    // ---------- DISPATCH ----------
+    // Guards, skeleton holds, and bounce corrections stay HERE: they set state
+    // during render (sanctioned only for THIS component's own state) and arm
+    // the mirror's one-shot replace flag, which the mirror effect consumes
+    // unconditionally on every commit -- armed from a child's effect instead,
+    // the flag would be eaten on the wrong commit and the correction would
+    // pushState a broken history entry. Shells receive only ready-to-render
+    // screens. Fall-through order and the compound conditions are load-bearing
+    // (a failed condition falls through to the student shell).
 
     // ---------- ONBOARDING (full-screen, no topbar) ----------
-    if (route === "onboarding") {
-      return (
-        React.createElement("div", { className: rootClass, style: rootStyle },
-          React.createElement(Onboarding, {
-            initialMode: authMode,
-            returnTo: peekReturnTo(),
-            onComplete: (p) => {
-              setProfile(p);
-              profileRef.current = p; // applyParsed below must see it NOW
-              const ret = takeReturnTo();
-              const target = ret && ret !== "/" ? parseLocation(ret, "") : null;
-              if (target) {
-                // They were headed somewhere — take them back (replacing the
-                // auth entry) instead of the profile-edit nudge.
-                applyParsed(target, { replace: true });
-                window.scrollTo({ top: 0 });
-                toast("Welcome to Nested, @" + p.username, "sparkle");
-              } else {
-                // The wizard now handles profile enrichment inline (name, photo,
-                // skills, …), so a fresh signup lands straight on the board
-                // rather than being dropped into the profile-edit page.
-                setRoute("discover"); window.scrollTo({ top: 0 });
-                toast("Welcome to Nested, @" + p.username, "sparkle");
-              }
-              setJustVerified(true);
-              setTimeout(() => setJustVerified(false), 1500);
-            },
-            onOrgPath: () => { setRoute("orgSignup"); window.scrollTo({ top: 0 }); },
-            onForgot: (seedEmail) => {
-              setForgotEmailSeed(seedEmail || "");
-              setForgotFrom("onboarding");
-              setRoute("forgot");
-              window.scrollTo({ top: 0 });
-            },
-          }),
-          React.createElement(Toasts, { items: toasts }),
-          React.createElement(StyleTweaks, { t, setTweak })
-        )
-      );
-    }
+    if (route === "onboarding") return React.createElement(FullScreens, { screen: "onboarding", api });
 
     // ---------- FORGOT PASSWORD (email → code → new password) ----------
-    if (route === "forgot") {
-      return (
-        React.createElement("div", { className: rootClass, style: rootStyle },
-          React.createElement(ForgotPassword, {
-            initialEmail: forgotEmailSeed,
-            onBack: () => {
-              // An org abandoning the reset left the SIGN-IN form — reopen it
-              // there (OrgSignup remounts, so the mode must travel as a prop).
-              if (forgotFrom === "orgSignup") setOrgAuthMode("signin");
-              setRoute(forgotFrom);
-              window.scrollTo({ top: 0 });
-            },
-            onComplete: () => {
-              // updatePassword left us with a real session — let the shared
-              // hydration helper route us (student → discover, org → dashboard).
-              toast("Password updated", "check");
-              hydrateSession();
-            },
-          }),
-          React.createElement(Toasts, { items: toasts }),
-          React.createElement(StyleTweaks, { t, setTweak })
-        )
-      );
-    }
+    if (route === "forgot") return React.createElement(FullScreens, { screen: "forgot", api });
 
     // ---------- ORG SIGN-UP / SIGN-IN (separate auth path) ----------
-    if (route === "orgSignup") {
-      // Any successful auth here routes by what the ACCOUNT is, not by which
-      // door was used: hydrateSession sends org owners to their dashboard,
-      // org_admin signups without an org row to orgOnboarding, and a student
-      // who wandered in (or got their account confirmed here) to the STUDENT
-      // side — never into org creation.
-      const orgAuthDone = () => {
-        setOrgAuthMode("signup");
-        hydrateSession();
-        window.scrollTo({ top: 0 });
-      };
-      return (
-        React.createElement("div", { className: rootClass, style: rootStyle },
-          React.createElement(OrgSignup, {
-            initialMode: orgAuthMode,
-            initialEmail: forgotFrom === "orgSignup" ? forgotEmailSeed : "",
-            onBack: () => { setOrgAuthMode("signup"); setRoute("onboarding"); },
-            onForgot: (seedEmail) => {
-              setForgotEmailSeed(seedEmail || "");
-              setForgotFrom("orgSignup");
-              setRoute("forgot");
-              window.scrollTo({ top: 0 });
-            },
-            onSignedUp: orgAuthDone,
-            onSignedIn: orgAuthDone,
-          }),
-          React.createElement(Toasts, { items: toasts }),
-          React.createElement(StyleTweaks, { t, setTweak })
-        )
-      );
-    }
+    if (route === "orgSignup") return React.createElement(FullScreens, { screen: "orgSignup", api });
 
     // ---------- ORG ONBOARDING (post-signup, pre-dashboard) ----------
-    if (route === "orgOnboarding") {
-      return (
-        React.createElement("div", { className: rootClass, style: rootStyle },
-          React.createElement(OrgOnboard, {
-            onCancel: signOut,
-            onCreated: (org) => {
-              setOrgAccount(org);
-              setRoute("orgDashboard");
-              window.scrollTo({ top: 0 });
-              toast("Your org is on the board", "pin");
-            },
-          }),
-          React.createElement(Toasts, { items: toasts }),
-          React.createElement(StyleTweaks, { t, setTweak })
-        )
-      );
-    }
+    if (route === "orgOnboarding") return React.createElement(FullScreens, { screen: "orgOnboarding", api });
 
     // ---------- ORG EDIT (owner-only) ----------
-    if (route === "orgEditMe") {
-      return (
-        React.createElement("div", { className: rootClass, style: rootStyle },
-          React.createElement(OrgEdit, {
-            org: orgAccount,
-            onCancel: () => setRoute("orgDashboard"),
-            onSaved: (org) => {
-              setOrgAccount(org);
-              setRoute("orgDashboard");
-              toast("Org page updated", "check");
-            },
-          }),
-          React.createElement(Toasts, { items: toasts }),
-          React.createElement(StyleTweaks, { t, setTweak })
-        )
-      );
-    }
+    if (route === "orgEditMe") return React.createElement(FullScreens, { screen: "orgEditMe", api });
 
     // ---------- EVENT CREATE (owner-only) ----------
-    if (route === "eventCreate" && orgAccount) {
-      return (
-        React.createElement("div", { className: rootClass, style: rootStyle },
-          React.createElement(EventForm, {
-            mode: "create",
-            org: orgAccount,
-            onCancel: () => setRoute("orgDashboard"),
-            onSubmit: createOrgEvent,
-          }),
-          React.createElement(Toasts, { items: toasts }),
-          React.createElement(StyleTweaks, { t, setTweak })
-        )
-      );
-    }
+    if (route === "eventCreate" && orgAccount) return React.createElement(FullScreens, { screen: "eventCreate", api });
 
     // ---------- EVENT EDIT (owner-only) ----------
     if (route === "eventEdit" && orgAccount && eventDraftId) {
@@ -861,47 +727,11 @@ import { useOrg } from './hooks/useOrg'
         setRoute("orgDashboard");
         return null;
       }
-      return (
-        React.createElement("div", { className: rootClass, style: rootStyle },
-          React.createElement(EventForm, {
-            mode: "edit",
-            org: orgAccount,
-            initialValues: {
-              title: draft.title || '',
-              event_type: draft.event_type || '',
-              description: draft.description || '',
-              tags: draft.tags || [],
-              date: draft.date || '',
-              time: draft.time || '',
-              duration: draft.duration || '',
-              location: draft.location || '',
-              address: draft.address || '',
-              max_attendees: draft.max_attendees ? String(draft.max_attendees) : '',
-            },
-            onCancel: () => { setEventDraftId(null); setRoute("orgDashboard"); },
-            onSubmit: (fields) => updateOrgEvent(eventDraftId, fields),
-          }),
-          React.createElement(Toasts, { items: toasts }),
-          React.createElement(StyleTweaks, { t, setTweak })
-        )
-      );
+      return React.createElement(FullScreens, { screen: "eventEdit", draft, api });
     }
 
     // ---------- CREATE (full-screen, no topbar — same shell as onboarding) ----------
-    if (route === "create") {
-      return (
-        React.createElement("div", { className: rootClass, style: rootStyle },
-          React.createElement(Create, {
-            profile,
-            existingIds: new Set(projectsList.map((p) => p.id)),
-            onCancel: () => setRoute("discover"),
-            onCreate: createProject,
-          }),
-          React.createElement(Toasts, { items: toasts }),
-          React.createElement(StyleTweaks, { t, setTweak })
-        )
-      );
-    }
+    if (route === "create") return React.createElement(FullScreens, { screen: "create", api });
 
     // ---------- EDIT (full-screen, no topbar) ----------
     if (route === "edit") {
@@ -931,611 +761,16 @@ import { useOrg } from './hooks/useOrg'
         toast("Only the person who pinned this can edit it", "x");
         return null;
       }
-      return (
-        React.createElement("div", { className: rootClass, style: rootStyle },
-          React.createElement(Edit, {
-            project: editProject,
-            profile,
-            onCancel: () => {
-              setEditId(null);
-              setRoute(detailId === editProject.id ? "detail" : "discover");
-            },
-            onSave: saveProjectEdits,
-            onDelete: deleteProjectById,
-          }),
-          React.createElement(Toasts, { items: toasts }),
-          React.createElement(StyleTweaks, { t, setTweak })
-        )
-      );
+      return React.createElement(FullScreens, { screen: "edit", editProject, api });
     }
 
     // ---------- ORG APP SHELL (dashboard + own public page) ----------
     if (orgAccount && (route === "orgDashboard" || route === "eventDetail")) {
-      return (
-        React.createElement("div", { className: rootClass + " corkbg", style: { ...rootStyle, minHeight: "100vh" } },
-          // Minimal topbar: brand + org chip + sign-out. No student NAV/search.
-          React.createElement("header", { className: "topbar" },
-            React.createElement("div", { className: "brand", onClick: () => setRoute("orgDashboard") },
-              React.createElement("span", { className: "mark" }, React.createElement(Icon, { name: "pin", size: 21, stroke: "var(--paper)" })),
-              React.createElement("span", { className: "name" }, "Nested", React.createElement("span", null, "."))
-            ),
-            React.createElement("nav", { className: "nav" },
-              React.createElement("button", {
-                className: route === "orgDashboard" ? "active" : "",
-                onClick: () => setRoute("orgDashboard"),
-              }, React.createElement(Icon, { name: "grid", size: 18 }), "Dashboard")
-            ),
-            React.createElement("span", { className: "spacer", style: { flex: 1 } }),
-            React.createElement("button", { className: "me-chip", onClick: signOut, title: "Sign out" },
-              React.createElement(Av, { name: orgAccount.name }),
-              React.createElement("span", { className: "who" },
-                React.createElement("b", null, orgAccount.name),
-                React.createElement("small", null, "Sign out →")
-              )
-            )
-          ),
-
-          route === "orgDashboard" && React.createElement(OrgDashboard, {
-            org: orgAccount,
-            events: orgEvents,
-            loading: orgEventsLoading,
-            onCreateEvent: () => { setRoute("eventCreate"); window.scrollTo({ top: 0 }); },
-            onEditOrg: () => { setRoute("orgEditMe"); window.scrollTo({ top: 0 }); },
-            onEditEvent: (id) => { setEventDraftId(id); setRoute("eventEdit"); window.scrollTo({ top: 0 }); },
-            onSignOut: signOut,
-          }),
-
-          // Org owner viewing the public side of one of their own events.
-          // EventDetail detects isOwner via orgAccount.id === event.organization_id
-          // and swaps the RSVP CTA for "Edit event" → eventEdit.
-          route === "eventDetail" && eventViewId && React.createElement(EventDetail, {
-            eventId: eventViewId,
-            profile,
-            rsvped,
-            orgAccount,
-            onBack: () => { setEventViewId(null); setRoute("orgDashboard"); },
-            onRSVP: toggleRsvp,
-            onOpenOrg: openOrgView,
-            onEditEvent: (id) => { setEventDraftId(id); setEventViewId(null); setRoute("eventEdit"); window.scrollTo({ top: 0 }); },
-            onSignIn: () => {},
-            onOpenProfile: openProfile,
-            connected,
-          }),
-
-          React.createElement(Toasts, { items: toasts }),
-          React.createElement(StyleTweaks, { t, setTweak })
-        )
-      );
+      return React.createElement(OrgShell, { api });
     }
 
     // ---------- MAIN APP (student) ----------
-    return (
-      React.createElement("div", { className: rootClass + " corkbg", style: { ...rootStyle, minHeight: "100vh" } },
-        // top bar
-        React.createElement("header", { className: "topbar" },
-          React.createElement("div", { className: "brand", onClick: () => goNav("discover") },
-            React.createElement("span", { className: "mark" }, React.createElement(Icon, { name: "pin", size: 21, stroke: "var(--paper)" })),
-            React.createElement("span", { className: "name" }, "Nested", React.createElement("span", null, "."))
-          ),
-          React.createElement("nav", { className: "nav" },
-            NAV.map((n) => (
-              React.createElement("button", {
-                key: n.id,
-                className: (route === n.id) ? "active"
-                  : (route === "soon" && soonLabel === n.label) ? "active" : "",
-                onClick: () => goNav(n.id),
-              }, React.createElement(Icon, { name: n.icon, size: 18 }), n.label)
-            ))
-          ),
-          // Desktop utilities — display:contents on desktop so the topbar flex layout
-          // (and .search's margin-left:auto) is byte-identical; display:none ≤860px.
-          React.createElement("div", { className: "topbar-desk" },
-            React.createElement("div", { className: "search" },
-              React.createElement(Icon, { name: "search", size: 18 }),
-              React.createElement("input", {
-                placeholder: "Search projects, skills, schools…", value: query,
-                onChange: (e) => { setQuery(e.target.value); if (route !== "discover") setRoute("discover"); },
-              })
-            ),
-            profile && React.createElement("button", {
-              className: "iconbtn", onClick: () => { setRoute("messages"); window.scrollTo({ top: 0 }); }, title: "Messages",
-            },
-              React.createElement(Icon, { name: "chat", size: 20 }),
-              unreadMessages > 0 && React.createElement("span", { className: "dot" })
-            ),
-            profile && React.createElement("div", { className: "hdr-anchor" },
-              React.createElement("button", {
-                className: "iconbtn" + (notifOpen ? " on" : ""),
-                onClick: () => { setAcctOpen(false); setNotifOpen((v) => !v); },
-                title: "Notifications", "aria-haspopup": "menu", "aria-expanded": notifOpen ? "true" : "false",
-              },
-                React.createElement(Icon, { name: "bell", size: 20 }),
-                (incomingPending.length + projectRequests.length) > 0 && React.createElement("span", { className: "dot" })
-              ),
-              React.createElement(NotifPanel, {
-                open: notifOpen,
-                count: incomingPending.length + projectRequests.length,
-                incoming: incomingPending,
-                projectRequests,
-                loading: projectsLoading,
-                onApprove: approveRequest,
-                onReject: rejectRequest,
-                onConnect,
-                onOpenProfile: (p) => openPerson(p.handle),
-                onOpenProject: openProject,
-                onViewAll: () => { setRoute("notifications"); window.scrollTo({ top: 0 }); },
-                onClose: () => setNotifOpen(false),
-              })
-            ),
-            profile && justVerified && React.createElement("span", {
-              className: "corner-stamp enter",
-              title: "@" + profile.username + " · verified .edu student",
-            }, React.createElement(Stamp, { size: 44 })),
-            profile && React.createElement("div", { className: "hdr-anchor" },
-              React.createElement("button", {
-                className: "me-chip" + (acctOpen ? " on" : ""),
-                onClick: () => { setNotifOpen(false); setAcctOpen((v) => !v); },
-                "aria-haspopup": "menu", "aria-expanded": acctOpen ? "true" : "false",
-              },
-                React.createElement(Av, { name: profile.username, img: firstPhotoUrl(profile.photos), label: handleInitials(profile.username) }),
-                React.createElement("span", { className: "who" },
-                  React.createElement("b", null, "@" + profile.username),
-                  React.createElement("small", null, (NestedData.UNI[profile.uni] || {}).name)
-                )
-              ),
-              React.createElement(AccountPanel, {
-                open: acctOpen,
-                profile,
-                photoUrl: firstPhotoUrl(profile.photos),
-                avLabel: handleInitials(profile.username),
-                uniName: (NestedData.UNI[profile.uni] || {}).name,
-                onViewProfile: () => { setRoute("profile"); window.scrollTo({ top: 0 }); },
-                onEditProfile: () => { setProfileEditOnArrive(true); setRoute("profile"); window.scrollTo({ top: 0 }); },
-                onViewSaved: () => goNav("saved"),
-                onSignOut: requestSignOut,
-                onClose: () => setAcctOpen(false),
-              })
-            ),
-            // Guest: no account chip — offer Log in (signin) / Sign up (signup).
-            !profile && React.createElement("button", { className: "btn btn-ghost", onClick: () => goAuth("signin"), title: "Log in" }, "Log in"),
-            !profile && React.createElement("button", { className: "btn btn-primary", onClick: () => goAuth("signup"), title: "Create your account" },
-              React.createElement(Icon, { name: "pin", size: 16, stroke: "var(--paper)" }), "Sign up")
-          ),
-          // Mobile-only cluster (≤860px): search toggle + avatar that opens the account sheet.
-          React.createElement("div", { className: "topbar-mob" },
-            React.createElement("button", { className: "iconbtn", onClick: () => setMSearchOpen((v) => !v), title: "Search", "aria-expanded": mSearchOpen ? "true" : "false" },
-              React.createElement(Icon, { name: mSearchOpen ? "x" : "search", size: 20 })),
-            // Chat lives in the bar (mirrors the desktop chat icon) — without it,
-            // messages were buried in the account sheet with no labeled affordance.
-            // Carries its OWN unread dot; the avatar dot below sheds messages so the
-            // two signals are distinguishable.
-            profile && React.createElement("button", {
-              className: "iconbtn", onClick: () => { setRoute("messages"); window.scrollTo({ top: 0 }); }, title: "Messages", "aria-label": "Messages",
-            },
-              React.createElement(Icon, { name: "chat", size: 20 }),
-              unreadMessages > 0 && React.createElement("span", { className: "dot" })
-            ),
-            profile && React.createElement("button", { className: "mob-avatar", onClick: () => setSheetOpen(true), title: "Account" },
-              React.createElement(Av, { name: profile.username, img: firstPhotoUrl(profile.photos), label: handleInitials(profile.username) }),
-              (incomingPending.length + projectRequests.length) > 0 && React.createElement("span", { className: "dot" })
-            ),
-            !profile && React.createElement("button", { className: "btn btn-primary", onClick: () => goAuth("signup"), title: "Create your account" }, "Sign up")
-          )
-        ),
-        // Mobile search field — drops in under the bar when toggled (≤860px only).
-        mSearchOpen && React.createElement("div", { className: "topbar-search-drop" },
-          React.createElement("div", { className: "search-field" },
-            React.createElement(Icon, { name: "search", size: 18 }),
-            React.createElement("input", {
-              autoFocus: true, placeholder: "Search projects, skills, schools…", value: query,
-              onChange: (e) => { setQuery(e.target.value); if (route !== "discover") setRoute("discover"); },
-            })
-          )
-        ),
-
-        route === "discover" && React.createElement(Discover, {
-          projects: projectsList, profile, saved, joined, requested, query,
-          onOpen: openProject, onSave: toggleSave,
-          onEdit: (p) => openEdit(p.id),
-          onStart: () => { if (!profile) return requireAuth("Sign up to pin a project"); setRoute("create"); },
-          loading: projectsLoading, error: loadErrors && loadErrors.discover, onRetry: retrySurface,
-        }),
-
-        route === "events" && React.createElement(Events, {
-          rsvped, onRSVP: toggleRsvp, onOpenOrg: openOrgView,
-          onOpenEvent: (id) => openEventDetail(id, "events"),
-        }),
-
-        route === "orgView" && orgViewSlug && React.createElement(OrgView, {
-          slug: orgViewSlug,
-          onBack: () => { setOrgViewSlug(null); goNav("events"); },
-          onOpenEvent: (id) => openEventDetail(id, "orgView"),
-          onToast: toast,
-        }),
-
-        // Student-side event detail. Drives back-navigation off eventViewFrom
-        // so returning lands on whichever feed the user came from (events tab
-        // or a host org's public page).
-        route === "eventDetail" && eventViewId && React.createElement(EventDetail, {
-          eventId: eventViewId,
-          profile,
-          rsvped,
-          orgAccount,
-          onBack: () => {
-            setEventViewId(null);
-            if (eventViewFrom === "orgView" && orgViewSlug) setRoute("orgView");
-            else goNav("events");
-          },
-          onRSVP: toggleRsvp,
-          onOpenOrg: openOrgView,
-          onEditEvent: (id) => { setEventDraftId(id); setEventViewId(null); setRoute("eventEdit"); window.scrollTo({ top: 0 }); },
-          onSignIn: () => { setEventViewId(null); setRoute("onboarding"); },
-          onOpenProfile: openProfile,
-          onConnect,
-          connected,
-        }),
-
-        route === "people" && React.createElement(People, {
-          people,
-          connected,
-          onConnect,
-          onDisconnect,
-          onMessage: (person) => openThread(person),
-          onOpenPerson: (person) => openPerson(person.handle),
-          loading: projectsLoading,
-          error: loadErrors && loadErrors.people,
-          onRetry: retrySurface,
-        }),
-
-        // Student profile page (/u/:username). Self-fetches by handle; the
-        // already-loaded People list seeds in-app arrivals so there's no
-        // skeleton flash. Own handle never reaches here (applyParsed and
-        // openProfile both upgrade it to the profile route).
-        route === "userProfile" && profileViewUsername && React.createElement(UserProfile, {
-          username: profileViewUsername,
-          initialPerson: people.find((pp) => pp.handle && pp.handle.toLowerCase() === profileViewUsername.toLowerCase()) || null,
-          connected,
-          incoming,
-          onConnect,
-          onDisconnect,
-          onMessage: (person) => openThread(person),
-          onBack: () => goNav("people"),
-          viewerId: profile && profile.id,
-          blocked,
-          onBlock: requestBlock,
-          onUnblock: unblockPeer,
-        }),
-
-        route === "notifications" && React.createElement(Notifications, {
-          incoming,
-          connected,
-          projectRequests,
-          onConnect,
-          onApprove: approveRequest,
-          onReject: rejectRequest,
-          onOpenProject: openProject,
-          // Incoming connections are full toPerson objects — navigate straight
-          // to their /u/:username page.
-          onOpenProfile: (person) => openPerson(person.handle),
-          loading: projectsLoading,
-          error: loadErrors && loadErrors.notifications,
-          onRetry: retrySurface,
-        }),
-
-        // Messaging is a desktop master–detail split: conversation list (left) +
-        // active thread (right). Both /messages and /messages/:user render this
-        // same .dm container; on mobile (≤860px) CSS shows ONE pane at a time
-        // (list, or the open thread when route === messageThread → .show-thread).
-        (route === "messages" || route === "messageThread") && React.createElement("div", { className: "dm" + (route === "messageThread" ? " show-thread" : "") },
-          React.createElement("div", { className: "dm-list" },
-            React.createElement(Messages, {
-              conversations,
-              loading: projectsLoading,
-              error: loadErrors && loadErrors.messages,
-              onRetry: retrySurface,
-              onOpenThread: openThread,
-              activeHandle: messageThreadHandle,
-              // Per-row ⋯ menu (block / delete) — same handlers the thread used.
-              blocked,
-              onBlock: requestBlock,
-              onUnblock: unblockPeer,
-              onDelete: requestDeleteConversation,
-            })
-          ),
-          React.createElement("div", { className: "dm-pane" },
-            (route === "messageThread" && threadPeer)
-              ? React.createElement(MessageThread, {
-                  peer: threadPeer,
-                  messages: thread,
-                  status: threadStatus,
-                  onSend: sendThreadMessage,
-                  onBack: () => { setRoute("messages"); window.scrollTo({ top: 0 }); },
-                  onOpenProfile: () => { if (threadPeer && threadPeer.handle) openPerson(threadPeer.handle); },
-                  isBlocked: threadPeer ? blocked.has(threadPeer.id) : false,
-                  onBlock: () => requestBlock(threadPeer),
-                  onUnblock: () => unblockPeer(threadPeer),
-                  onDelete: () => requestDeleteConversation(threadPeer),
-                  onRetry: retryThreadMessage,
-                  onDiscard: discardFailedMessage,
-                  onLoadEarlier: loadEarlierThread,
-                  hasMore: threadHasMore,
-                  loadingEarlier,
-                })
-              : React.createElement("div", { className: "dm-empty" },
-                  React.createElement(Icon, { name: "chat", size: 40, stroke: "var(--accent)" }),
-                  React.createElement("h3", null, "Select a conversation"),
-                  React.createElement("p", null, "Pick someone on the left to start chatting."))
-          )
-        ),
-
-        route === "saved" && React.createElement(Matches, {
-          projects: projectsList, profile,
-          saved, joined, requested, rejected, onOpen: openProject, onSave: toggleSave,
-          onStart: () => { if (!profile) return requireAuth("Sign up to pin a project"); setRoute("create"); },
-          onBrowse: () => goNav("discover"),
-          onEdit: (p) => openEdit(p.id),
-          loading: projectsLoading,
-          error: loadErrors && loadErrors.saved,
-          onRetry: retrySurface,
-        }),
-
-        // Deep-linked detail: skeleton while the feed / by-id fetch resolves;
-        // gone (or never visible) → a cork-board flavored empty state.
-        route === "detail" && !detailProject && (projectsLoading || detailFetch === "loading") &&
-          React.createElement("div", { className: "discover" }, React.createElement(Skeleton, { count: 3 })),
-        route === "detail" && !detailProject && !projectsLoading && detailFetch !== "loading" &&
-          React.createElement("div", { className: "discover" },
-            React.createElement("div", { className: "match-empty fade-up" },
-              React.createElement("div", { className: "ill" }, React.createElement(Icon, { name: "pin", size: 42, stroke: "var(--accent)" })),
-              React.createElement("h3", null, "This flyer's not on the board"),
-              React.createElement("p", null, "It may have been taken down, or the link is off. Browse the board for what's pinned right now."),
-              React.createElement("button", { className: "btn btn-primary", style: { marginTop: 22 }, onClick: () => goNav("discover") },
-                React.createElement(Icon, { name: "grid", size: 16, stroke: "var(--paper)" }), "Back to the board")
-            )
-          ),
-
-        route === "detail" && detailProject && React.createElement(ProjectDetail, {
-          p: detailProject, profile,
-          saved: saved.has(detailProject.id),
-          joined: joined.has(detailProject.id), requested: requested.has(detailProject.id),
-          pendingRequests,
-          onApprove: approveRequest,
-          onReject: rejectRequest,
-          onBack: () => setRoute("discover"),
-          onSave: toggleSave,
-          onRequest: (p) => {
-            if (!profile) { requireAuth("Sign in to request to join"); return; }
-            if (joined.has(p.id)) { toast("You're already on this team", "check"); }
-            else if (requested.has(p.id)) { toast("You've already requested to join", "check"); }
-            else { setModal({ type: "join", project: p }); }
-          },
-          onEdit: (p) => openEdit(p.id),
-          onUpdateStatus: updateProjectStatus,
-          onSetCoLead: setCoLead,
-          onKickMember: kickMember,
-          onOpenProfile: openProfile,
-        }),
-
-        route === "profile" && React.createElement(Profile, {
-          profile,
-          pinnedProjects: myProjects,
-          projectCount: myProjects.length,
-          eventCount: rsvped.size,
-          connectionCount: connected.length,
-          joinedAt: (profile && profile.joinedAt) || joinedAt,
-          onBack: () => goNav("discover"),
-          onOpenProject: openProject,
-          onSaveProfile: saveProfileToSupabase,
-          onSignOut: signOut,
-          startInEdit: profileEditOnArrive,
-          onAutoEditConsumed: () => setProfileEditOnArrive(false),
-        }),
-
-        route === "soon" && React.createElement(SoonPane, { label: soonLabel, saved, joined, requested, projects: projectsList, onOpen: openProject, onSave: toggleSave, onBack: () => goNav("discover") }),
-
-        modal && React.createElement(Modal, { modal, onClose: () => setModal(null), onSubmit: submitModal, profile }),
-        // Mobile account sheet (≤860px) — opened by the top-bar avatar; nests
-        // Profile / Saved / Notifications / Sign out so the mobile bar stays minimal.
-        sheetOpen && profile && React.createElement("div", { className: "sheet-scrim", onClick: () => setSheetOpen(false) },
-          React.createElement("div", { className: "acct-sheet", onClick: (e) => e.stopPropagation() },
-            React.createElement("div", { className: "acct-head" },
-              React.createElement(Av, { name: profile.username, img: firstPhotoUrl(profile.photos), label: handleInitials(profile.username) }),
-              React.createElement("div", { className: "acct-id" },
-                React.createElement("b", null, "@" + profile.username),
-                React.createElement("small", null, (NestedData.UNI[profile.uni] || {}).name)
-              )
-            ),
-            React.createElement("button", { className: "acct-item", onClick: () => { setSheetOpen(false); setRoute("profile"); window.scrollTo({ top: 0 }); } },
-              React.createElement(Icon, { name: "user", size: 19 }), "Profile"),
-            React.createElement("button", { className: "acct-item", onClick: () => { setSheetOpen(false); goNav("saved"); } },
-              React.createElement(Icon, { name: "bookmark", size: 19 }), "Saved"),
-            React.createElement("button", { className: "acct-item", onClick: () => { setSheetOpen(false); setRoute("notifications"); window.scrollTo({ top: 0 }); } },
-              React.createElement(Icon, { name: "bell", size: 19 }), "Notifications",
-              (incomingPending.length + projectRequests.length) > 0 && React.createElement("span", { className: "acct-badge" }, incomingPending.length + projectRequests.length)),
-            React.createElement("button", { className: "acct-item", onClick: () => { setSheetOpen(false); setRoute("messages"); window.scrollTo({ top: 0 }); } },
-              React.createElement(Icon, { name: "chat", size: 19 }), "Messages",
-              unreadMessages > 0 && React.createElement("span", { className: "acct-badge" }, unreadMessages)),
-            React.createElement("button", { className: "acct-item danger", onClick: requestSignOut },
-              React.createElement(Icon, { name: "external", size: 19 }), "Sign out")
-          )
-        ),
-        confirmSignOut && React.createElement(ConfirmModal, {
-          accent: "var(--c-startup)",
-          title: "Sign out?",
-          body: "You'll need your .edu email and password to get back to your board.",
-          ctaLabel: "Sign out",
-          ctaIcon: "external",
-          danger: true,
-          onCancel: () => setConfirmSignOut(false),
-          onConfirm: confirmSignOutNow,
-        }),
-        confirmBlock && React.createElement(ConfirmModal, {
-          accent: "var(--c-startup)",
-          title: "Block" + (confirmBlock.handle ? " @" + confirmBlock.handle : " this person") + "?",
-          body: "New messages stop both ways until you unblock. You'll stay connected and your conversation history stays.",
-          ctaLabel: "Block",
-          ctaIcon: "block",
-          danger: true,
-          onCancel: () => setConfirmBlock(null),
-          onConfirm: blockPeerNow,
-        }),
-        confirmDelete && React.createElement(ConfirmModal, {
-          accent: "var(--c-startup)",
-          title: "Delete this conversation?",
-          body: "This removes it from your messages only — " + (confirmDelete.handle ? "@" + confirmDelete.handle : "the other person") + " keeps their copy. If they message you again, a new conversation starts.",
-          ctaLabel: "Delete",
-          ctaIcon: "trash",
-          danger: true,
-          onCancel: () => setConfirmDelete(null),
-          onConfirm: deleteConversationNow,
-        }),
-        React.createElement(Toasts, { items: toasts }),
-        React.createElement(StyleTweaks, { t, setTweak })
-      )
-    );
-  }
-
-  // ---------- Request to join / Contact modal ----------
-  function Modal({ modal, onClose, onSubmit, profile }) {
-    const [text, setText] = useState("");
-    // JOIN: which open role the applicant targets. Default to the first open role;
-    // the picker (below) only renders when there's more than one, so a single-role
-    // project auto-targets it with no extra UI and zero open roles sends "".
-    const joinOpenRoles = ((modal.project && modal.project.roles) || []).filter((r) => r && r.open);
-    const [selectedIdx, setSelectedIdx] = useState(0);
-    const isJoin = modal.type === "join";
-    // CONTACT: surface the lead's REAL contact — the team-chat link they added on
-    // their flyer. There's no messaging system, so we never fake a DM or an
-    // "@edu" address; with no link, we point them to Request to join.
-    if (!isJoin) {
-      const lead = modal.lead;
-      const proj = modal.project;
-      const commLink = proj && (proj.communicationLink || proj.commLink);
-      const links = commLink ? [{ kind: "site", url: commLink, label: "Open team chat" }] : [];
-      return (
-        React.createElement("div", { className: "scrim", onClick: onClose },
-          React.createElement("div", { className: "modal", onClick: (e) => e.stopPropagation() },
-            React.createElement("div", { className: "cat-bar", style: { background: "var(--accent)" } }),
-            React.createElement("button", { className: "modal-close", onClick: onClose }, React.createElement(Icon, { name: "x", size: 18 })),
-            React.createElement("div", { className: "modal-inner" },
-              React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 13, marginBottom: 16 } },
-                React.createElement(Av, { name: lead.name }),
-                React.createElement("div", null,
-                  React.createElement("h2", { style: { fontSize: 23, marginBottom: 2 } }, "Reach " + lead.name.split(" ")[0]),
-                  React.createElement("div", { style: { fontFamily: "var(--mono)", fontSize: 11.5, color: "var(--ink-faint)" } }, lead.role))),
-              links.length
-                ? React.createElement(ContactLinks, { person: { links } })
-                : React.createElement("p", { className: "contact-empty" },
-                    lead.name.split(" ")[0] + " hasn't added a public contact link yet. Use ",
-                    React.createElement("b", null, "Request to join"),
-                    " to send them a note.")
-            )
-          )
-        )
-      );
-    }
-    // JOIN: the compose box — send a note to the project lead.
-    const cat = CAT[modal.project.cat];
-    const lead = modal.project.lead;
-    const placeholder = "Hi " + lead.name.split(" ")[0] + " — I'm " + (profile ? "@" + profile.username : "a student") + ". I'd love to help with this because…";
-    return (
-      React.createElement("div", { className: "scrim", onClick: onClose },
-        React.createElement("div", { className: "modal", onClick: (e) => e.stopPropagation() },
-          React.createElement("div", { className: "cat-bar", style: { background: cat.color } }),
-          React.createElement("button", { className: "modal-close", onClick: onClose }, React.createElement(Icon, { name: "x", size: 18 })),
-          React.createElement("div", { className: "modal-inner" },
-            React.createElement("h2", null, "Request to join"),
-            React.createElement("p", null,
-              "Send a note to ", React.createElement("b", { key: "b" }, lead.name), ", who's leading ", React.createElement("b", { key: "b2" }, "“" + modal.project.title.split(" — ")[0] + "”"), ". A line about why you're a fit goes a long way."),
-            joinOpenRoles.length > 1 && React.createElement("div", { className: "join-roles", style: { marginBottom: 14 } },
-              React.createElement("div", { style: { fontFamily: "var(--mono)", fontSize: 11.5, color: "var(--ink-faint)", fontWeight: 600, marginBottom: 8 } }, "Which role?"),
-              React.createElement("div", { className: "chips-grid" },
-                joinOpenRoles.map((r, i) => {
-                  const on = selectedIdx === i;
-                  return React.createElement("button", {
-                    key: i, type: "button",
-                    className: "pick" + (on ? " on accent" : ""),
-                    onClick: () => setSelectedIdx(i),
-                  }, on && React.createElement(Icon, { name: "check", size: 13, width: 2.4 }), r.title);
-                })
-              )
-            ),
-            React.createElement("textarea", { placeholder, value: text, autoFocus: true, onChange: (e) => setText(e.target.value) }),
-            React.createElement("div", { className: "modal-actions" },
-              React.createElement("button", { className: "btn btn-ghost", onClick: onClose }, "Cancel"),
-              React.createElement("button", { className: "btn btn-primary", onClick: () => onSubmit(text, joinOpenRoles[selectedIdx] ? joinOpenRoles[selectedIdx].title : "") },
-                React.createElement(Icon, { name: "send", size: 16, stroke: "var(--paper)" }),
-                "Send request")
-            )
-          )
-        )
-      )
-    );
-  }
-
-  // ---------- "near-future surface" placeholder ----------
-  function SoonPane({ label, saved, joined, requested, projects, onOpen, onSave, onBack }) {
-    // Matches shows saved projects if any
-    if (label === "Matches" && saved.size > 0) {
-      const list = projects.filter((p) => saved.has(p.id));
-      return (
-        React.createElement("div", { className: "discover" },
-          React.createElement("div", { className: "disco-head" },
-            React.createElement("div", null,
-              React.createElement("h1", null, "Your ", React.createElement("em", null, "saved"), " board"),
-              React.createElement("p", { className: "sub" }, "Projects you've pinned for later. The full Matches surface (your projects, requests, recommendations) is coming soon.")
-            )
-          ),
-          React.createElement("div", { className: "board", style: { marginTop: 18 } },
-            list.map((p) => React.createElement(ProjectCard, {
-              key: p.id, p, saved: saved.has(p.id), joined: joined.has(p.id), requested: requested.has(p.id), onOpen, onSave,
-            }))
-          )
-        )
-      );
-    }
-    const copy = {
-      Events: ["Events across NYC campuses", "Hackathons, demo days, mixers and workshops from every school on Nested — in one feed."],
-      Matches: ["Your matches & saved", "Projects you've saved, your own projects, and requests to join will live here."],
-      Profile: ["Your profile", "Your major, school, interests, photos, and the links teammates use to reach you."],
-      "Create a project": ["Pin a new project", "Post what you're building and the roles you need. Recruit teammates from every NYC campus."],
-    }[label] || [label, "Coming soon."];
-    return (
-      React.createElement("div", { className: "soon" },
-        React.createElement("div", { className: "badge" }, React.createElement(Icon, { name: label === "Create a project" ? "plus" : (NAV.find((n) => n.label === label) || {}).icon || "sparkle", size: 40, stroke: "var(--accent)" })),
-        React.createElement("h2", null, copy[0]),
-        React.createElement("p", null, copy[1]),
-        React.createElement("div", { className: "mono" }, "// behind a feature flag · near-future surface"),
-        React.createElement("button", { className: "btn btn-primary", style: { marginTop: 24 }, onClick: onBack },
-          React.createElement(Icon, { name: "arrowLeft", size: 16, stroke: "var(--paper)" }), "Back to the board")
-      )
-    );
-  }
-
-  // ---------- Tweaks ----------
-  function StyleTweaks({ t, setTweak }) {
-    if (!SHOW_TWEAKS) return null;
-    return (
-      React.createElement(TweaksPanel, { title: "Tweaks" },
-        React.createElement(TweakSection, { label: "Overall style" }),
-        React.createElement(TweakRadio, {
-          label: "Surface", value: t.surface, options: ["cork", "newsprint", "riso"],
-          onChange: (v) => setTweak("surface", v),
-        }),
-        React.createElement(TweakColor, {
-          label: "Accent", value: t.accent,
-          options: ACCENTS.map((a) => a.v),
-          onChange: (v) => setTweak("accent", v),
-        }),
-        React.createElement(TweakRadio, {
-          label: "Display font", value: t.displayFont, options: ["Bricolage Grotesque", "Anton"],
-          onChange: (v) => setTweak("displayFont", v),
-        }),
-        React.createElement(TweakSection, { label: "Texture" }),
-        React.createElement(TweakToggle, { label: "Paper grain", value: t.texture, onChange: (v) => setTweak("texture", v) }),
-        React.createElement(TweakToggle, { label: "Pinned tilt", value: t.tilt, onChange: (v) => setTweak("tilt", v) })
-      )
-    );
+    return React.createElement(StudentShell, { api });
   }
 
   export { App as NestedApp };

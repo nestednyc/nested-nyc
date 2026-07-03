@@ -15,7 +15,7 @@ Render path: `src/main.jsx` → `src/App.jsx` → `src/design/NestedApp.jsx`. **
 
 - `main.jsx` imports `design/styles.css` and side-loads `utils/migrateLocalStorage` (console-only helper exposing `window.migrateToSupabase`).
 - `App.jsx` fails loud if a prod build is missing Supabase env vars, wraps the app in `design/ErrorBoundary`, and mounts Vercel `<Analytics />` (which auto-instruments `pushState`, so per-URL pageviews work).
-- `NestedApp.jsx` (~2,250 lines) is the app shell and **composition root**: the string-based view state machine (`useState(route)` + conditional renders), the URL mirror, cross-domain data loading, and the render wiring. Self-contained domains live as hooks in `src/design/hooks/` (currently `useToasts` and `useMessaging` — the whole DM domain); NestedApp calls each hook, injects its cross-domain deps (profile, people, route, toast, requireAuth, …) as arguments, and passes the returns to the screens as props. **Hooks never import each other** — anything cross-domain flows through NestedApp explicitly. New domains (and any feature adding hook-sized weight) ship as a hook + screen, not as inline additions to NestedApp.
+- `NestedApp.jsx` (~830 lines) is the **composition root**: boot parse, the string-route state machine + URL mirror, the cross-domain hydration barrier, hook wiring, and shell dispatch. Domain logic lives in `src/design/hooks/` (`useToasts`, `useSession`, `usePeople`, `useMessaging`, `useProjects`, `useEvents`, `useOrg`); NestedApp calls each hook in that order (TDZ-safe: `usePeople` before `useMessaging`, which consumes `people`), injects its cross-domain deps as one args object, and passes everything the renders need to `src/design/shells/` (`FullScreens`, `OrgShell`, `StudentShell`) through a single flat `api` bag that each shell destructures. **Hooks never import each other** — anything cross-domain flows through NestedApp explicitly; `signOut` is the root composer of `signOutAuth()` + every domain's `reset*()` + the router-param clears. The dispatch **guards** (skeleton holds, the edit/eventEdit bounce corrections) deliberately stay in NestedApp: they set state during render and arm the mirror's one-shot flags, which only works from the component that owns them. New domains ship as a hook; new screens render in a shell with their inputs added to the `api` bag — never as inline additions to NestedApp.
 
 ### URL routing — a mirror, not a router
 
@@ -64,8 +64,9 @@ Four channels, all authed via `supabase.realtime.setAuth` before subscribing (RL
 ```
 src/
 ├── design/              # THE live app — every screen the user sees
-│   ├── NestedApp.jsx    # shell/composition root: view state machine, URL mirror, data loading, TWEAK_DEFAULTS
-│   ├── hooks/           # domain hooks wired by NestedApp: useToasts, useMessaging (all DM state/realtime/handlers)
+│   ├── NestedApp.jsx    # composition root: route machine, URL mirror, hydration barrier, hook wiring, dispatch, TWEAK_DEFAULTS
+│   ├── hooks/           # domain hooks: useToasts useSession usePeople useMessaging useProjects useEvents useOrg
+│   ├── shells/          # render frames fed by the api bag: StudentShell, OrgShell, FullScreens (auth/create/edit routes)
 │   ├── router.js        # pure URL codec: parse/build/accessOf/validateNext/titleFor
 │   ├── discover.jsx detail.jsx create.jsx edit.jsx projectForm.jsx
 │   ├── events.jsx eventDetail.jsx eventForm.jsx
@@ -166,10 +167,11 @@ Physical pinboard vocabulary: paper flyers pinned/taped to cork, slight per-card
 ### Adding a screen
 
 1. Create `src/design/myScreen.jsx` (presentational; state and handlers come in as props).
-2. Pick a route string and render it in NestedApp: `route === "myScreen" && <MyScreen … />`.
-3. Navigate with `setRoute("myScreen")`.
-4. Give it a URL: add a row to `ROUTES` in `router.js` (path pattern, access class, param→state map) and a `BUILD` entry; param state must be set before/with `setRoute` so the mirror can build the path. Pick access `public` only if it should be anonymously browsable.
-5. Add a `titleFor` case for the tab title.
+2. Put its state + handlers in the owning domain hook (`src/design/hooks/` — new domain → new hook, injected deps in, `{state, handlers, reset*}` out; wire `reset*` into NestedApp's `signOut`).
+3. Render it in the right shell (usually `shells/StudentShell.jsx`): `route === "myScreen" && <MyScreen … />`, and add any new inputs it needs to the `api` bag in NestedApp.
+4. Navigate with `setRoute("myScreen")`.
+5. Give it a URL: add a row to `ROUTES` in `router.js` (path pattern, access class, param→state map) and a `BUILD` entry; param state must be set before/with `setRoute` so the mirror can build the path (router params are `useState`s in NestedApp). Pick access `public` only if it should be anonymously browsable.
+6. Add a `titleFor` case for the tab title.
 
 ### Naming
 
