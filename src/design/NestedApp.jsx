@@ -243,6 +243,29 @@ import { useMessaging } from './hooks/useMessaging'
     const [notifOpen, setNotifOpen] = useState(false);
     const [acctOpen, setAcctOpen] = useState(false);
     const [confirmSignOut, setConfirmSignOut] = useState(false);
+    // Which form the auth screen opens on. "Sign up" / gated actions → signup;
+    // the guest "Log in" button → signin (a returning user shouldn't see signup).
+    // /login and /signup pin it from the URL.
+    const [authMode, setAuthMode] = useState((boot && !boot.authCallback && boot.state && boot.state.authMode) || "signup");
+
+    // ─── Mirror + identity refs ─────────────────────────────────────────────
+    // Declared ABOVE the domain-hooks block on purpose: hook injection lists
+    // evaluate these identifiers at call time, so they must be initialized
+    // first (TDZ). The write-side mirror effect that consumes the one-shot
+    // flags lives below, unchanged.
+    const bootWriteRef = useRef(true);    // first URL write replaces the boot entry
+    const replaceNextRef = useRef(false); // one-shot: next write is replaceState
+    const applyingPopRef = useRef(false); // one-shot: state just came FROM the URL — don't echo it back
+    const authCallbackRef = useRef(boot && boot.authCallback ? { kind: boot.kind, next: boot.next } : null);
+    // Latest profile/orgAccount for the popstate listener + applyParsed: the
+    // listener binds once (mount) and must read current auth state without
+    // re-subscribing; hydrateSession also writes these refs synchronously so
+    // its own applyParsed call can't see a stale value. Seeded null rather
+    // than from state: nothing reads them before the first effect flush —
+    // popstate binds in an effect and hydrateSession awaits getSession()
+    // first — and the sync effects below the mirror keep them current.
+    const profileRef = useRef(null);
+    const orgAccountRef = useRef(null);
 
     // ─── Domain hooks ───────────────────────────────────────────────────────
     // Toasts + the whole DM/messaging domain live in hooks/ — NestedApp stays
@@ -274,10 +297,6 @@ import { useMessaging } from './hooks/useMessaging'
       document.addEventListener("keydown", onKey);
       return () => { document.removeEventListener("mousedown", onDown); document.removeEventListener("keydown", onKey); };
     }, [notifOpen, acctOpen]);
-    // Which form the auth screen opens on. "Sign up" / gated actions → signup;
-    // the guest "Log in" button → signin (a returning user shouldn't see signup).
-    // /login and /signup pin it from the URL.
-    const [authMode, setAuthMode] = useState((boot && !boot.authCallback && boot.state && boot.state.authMode) || "signup");
     // Send a guest to the auth screen in a given mode. Used by the top-bar
     // Log in / Sign up buttons; gated actions go through requireAuth (signup).
     // Both remember where the user stood (returnTo) so finishing auth lands
@@ -312,10 +331,6 @@ import { useMessaging } from './hooks/useMessaging'
     // an unrelated navigation — which would then silently replace instead of
     // push, eating a history entry. Per-run cost is a string compare + title
     // set; writes only happen when the built path actually differs.
-    const bootWriteRef = useRef(true);    // first URL write replaces the boot entry
-    const replaceNextRef = useRef(false); // one-shot: next write is replaceState
-    const applyingPopRef = useRef(false); // one-shot: state just came FROM the URL — don't echo it back
-    const authCallbackRef = useRef(boot && boot.authCallback ? { kind: boot.kind, next: boot.next } : null);
     useEffect(() => {
       const replaceArmed = bootWriteRef.current || replaceNextRef.current;
       bootWriteRef.current = false;
@@ -364,13 +379,9 @@ import { useMessaging } from './hooks/useMessaging'
       window.history[replaceArmed ? "replaceState" : "pushState"](stateObj, "", path);
     });
 
-    // Latest profile/orgAccount for the popstate listener + applyParsed: the
-    // listener binds once (mount) and must read current auth state without
-    // re-subscribing; hydrateSession also writes these refs synchronously so
-    // its own applyParsed call can't see a stale value.
-    const profileRef = useRef(profile);
+    // Keep the mirror-side identity refs (declared above the domain-hooks
+    // block) tracking the live state.
     useEffect(() => { profileRef.current = profile; }, [profile]);
-    const orgAccountRef = useRef(orgAccount);
     useEffect(() => { orgAccountRef.current = orgAccount; }, [orgAccount]);
 
     // returnTo: where to land after auth, surviving the email round-trip via
