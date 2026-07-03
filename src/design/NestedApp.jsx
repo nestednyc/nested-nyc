@@ -31,7 +31,6 @@ import EventDetail from './eventDetail'
 import { SHOW_TWEAKS } from '../config/features'
 import { isSupabaseConfigured, authService, supabase } from '../lib/supabase'
 import { profileService } from '../services/profileService'
-import { orgService } from '../services/orgService'
 import { eventService } from '../services/eventService'
 import { projectService } from '../services/projectService'
 import { fromDbProject } from './projectAdapter'
@@ -45,6 +44,8 @@ import { useSession } from './hooks/useSession'
 import { usePeople } from './hooks/usePeople'
 import { useMessaging } from './hooks/useMessaging'
 import { useProjects } from './hooks/useProjects'
+import { useEvents } from './hooks/useEvents'
+import { useOrg } from './hooks/useOrg'
 
   const { useState, useEffect, useRef } = React;
 
@@ -127,8 +128,6 @@ import { useProjects } from './hooks/useProjects'
     const [route, setRoute] = useState(boot && !boot.authCallback ? boot.route : "discover");
     const [detailId, setDetailId] = useState(bootParams.detailId || null);
     const [editId, setEditId] = useState(bootParams.editId || null);
-    // Event RSVPs (events domain — extracted in the next step).
-    const [rsvped, setRsvped] = useState(new Set());
     // /u/:username — the handle on the userProfile route. Set by openProfile
     // (in-app navigation) or the boot/popstate URL parse (deep link).
     const [profileViewUsername, setProfileViewUsername] = useState(bootParams.profileViewUsername || null);
@@ -152,13 +151,6 @@ import { useProjects } from './hooks/useProjects'
     const [loadErrors, setLoadErrors] = useState(null);
     const [reloadNonce, setReloadNonce] = useState(0);
     const retrySurface = () => setReloadNonce((n) => n + 1);
-    // Org events, loaded lazily on dashboard entry (orgAccount itself is
-    // identity state and lives in useSession).
-    const [orgEvents, setOrgEvents] = useState([]);
-    // Starts true: a deep-linked /dashboard/events/:id/edit must not bounce in
-    // the one render between orgAccount landing and the loader effect firing.
-    // Only read in org context, so the idle-true for students is inert.
-    const [orgEventsLoading, setOrgEventsLoading] = useState(true);
     const [eventDraftId, setEventDraftId] = useState(bootParams.eventDraftId || null);
     // Student-side org-profile navigation. Populated when a student clicks an
     // event's host pill; the orgView route loads the org by slug and renders
@@ -273,6 +265,10 @@ import { useProjects } from './hooks/useProjects'
       profile, route, detailId, editId, projectsLoading,
       setDetailId, setEditId, setRoute, toast, requireAuth,
     });
+    const { rsvped, setRsvped, toggleRsvp, resetEvents } = useEvents({ profile, toast, requireAuth });
+    const {
+      orgEvents, orgEventsLoading, createOrgEvent, updateOrgEvent, resetOrg,
+    } = useOrg({ orgAccount, toast, setRoute, setEventDraftId });
 
     // Dismiss whichever dropdown is open on outside-click / Escape.
     useEffect(() => {
@@ -482,21 +478,6 @@ import { useProjects } from './hooks/useProjects'
       window.scrollTo({ top: 0 });
     }
 
-    // Load the org's events once when an orgAccount becomes active. Cheap
-    // enough to do up front so the dashboard renders the list immediately;
-    // refetch on org changes (e.g. after edit save).
-    useEffect(() => {
-      if (!orgAccount) return;
-      let cancelled = false;
-      setOrgEventsLoading(true);
-      orgService.getOrgEvents(orgAccount.id).then(({ data }) => {
-        if (cancelled) return;
-        setOrgEvents(data || []);
-        setOrgEventsLoading(false);
-      });
-      return () => { cancelled = true; };
-    }, [orgAccount && orgAccount.id]);
-
     // Hydrate the student's project surface from Supabase once signed in.
     // Supabase is the source of truth; localStorage no longer caches these.
     // Mirrors the orgEvents loader above. Keyed on the user id so it runs once
@@ -596,10 +577,10 @@ import { useProjects } from './hooks/useProjects'
     async function signOut() {
       await signOutAuth();
       resetProjects();    // feed + the saved/joined/requested buckets
-      setRsvped(new Set());
+      resetEvents();      // RSVPs
       resetPeople();      // connection edges
       resetMessaging();   // inbox, open thread + peer, block set, failed-send stash
-      setOrgEvents([]);
+      resetOrg();         // org event list
       setEventDraftId(null);
       setDetailId(null);
       setEditId(null);
@@ -621,24 +602,6 @@ import { useProjects } from './hooks/useProjects'
       else { setSoonLabel(NAV.find((n) => n.id === id).label); setRoute("soon"); }
       window.scrollTo({ top: 0 });
     }
-    async function toggleRsvp(id) {
-      if (!profile) return requireAuth("Sign in to RSVP");
-      const wasOn = rsvped.has(id);
-      // Optimistic toggle first so the button reacts instantly. If the
-      // service call fails we revert below \u2014 the user sees a clear toast.
-      setRsvped((s) => { const n = new Set(s); wasOn ? n.delete(id) : n.add(id); return n; });
-      toast(wasOn ? "RSVP cancelled" : "You're going \u2014 see you there", wasOn ? "x" : "calendar");
-
-      if (!isSupabaseConfigured()) return;
-      const { error } = wasOn
-        ? await eventService.unregisterFromEvent(id)
-        : await eventService.registerForEvent(id);
-      if (error) {
-        setRsvped((s) => { const n = new Set(s); wasOn ? n.add(id) : n.delete(id); return n; });
-        toast("RSVP didn't save \u2014 " + (error.message || "try again"), "x");
-      }
-    }
-
     function openEventDetail(id, from) {
       if (!id) return;
       setEventViewId(id);
@@ -872,19 +835,7 @@ import { useProjects } from './hooks/useProjects'
             mode: "create",
             org: orgAccount,
             onCancel: () => setRoute("orgDashboard"),
-            onSubmit: async (fields) => {
-              const { data, error } = await eventService.createEvent({
-                ...fields,
-                organization_id: orgAccount.id,
-              });
-              if (error) {
-                toast("Couldn't pin event — " + (error.message || "try again"), "x");
-                return;
-              }
-              setOrgEvents((arr) => [data, ...arr]);
-              setRoute("orgDashboard");
-              toast("Pinned to the calendar", "pin");
-            },
+            onSubmit: createOrgEvent,
           }),
           React.createElement(Toasts, { items: toasts }),
           React.createElement(StyleTweaks, { t, setTweak })
@@ -928,17 +879,7 @@ import { useProjects } from './hooks/useProjects'
               max_attendees: draft.max_attendees ? String(draft.max_attendees) : '',
             },
             onCancel: () => { setEventDraftId(null); setRoute("orgDashboard"); },
-            onSubmit: async (fields) => {
-              const { data, error } = await eventService.updateEvent(eventDraftId, fields);
-              if (error) {
-                toast("Couldn't save — " + (error.message || "try again"), "x");
-                return;
-              }
-              setOrgEvents((arr) => arr.map((e) => e.id === eventDraftId ? { ...e, ...data } : e));
-              setEventDraftId(null);
-              setRoute("orgDashboard");
-              toast("Event updated", "check");
-            },
+            onSubmit: (fields) => updateOrgEvent(eventDraftId, fields),
           }),
           React.createElement(Toasts, { items: toasts }),
           React.createElement(StyleTweaks, { t, setTweak })
