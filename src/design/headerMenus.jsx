@@ -122,13 +122,13 @@ import { Av } from './shared'
   // Account menu behind the topbar chip. View / edit profile + sign out;
   // settings + appearance rows slot in where marked once that system lands.
   // onSignOut opens NestedApp's confirm modal — it does not sign out directly.
-  function AccountPanel({ open, profile, photoUrl, uniName, avLabel, onViewProfile, onEditProfile, onViewSaved, onSignOut, onClose }) {
+  function AccountPanel({ open, profile, photoUrl, uniName, onViewProfile, onEditProfile, onViewSaved, onSignOut, onClose }) {
     if (!open || !profile) return null;
     const choose = (fn) => () => { onClose && onClose(); if (fn) fn(); };
 
     return React.createElement("div", { className: "hdr-menu acct-menu", role: "menu" },
       React.createElement("div", { className: "menu-id" },
-        React.createElement(Av, { name: profile.username, img: photoUrl, label: avLabel }),
+        React.createElement(Av, { name: profile.username, img: photoUrl }),
         React.createElement("div", { className: "menu-id-txt" },
           React.createElement("b", null, "@" + profile.username),
           uniName && React.createElement("small", null, uniName)

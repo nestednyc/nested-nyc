@@ -4,9 +4,10 @@
    Server B :5174 — env blanked (mock mode) + seeded LS profile: authed
    surfaces render through the hooks; sign-out exercises the composer
    (signOutAuth + domain resets); /profile exercises useSession's joinedAt. */
-const { createRequire } = require('module');
-const req = createRequire('/Users/hamza/Desktop/nested/package.json');
-const { chromium } = req('playwright');
+const { chromium } = require('playwright'); // repo devDependency — resolves from anywhere in the repo
+// The app's identity-cache localStorage key, shared via JSON so a key bump in
+// useSession can't silently desync the seeded-auth checks below.
+const { identityCache: LS_KEY } = require('../src/design/storageKeys.json');
 
 const results = [];
 const check = (name, ok, extra) => {
@@ -69,12 +70,12 @@ const check = (name, ok, extra) => {
     const page = await browser.newPage();
     const pageErrors = [];
     page.on('pageerror', (e) => pageErrors.push(String(e)));
-    await page.addInitScript(() => {
-      localStorage.setItem('nested.nyc.v1', JSON.stringify({
+    await page.addInitScript((lsKey) => {
+      localStorage.setItem(lsKey, JSON.stringify({
         profile: { id: 'u-test', username: 'tester', name: 'Test Er', uni: 'nyu', photos: [] },
         joinedAt: 1750000000000,
       }));
-    });
+    }, LS_KEY);
 
     await page.goto('http://localhost:5174/messages', { waitUntil: 'domcontentloaded' });
     try {

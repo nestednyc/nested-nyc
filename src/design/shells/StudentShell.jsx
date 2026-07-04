@@ -44,15 +44,6 @@ const { useState } = React;
   }
 
 
-  // Avatar initials for the signed-in user's own handle. Usernames currently
-  // carry a leading "@", so the generic word-split initials would surface that
-  // "@" — strip it and take the first two real letters (the 2nd/3rd characters
-  // while the "@" prefix exists). Stays correct if the "@" is ever dropped.
-  function handleInitials(username) {
-    return String(username || "").replace(/^@+/, "").slice(0, 2).toUpperCase();
-  }
-
-
 export default function StudentShell({ api }) {
   const {
     t, setTweak, toasts, rootClass, rootStyle,
@@ -150,7 +141,7 @@ export default function StudentShell({ api }) {
                 onClick: () => { setNotifOpen(false); setAcctOpen((v) => !v); },
                 "aria-haspopup": "menu", "aria-expanded": acctOpen ? "true" : "false",
               },
-                React.createElement(Av, { name: profile.username, img: firstPhotoUrl(profile.photos), label: handleInitials(profile.username) }),
+                React.createElement(Av, { name: profile.username, img: firstPhotoUrl(profile.photos) }),
                 React.createElement("span", { className: "who" },
                   React.createElement("b", null, "@" + profile.username),
                   React.createElement("small", null, (NestedData.UNI[profile.uni] || {}).name)
@@ -160,7 +151,6 @@ export default function StudentShell({ api }) {
                 open: acctOpen,
                 profile,
                 photoUrl: firstPhotoUrl(profile.photos),
-                avLabel: handleInitials(profile.username),
                 uniName: (NestedData.UNI[profile.uni] || {}).name,
                 onViewProfile: () => { setRoute("profile"); window.scrollTo({ top: 0 }); },
                 onEditProfile: () => { setProfileEditOnArrive(true); setRoute("profile"); window.scrollTo({ top: 0 }); },
@@ -189,7 +179,7 @@ export default function StudentShell({ api }) {
               unreadMessages > 0 && React.createElement("span", { className: "dot" })
             ),
             profile && React.createElement("button", { className: "mob-avatar", onClick: () => setSheetOpen(true), title: "Account" },
-              React.createElement(Av, { name: profile.username, img: firstPhotoUrl(profile.photos), label: handleInitials(profile.username) }),
+              React.createElement(Av, { name: profile.username, img: firstPhotoUrl(profile.photos) }),
               (incomingPending.length + projectRequests.length) > 0 && React.createElement("span", { className: "dot" })
             ),
             !profile && React.createElement("button", { className: "btn btn-primary", onClick: () => goAuth("signup"), title: "Create your account" }, "Sign up")
@@ -412,7 +402,7 @@ export default function StudentShell({ api }) {
         sheetOpen && profile && React.createElement("div", { className: "sheet-scrim", onClick: () => setSheetOpen(false) },
           React.createElement("div", { className: "acct-sheet", onClick: (e) => e.stopPropagation() },
             React.createElement("div", { className: "acct-head" },
-              React.createElement(Av, { name: profile.username, img: firstPhotoUrl(profile.photos), label: handleInitials(profile.username) }),
+              React.createElement(Av, { name: profile.username, img: firstPhotoUrl(profile.photos) }),
               React.createElement("div", { className: "acct-id" },
                 React.createElement("b", null, "@" + profile.username),
                 React.createElement("small", null, (NestedData.UNI[profile.uni] || {}).name)

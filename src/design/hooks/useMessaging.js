@@ -531,8 +531,9 @@ export function useMessaging({
   const unreadMessages = inbox.reduce((n, r) => n + (r.unreadCount || 0), 0);
 
   return {
-    // inbox + block list (setters exposed for the root hydration barrier)
-    inbox, setInbox, blocked, setBlocked, conversations, unreadMessages,
+    // block list + the inbox setter (exposed for the root hydration barrier);
+    // raw inbox stays internal — consumers read the derived conversations
+    setInbox, blocked, setBlocked, conversations, unreadMessages,
     // open thread
     thread, threadStatus, threadPeer, threadHasMore, loadingEarlier,
     // pending confirms (block / delete-conversation modals)

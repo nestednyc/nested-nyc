@@ -6,11 +6,15 @@
 
    Domain-hook pattern: NestedApp stays the composition root and
    injects the URL-mirror machinery this domain steers — applyParsed
-   plus the mirror/identity refs (hydrateSession writes profileRef/
-   orgAccountRef SYNCHRONOUSLY before its own applyParsed calls so
-   role-gating never sees a stale identity), the returnTo stash
-   helpers, and the auth-screen setters. Hooks never import each
-   other; anything cross-domain arrives as an argument.
+   plus the mirror/identity refs (this hook owns every SYNCHRONOUS
+   ref write: hydrateSession inline, and adoptProfile/adoptOrgAccount
+   for the shells, each pairing the ref with its state so role-gating
+   never sees a stale identity on those paths; the remaining bare
+   setter writes — the SIGNED_OUT listener, signOutAuth, profile
+   save — are never followed by a same-tick applyParsed and lean on
+   the root's ref-sync effects), the returnTo stash helpers, and the
+   auth-screen setters. Hooks never import each other; anything
+   cross-domain arrives as an argument.
 
    Seams kept in the root:
    - signOut stays a root composer: it awaits signOutAuth() (the
@@ -31,10 +35,14 @@ import { orgService } from '../../services/orgService'
 import { storageService } from '../../services/storageService'
 import { toDbProfile, fromDbProfile, dataUrlToFile } from '../profileAdapter'
 import { parse as parseLocation, accessOf } from '../router'
+import storageKeys from '../storageKeys.json'
 
 const { useState, useEffect, useRef } = React;
 
-const LS = "nested.nyc.v1";
+// Key lives in storageKeys.json so the smoke harness (scripts/
+// smoke-refactor.cjs seeds this cache) can require the same value —
+// a key bump here can't silently desync it.
+const LS = storageKeys.identityCache;
 function loadState() {
   try { return JSON.parse(localStorage.getItem(LS)) || {}; } catch (e) { return {}; }
 }
@@ -207,6 +215,22 @@ export function useSession({
     return finish();
   }
 
+  // ─── Identity adoption ──────────────────────────────────────
+  // The ONE sanctioned way to install a fresh identity outside
+  // hydrateSession (which does the same paired write inline): state and
+  // the mirror ref move TOGETHER, so an applyParsed/role-gate in the same
+  // tick can never read a stale null. Callers (onboarding completion, org
+  // creation, org edit-save) must come through here — a bare setProfile/
+  // setOrgAccount leaves the ref lagging until the next effect flush.
+  function adoptProfile(p) {
+    setProfile(p);
+    profileRef.current = p;
+  }
+  function adoptOrgAccount(org) {
+    setOrgAccount(org);
+    orgAccountRef.current = org;
+  }
+
   useEffect(() => {
     let cancelled = false;
     hydrateSession(() => cancelled);
@@ -342,8 +366,9 @@ export function useSession({
   }
 
   return {
-    profile, setProfile, orgAccount, setOrgAccount, sessionPending,
+    profile, orgAccount, sessionPending,
     joinedAt: persisted.current.joinedAt,
+    adoptProfile, adoptOrgAccount, // raw setters stay internal — see above
     hydrateSession, saveProfileToSupabase, signOutAuth,
   };
 }
