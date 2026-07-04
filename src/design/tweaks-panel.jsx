@@ -545,7 +545,8 @@ export {
 // ---------- App-level pieces shared by every shell ----------
 // The dev-only StyleTweaks wrapper every shell renders. The accent palette it
 // offers lives in accents.js — production code resolves the active accent
-// from that module, so it must not live here in dev tooling.
+// from that module rather than from this file. (This file itself is NOT pure
+// dev tooling: useTweaks above ships to prod; only StyleTweaks is dev-only.)
 
   // ---------- Tweaks ----------
 export function StyleTweaks({ t, setTweak }) {

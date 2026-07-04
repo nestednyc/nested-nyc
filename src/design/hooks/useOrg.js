@@ -55,7 +55,8 @@ export function useOrg({ orgAccount, toast, setRoute, setEventDraftId }) {
     toast("Pinned to the calendar", "pin");
   }
   // Save event edits (hoisted from the EventForm edit screen's onSubmit).
-  // Takes the id as an argument — the root render passes its eventDraftId.
+  // Takes the id as an argument — FullScreens passes the guarded draft's
+  // own id (the root dispatch resolved that draft from eventDraftId).
   async function updateOrgEvent(id, fields) {
     const { data, error } = await eventService.updateEvent(id, fields);
     if (error) {

@@ -9,7 +9,10 @@
    plus the mirror/identity refs (this hook owns every SYNCHRONOUS
    ref write: hydrateSession inline, and adoptProfile/adoptOrgAccount
    for the shells, each pairing the ref with its state so role-gating
-   never sees a stale identity), the returnTo stash helpers, and the
+   never sees a stale identity on those paths; the remaining bare
+   setter writes — the SIGNED_OUT listener, signOutAuth, profile
+   save — are never followed by a same-tick applyParsed and lean on
+   the root's ref-sync effects), the returnTo stash helpers, and the
    auth-screen setters. Hooks never import each other; anything
    cross-domain arrives as an argument.
 
