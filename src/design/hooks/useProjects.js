@@ -236,18 +236,29 @@ export function useProjects({
       toast("Couldn't update co-leads — " + (error.message || "try again"), "x");
     }
   }
-  // Owner-only: remove a crew member entirely. ONE call — deleting the
-  // team_members row also revokes any co-lead grant atomically via the
-  // team_members_revoke_admin DB trigger, so there's no two-step partial
-  // state to manage. Optimistic; failure re-inserts THIS member against
-  // current state rather than restoring a stale snapshot.
+  // Remove a crew member entirely. The owner can remove anyone; a co-lead can
+  // remove REGULAR crew but not another co-lead or the owner — the RLS DELETE
+  // policy (20260709000000) mirrors this product rule, and the ownership
+  // guard's convergent-revocation branch keeps the grant revoke safe even
+  // when a kick races a promote. ONE call — deleting the team_members row also revokes
+  // any co-lead grant atomically via the team_members_revoke_admin DB trigger,
+  // so there's no two-step partial state to manage. Optimistic; failure
+  // re-inserts THIS member against current state rather than restoring a stale
+  // snapshot.
   async function kickMember(projectId, userId) {
     const prev = projects.find((p) => p.id === projectId);
-    if (!prev || !isProjectOwner(prev, profile)) {
-      toast("Only the owner can remove crew", "x");
+    if (!prev || !isProjectAdmin(prev, profile)) {
+      toast("Only an admin can remove crew", "x");
       return;
     }
     if (!userId || userId === prev.ownerId) return;
+    // Co-leads can remove regular crew, but only the OWNER may remove another
+    // co-lead (mirrors the owner-manages-admins rule + the RLS DELETE policy).
+    const targetIsCoLead = (Array.isArray(prev.admins) ? prev.admins : []).includes(userId);
+    if (targetIsCoLead && !isProjectOwner(prev, profile)) {
+      toast("Only the owner can remove a co-lead", "x");
+      return;
+    }
     const member = (prev.team || []).find((t) => t.userId === userId);
     if (!member) return;
     const wasCoLead = (Array.isArray(prev.admins) ? prev.admins : []).includes(userId);

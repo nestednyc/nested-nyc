@@ -107,18 +107,24 @@ import { CatTag, Av, Facepile, ConfirmModal } from './shared'
   }
 
 
-  /* Owner-only crew manager behind the crew card's "✦ edit" link. Rows here
-     are INERT (no profile click-through — one surface, one meaning): each
-     carries exactly ONE labeled chip for its role move (promote → confirm,
-     demote instant since it's reversible), and the destructive kick lives in
-     the mono sub-line as marginalia ("· ✕ remove" → ConfirmKick). */
-  function CoLeadModal({ p, coLeads, candidates, onCancel, onPick, onStepDown, onKick }) {
+  /* Crew manager behind the crew card's "✦ …" link. The OWNER (canPromote)
+     promotes/demotes co-leads and can remove anyone; a co-lead (canPromote
+     false) gets a remove-only view of regular crew — no co-lead section, no
+     "make co-lead" chip. Rows are INERT (no profile click-through — one
+     surface, one meaning): the role move is one labeled chip (promote →
+     confirm, demote instant since it's reversible), and the destructive kick
+     lives in the mono sub-line as marginalia ("· ✕ remove" → ConfirmKick). */
+  function CoLeadModal({ p, coLeads, candidates, canPromote, onCancel, onPick, onStepDown, onKick }) {
     const cat = CAT[p.cat];
     const removeLink = (m) => onKick && React.createElement("button", {
       className: "row-remove",
       title: "Remove " + m.name + " from the crew",
       onClick: () => onKick(m),
     }, "· ✕ remove");
+    // Only the co-lead section is owner-gated; candidates (regular crew) show
+    // for any manager, so the pile is empty only when there are no candidates
+    // AND (for the owner) no co-leads either.
+    const pileEmpty = !candidates.length && (!canPromote || !coLeads.length);
     return (
       React.createElement("div", { className: "scrim", onClick: onCancel },
         React.createElement("div", { className: "modal", onClick: (e) => e.stopPropagation(), style: { maxWidth: 440 } },
@@ -126,11 +132,13 @@ import { CatTag, Av, Facepile, ConfirmModal } from './shared'
           React.createElement("button", { className: "modal-close", onClick: onCancel },
             React.createElement(Icon, { name: "x", size: 18 })),
           React.createElement("div", { className: "modal-inner" },
-            React.createElement("div", { style: { fontFamily: "var(--mono)", fontSize: 11.5, color: "var(--ink-faint)", marginBottom: 6 } }, "// co-sign the flyer"),
-            React.createElement("h2", null, "Who's leading this with you?"),
-            React.createElement("p", null, "A co-lead runs the flyer with you — edits, status, updates, and the join inbox."),
+            React.createElement("div", { style: { fontFamily: "var(--mono)", fontSize: 11.5, color: "var(--ink-faint)", marginBottom: 6 } }, canPromote ? "// co-sign the flyer" : "// manage the crew"),
+            React.createElement("h2", null, canPromote ? "Who's leading this with you?" : "Manage the crew"),
+            React.createElement("p", null, canPromote
+              ? "A co-lead runs the flyer with you — edits, status, updates, and the join inbox."
+              : "Remove anyone who's no longer part of this project. Only the owner can add or change co-leads."),
             React.createElement("div", { className: "team-pile crew-pile", style: { marginTop: 14 } },
-              coLeads.map((m) => React.createElement("div", { className: "team-row", key: "cl-" + m.userId },
+              canPromote && coLeads.map((m) => React.createElement("div", { className: "team-row", key: "cl-" + m.userId },
                 React.createElement(Av, { name: m.name, img: m.image }),
                 React.createElement("span", { className: "t-who", style: { flex: 1, minWidth: 0 } },
                   React.createElement("b", null, m.name),
@@ -146,16 +154,16 @@ import { CatTag, Av, Facepile, ConfirmModal } from './shared'
                 React.createElement("span", { className: "t-who", style: { flex: 1, minWidth: 0 } },
                   React.createElement("b", null, m.name),
                   React.createElement("small", null, m.role, removeLink(m))),
-                React.createElement("button", {
+                canPromote && React.createElement("button", {
                   className: "crew-chip promote",
                   title: "Make " + m.name + " a co-lead",
                   onClick: () => onPick(m),
                 }, React.createElement(Icon, { name: "sparkle", size: 13 }), "make co-lead")
               )),
-              // Reachable mid-session: the owner just kicked/demoted everyone.
-              !coLeads.length && !candidates.length && React.createElement("p", {
+              // Reachable mid-session: the last removable/promotable row just went.
+              pileEmpty && React.createElement("p", {
                 style: { fontFamily: "var(--mono)", fontSize: 11.5, color: "var(--ink-faint)", margin: 0 },
-              }, "When someone joins the crew, you can promote them here.")
+              }, canPromote ? "When someone joins the crew, you can promote them here." : "No crew to remove right now.")
             )
           )
         )
@@ -210,9 +218,16 @@ import { CatTag, Av, Facepile, ConfirmModal } from './shared'
     // already a co-lead). Rows without a userId are legacy denormalized members.
     const coLeadCandidates = p.team.filter((t) => t.userId && !adminSet.has(t.userId));
     const canManageCoLeads = isProjectOwner(p, profile) && typeof onSetCoLead === "function";
+    // A co-lead (any admin) can remove regular crew — coLeadCandidates is
+    // exactly that set (has a userId, not in admins, so never the owner or a
+    // co-lead). Promote/demote stays owner-only (canManageCoLeads above).
+    const canManageCrew = isProjectAdmin(p, profile) && typeof onKickMember === "function";
     // The crew manager's only entry point: an inline action on the crew card's
-    // annotation line — owners see "✦ edit" where visitors see marginalia.
-    const coLeadAction = canManageCoLeads && (coLeads.length > 0 || coLeadCandidates.length > 0);
+    // annotation line — a manager sees "✦ …" where visitors see marginalia.
+    // Owner opens it to promote/demote OR remove; a co-lead only when there's
+    // regular crew to remove.
+    const coLeadAction = (canManageCoLeads && (coLeads.length > 0 || coLeadCandidates.length > 0))
+      || (canManageCrew && coLeadCandidates.length > 0);
     // Promote/demote lives behind one quiet link in the masthead — the picker
     // modal (step 1) then ConfirmPromote (step 2). Crew rows stay untouched.
     const [coLeadsOpen, setCoLeadsOpen] = useState(false);
@@ -244,7 +259,7 @@ import { CatTag, Av, Facepile, ConfirmModal } from './shared'
         ),
 
         coLeadsOpen && !promoting && !kicking && React.createElement(CoLeadModal, {
-          p, coLeads, candidates: coLeadCandidates,
+          p, coLeads, candidates: coLeadCandidates, canPromote: canManageCoLeads,
           onCancel: () => setCoLeadsOpen(false),
           onPick: (m) => setPromoting(m),
           onStepDown: (m) => onSetCoLead(p.id, m.userId, false),
@@ -400,7 +415,7 @@ import { CatTag, Av, Facepile, ConfirmModal } from './shared'
                     coLeadAction && React.createElement("button", {
                       className: "act",
                       onClick: () => setCoLeadsOpen(true),
-                    }, "✦ " + (coLeads.length ? "edit" : "add a co-lead"))
+                    }, "✦ " + (canManageCoLeads ? (coLeads.length ? "edit" : "add a co-lead") : "manage crew"))
                   )
                 )
               )

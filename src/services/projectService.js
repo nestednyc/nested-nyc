@@ -257,7 +257,9 @@ export const projectService = {
   },
 
   /**
-   * Remove a team member from a project
+   * Remove a team member from a project. error: null means the row is
+   * actually gone — an RLS-filtered (0-row) delete reports as an error, not
+   * silent success.
    * @param {string} memberId - The team member UUID
    * @returns {Promise<{error: object|null}>}
    */
@@ -266,12 +268,20 @@ export const projectService = {
       return { error: { message: 'Supabase not configured' } }
     }
 
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('team_members')
       .delete()
       .eq('id', memberId)
+      .select('id')
 
-    return { error }
+    if (error) return { error }
+    // RLS filters a forbidden DELETE to 0 rows and PostgREST reports success.
+    // Stale client state makes that a real path here — the target was
+    // promoted / the caller demoted since load — so surface it as a failure.
+    if (!data || data.length === 0) {
+      return { error: { message: 'the team may have changed. Refresh and try again' } }
+    }
+    return { error: null }
   },
 
   /**
