@@ -9,7 +9,7 @@
    ============================================================ */
 import React from 'react'
 import Icon from './icons'
-import { Stamp, Pin, CodeBoxes } from './shared'
+import { Stamp, CodeBoxes } from './shared'
 import { authService, isSupabaseConfigured, getErrorMessage } from '../lib/supabase'
 import { lookupService } from '../services/lookupService'
 
@@ -160,7 +160,7 @@ import { lookupService } from '../services/lookupService'
     const mobHead = React.createElement(React.Fragment, null,
       React.createElement("div", { className: "onb-mobhead" },
         React.createElement("div", { className: "brand" },
-          React.createElement("span", { className: "mark" }, React.createElement(Icon, { name: "pin", size: 21, stroke: "var(--paper)" })),
+          React.createElement("span", { className: "mark" }, "N"),
           React.createElement("span", { className: "name" }, "Nested", React.createElement("span", null, "."))
         ),
         React.createElement("p", { className: "onb-mobpitch" }, "The shared events calendar for every NYC campus.")
@@ -175,7 +175,7 @@ import { lookupService } from '../services/lookupService'
           React.createElement("div", { className: "onb-aside corkbg grain" },
             React.createElement("div", { className: "a-top" },
               React.createElement("div", { className: "brand" },
-                React.createElement("span", { className: "mark" }, React.createElement(Icon, { name: "pin", size: 21, stroke: "var(--paper)" })),
+                React.createElement("span", { className: "mark" }, "N"),
                 React.createElement("span", { className: "name" }, "Nested", React.createElement("span", null, "."))
               ),
               React.createElement("button", { className: "ghost-link", onClick: onBack, style: { fontSize: 13 } },
@@ -189,7 +189,6 @@ import { lookupService } from '../services/lookupService'
           React.createElement("div", { className: "onb-main grain" },
             mobHead,
             React.createElement("div", { className: "onb-card create" },
-              React.createElement(Pin, { className: "onb-card-pin" }),
               React.createElement("div", { className: "fade-up" },
                 React.createElement("span", { className: "onb-kicker" }, "One more step"),
                 React.createElement("h1", null, "Enter the code."),
@@ -236,7 +235,7 @@ import { lookupService } from '../services/lookupService'
         React.createElement("div", { className: "onb-aside corkbg grain" },
           React.createElement("div", { className: "a-top" },
             React.createElement("div", { className: "brand" },
-              React.createElement("span", { className: "mark" }, React.createElement(Icon, { name: "pin", size: 21, stroke: "var(--paper)" })),
+              React.createElement("span", { className: "mark" }, "N"),
               React.createElement("span", { className: "name" }, "Nested", React.createElement("span", null, "."))
             ),
             React.createElement("button", { className: "ghost-link", onClick: onBack, style: { fontSize: 13 } },
@@ -255,7 +254,6 @@ import { lookupService } from '../services/lookupService'
         React.createElement("div", { className: "onb-main grain" },
           mobHead,
           React.createElement("div", { className: "onb-card create" },
-            React.createElement(Pin, { className: "onb-card-pin" }),
             React.createElement("div", { className: "fade-up" },
               React.createElement("span", { className: "onb-kicker" }, mode === 'signup' ? "New org" : "Returning org"),
               React.createElement("h1", null, mode === 'signup' ? "Sign your org up." : "Welcome back."),
@@ -321,7 +319,7 @@ import { lookupService } from '../services/lookupService'
                   style: !canSubmit ? { opacity: 0.4, pointerEvents: "none" } : {},
                   onClick: submit,
                 },
-                  React.createElement(Icon, { name: mode === 'signup' ? "pin" : "arrowRight", size: 17, stroke: "var(--paper)" }),
+                  React.createElement(Icon, { name: "arrowRight", size: 17, stroke: "var(--paper)" }),
                   submitting ? (mode === 'signup' ? "Creating…" : "Signing in…") : (mode === 'signup' ? "Create org account" : "Sign in"))
               )
             )

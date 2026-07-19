@@ -66,7 +66,7 @@ import { Av, Facepile, CatTag, Pin } from './shared'
     const [flyerColor, setFlyerColor] = useState(init.flyerColor || "");
 
     const editable = mode === "edit";
-    const cta = ctaCopy || { primary: "Pin to the board", icon: "pin" };
+    const cta = ctaCopy || { primary: "Pin to the board", icon: "check" };
 
     function next() { setStep((s) => Math.min(s + 1, STEP_COUNT - 1)); }
     function back() { setStep((s) => Math.max(s - 1, 0)); }
@@ -192,7 +192,7 @@ import { Av, Facepile, CatTag, Pin } from './shared'
           React.createElement("div", { className: "field" },
             React.createElement("label", null, "Project name"),
             React.createElement("div", { className: "input-wrap" + (title && title.trim() ? " good" : "") },
-              React.createElement(Icon, { name: "pin", size: 17 }),
+              React.createElement(Icon, { name: "file", size: 17 }),
               React.createElement("input", {
                 placeholder: "Subway Pulse",
                 value: title,
@@ -471,7 +471,7 @@ import { Av, Facepile, CatTag, Pin } from './shared'
                     style: ctaDisabled ? { opacity: 0.4, pointerEvents: "none" } : {},
                     onClick: submit,
                   },
-                    React.createElement(Icon, { name: cta.icon || "pin", size: 17, stroke: "var(--paper)" }),
+                    React.createElement(Icon, { name: cta.icon || "check", size: 17, stroke: "var(--paper)" }),
                     cta.primary)
                 : React.createElement("button", {
                     className: "btn btn-primary",

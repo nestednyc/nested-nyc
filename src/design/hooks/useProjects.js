@@ -367,7 +367,7 @@ export function useProjects({
     window.scrollTo({ top: 0 });
     if (!isSupabaseConfigured()) {
       setProjects((arr) => [project, ...arr]);
-      toast("Pinned to the board", "pin");
+      toast("Pinned to the board");
       return;
     }
     const { data: row, error } = await projectService.createProject(toDbProject(project, profile && profile.id));
@@ -380,7 +380,7 @@ export function useProjects({
     await projectService.addTeamMember(row.id, lead);
     const uiProject = fromDbProject({ ...row, team_members: [lead] });
     setProjects((arr) => [uiProject, ...arr]);
-    toast("Pinned to the board", "pin");
+    toast("Pinned to the board");
   }
   // Save flyer edits (hoisted from the Edit screen's onSave): optimistic —
   // drop the user back on the detail page immediately.

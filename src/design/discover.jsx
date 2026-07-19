@@ -157,7 +157,7 @@ import { Facepile, CatTag, Pin, Skeleton } from './shared'
                     className: "btn btn-primary",
                     title: "Edit your flyer",
                     onClick: (e) => { e.stopPropagation(); onEdit(p); },
-                  }, React.createElement(Icon, { name: "pin", size: 16, stroke: "var(--paper)" }), "Edit")
+                  }, "Edit")
                 : React.createElement("button", {
                     // Three states: approved member → "Joined", pending request →
                     // "Requested", neither → "Join". `joined` is membership, NOT
@@ -235,7 +235,6 @@ import { Facepile, CatTag, Pin, Skeleton } from './shared'
             dirtyCount > 0 && React.createElement("button", {
               className: "repin-btn", title: "Put fallen cards back on the board", onClick: repinAll,
             },
-              React.createElement(Icon, { name: "pin", size: 16, stroke: "var(--accent)" }),
               "Re-pin board"),
             pages > 1 && React.createElement("div", { className: "feed-pager" },
               React.createElement("button", { className: "prev-pin", title: "Previous", disabled: shown === 0, onClick: () => go(shown - 1) },

@@ -76,7 +76,7 @@ import { CatTag, formatEventDate } from './shared'
     const [maxAttendees, setMaxAttendees] = useState(init.max_attendees || '');
 
     const editable = mode === 'edit';
-    const cta = editable ? { primary: "Save changes", icon: "check" } : { primary: "Pin it", icon: "pin" };
+    const cta = editable ? { primary: "Save changes", icon: "check" } : { primary: "Pin it", icon: "check" };
 
     function toggleTag(t) {
       setTags((arr) => arr.includes(t) ? arr.filter((x) => x !== t) : [...arr, t]);
@@ -309,7 +309,7 @@ import { CatTag, formatEventDate } from './shared'
         React.createElement("div", { className: "onb-aside corkbg grain" },
           React.createElement("div", { className: "a-top" },
             React.createElement("div", { className: "brand" },
-              React.createElement("span", { className: "mark" }, React.createElement(Icon, { name: "pin", size: 21, stroke: "var(--paper)" })),
+              React.createElement("span", { className: "mark" }, "N"),
               React.createElement("span", { className: "name" }, "Nested", React.createElement("span", null, "."))
             ),
             React.createElement("button", { className: "ghost-link", onClick: onCancel, style: { fontSize: 13 } },

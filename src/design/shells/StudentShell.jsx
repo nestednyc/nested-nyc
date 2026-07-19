@@ -78,7 +78,7 @@ export default function StudentShell({ api }) {
         // top bar
         React.createElement("header", { className: "topbar" },
           React.createElement("div", { className: "brand", onClick: () => goNav("discover") },
-            React.createElement("span", { className: "mark" }, React.createElement(Icon, { name: "pin", size: 21, stroke: "var(--paper)" })),
+            React.createElement("span", { className: "mark" }, "N"),
             React.createElement("span", { className: "name" }, "Nested", React.createElement("span", null, "."))
           ),
           React.createElement("nav", { className: "nav" },
@@ -161,8 +161,7 @@ export default function StudentShell({ api }) {
             ),
             // Guest: no account chip — offer Log in (signin) / Sign up (signup).
             !profile && React.createElement("button", { className: "btn btn-ghost", onClick: () => goAuth("signin"), title: "Log in" }, "Log in"),
-            !profile && React.createElement("button", { className: "btn btn-primary", onClick: () => goAuth("signup"), title: "Create your account" },
-              React.createElement(Icon, { name: "pin", size: 16, stroke: "var(--paper)" }), "Sign up")
+            !profile && React.createElement("button", { className: "btn btn-primary", onClick: () => goAuth("signup"), title: "Create your account" }, "Sign up")
           ),
           // Mobile-only cluster (≤860px): search toggle + avatar that opens the account sheet.
           React.createElement("div", { className: "topbar-mob" },
@@ -349,7 +348,7 @@ export default function StudentShell({ api }) {
         route === "detail" && !detailProject && !projectsLoading && detailFetch !== "loading" &&
           React.createElement("div", { className: "discover" },
             React.createElement("div", { className: "match-empty fade-up" },
-              React.createElement("div", { className: "ill" }, React.createElement(Icon, { name: "pin", size: 42, stroke: "var(--accent)" })),
+              React.createElement("div", { className: "ill" }, React.createElement(Icon, { name: "search", size: 42, stroke: "var(--accent)" })),
               React.createElement("h3", null, "This flyer's not on the board"),
               React.createElement("p", null, "It may have been taken down, or the link is off. Browse the board for what's pinned right now."),
               React.createElement("button", { className: "btn btn-primary", style: { marginTop: 22 }, onClick: () => goNav("discover") },

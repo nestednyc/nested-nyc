@@ -624,7 +624,7 @@ import { toDbProfile, fromDbProfile, dataUrlToFile } from './profileAdapter'
           React.createElement("div", { className: "onb-aside corkbg grain" },
             React.createElement("div", { className: "a-top" },
               React.createElement("div", { className: "brand" },
-                React.createElement("span", { className: "mark" }, React.createElement(Icon, { name: "pin", size: 21, stroke: "var(--paper)" })),
+                React.createElement("span", { className: "mark" }, "N"),
                 React.createElement("span", { className: "name" }, "Nested", React.createElement("span", null, "."))
               )
             ),
@@ -636,7 +636,7 @@ import { toDbProfile, fromDbProfile, dataUrlToFile } from './profileAdapter'
           React.createElement("div", { className: "onb-main grain" },
             React.createElement("div", { className: "onb-mobhead" },
               React.createElement("div", { className: "brand" },
-                React.createElement("span", { className: "mark" }, React.createElement(Icon, { name: "pin", size: 21, stroke: "var(--paper)" })),
+                React.createElement("span", { className: "mark" }, "N"),
                 React.createElement("span", { className: "name" }, "Nested", React.createElement("span", null, "."))
               ),
               React.createElement("p", { className: "onb-mobpitch" }, "You're in — round out your profile so people can find you.")
@@ -689,7 +689,7 @@ import { toDbProfile, fromDbProfile, dataUrlToFile } from './profileAdapter'
           React.createElement("div", { className: "onb-aside corkbg grain" },
             React.createElement("div", { className: "a-top" },
               React.createElement("div", { className: "brand" },
-                React.createElement("span", { className: "mark" }, React.createElement(Icon, { name: "pin", size: 21, stroke: "var(--paper)" })),
+                React.createElement("span", { className: "mark" }, "N"),
                 React.createElement("span", { className: "name" }, "Nested", React.createElement("span", null, "."))
               )
             ),
@@ -700,7 +700,7 @@ import { toDbProfile, fromDbProfile, dataUrlToFile } from './profileAdapter'
           React.createElement("div", { className: "onb-main grain" },
             React.createElement("div", { className: "onb-mobhead" },
               React.createElement("div", { className: "brand" },
-                React.createElement("span", { className: "mark" }, React.createElement(Icon, { name: "pin", size: 21, stroke: "var(--paper)" })),
+                React.createElement("span", { className: "mark" }, "N"),
                 React.createElement("span", { className: "name" }, "Nested", React.createElement("span", null, "."))
               ),
               React.createElement("p", { className: "onb-mobpitch" }, "Find your people for the thing you're building.")
@@ -1023,7 +1023,7 @@ import { toDbProfile, fromDbProfile, dataUrlToFile } from './profileAdapter'
         React.createElement("div", { className: "onb-aside corkbg grain" },
           React.createElement("div", { className: "a-top" },
             React.createElement("div", { className: "brand" },
-              React.createElement("span", { className: "mark" }, React.createElement(Icon, { name: "pin", size: 21, stroke: "var(--paper)" })),
+              React.createElement("span", { className: "mark" }, "N"),
               React.createElement("span", { className: "name" }, "Nested", React.createElement("span", null, "."))
             )
           ),
@@ -1051,7 +1051,7 @@ import { toDbProfile, fromDbProfile, dataUrlToFile } from './profileAdapter'
         React.createElement("div", { className: "onb-main grain" },
           React.createElement("div", { className: "onb-mobhead" },
             React.createElement("div", { className: "brand" },
-              React.createElement("span", { className: "mark" }, React.createElement(Icon, { name: "pin", size: 21, stroke: "var(--paper)" })),
+              React.createElement("span", { className: "mark" }, "N"),
               React.createElement("span", { className: "name" }, "Nested", React.createElement("span", null, "."))
             ),
             React.createElement("p", { className: "onb-mobpitch" }, "Find your people for the thing you're building.")

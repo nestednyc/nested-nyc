@@ -119,7 +119,6 @@ import { Av, Skeleton } from './shared'
         React.createElement("div", { className: "sc-meta" }, "@" + person.handle + " \u00b7 " + UNI[person.uni].full + " \u00b7 " + person.major + " " + person.year),
         React.createElement("p", { className: "sc-bio", style: { fontSize: 16 } }, person.bio),
         person.building && React.createElement("div", { className: "sc-looking" },
-          React.createElement(Icon, { name: "pin", size: 16 }),
           React.createElement("div", { className: "t" },
             "Building ",
             React.createElement("b", null, person.building)

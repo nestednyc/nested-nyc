@@ -39,7 +39,6 @@ export default class ErrorBoundary extends React.Component {
         }}
       >
         <div style={{ maxWidth: 420 }}>
-          <div style={{ fontSize: 40, marginBottom: 12 }}>📌</div>
           <h1
             style={{
               fontFamily: '"Bricolage Grotesque", system-ui, sans-serif',

@@ -136,7 +136,7 @@ export default function FullScreens({ screen, draft, editProject, api }) {
             adoptOrgAccount(org);
             setRoute("orgDashboard");
             window.scrollTo({ top: 0 });
-            toast("Your org is on the board", "pin");
+            toast("Your org is on the board");
           },
         })
       );
