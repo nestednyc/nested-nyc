@@ -124,12 +124,13 @@ input, textarea, select { font-family: inherit; }
 }
 .brand { display: flex; align-items: center; gap: 11px; cursor: pointer; user-select: none; }
 .brand .mark {
-  width: 34px; height: 34px; border-radius: 9px; background: var(--accent);
-  display: grid; place-items: center; box-shadow: 0 2px 0 var(--accent-ink);
+  width: 34px; height: 34px; border-radius: 9px;
+  display: grid; place-items: center;
   flex: none;
-  color: var(--paper); font-family: var(--disp); font-weight: 800;
-  font-size: 19px; line-height: 1;
+  color: var(--ink); font-family: var(--disp); font-weight: 800;
+  font-size: 22px; line-height: 1;
 }
+.onb-aside .brand .mark { color: var(--paper); }
 .brand .name { font-family: var(--disp); font-weight: 800; font-size: 21px; letter-spacing: -0.02em; }
 .brand .name span { color: var(--accent); }
 
