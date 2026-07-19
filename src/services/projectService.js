@@ -5,6 +5,7 @@
 
 import { supabase, isSupabaseConfigured } from '../lib/supabase'
 import { requestIdentity } from '../design/projectAdapter'
+import { personLabel } from '../design/data'
 
 /**
  * Backfill team-member public profiles the embed couldn't return.
@@ -377,13 +378,13 @@ export const projectService = {
     // Get user's profile info
     const { data: profile } = await supabase
       .from('profiles')
-      .select('first_name, last_name, avatar, university')
+      .select('first_name, last_name, username, avatar, university')
       .eq('id', user.id)
       .single()
 
-    const memberName = profile
-      ? `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || 'Team Member'
-      : 'Team Member'
+    // Username-led snapshot ("@handle" → full name → fallback) — the shared
+    // rule with the notification emails (src/design/data.js personLabel).
+    const memberName = personLabel(profile, 'Team Member')
 
     // Check if already a team member
     const { data: existing } = await supabase

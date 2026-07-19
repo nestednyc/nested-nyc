@@ -5,6 +5,7 @@
    src/design/* (create.jsx / edit.jsx / detail.jsx / discover.jsx) and the
    snake_case `projects` row Supabase stores. No service calls in this file.
    ============================================================ */
+import { personLabel } from "./data";
 
 // Cork-board project → Supabase `projects` row payload (snake_case).
 // owner_id is injected by projectService.createProject, so we omit it here —
@@ -149,12 +150,12 @@ export function creatorTeamMember(profile, ownerId) {
   // consumer reading this row without the embedded profiles join — shows their pfp.
   const firstPhoto = profile && profile.photos && profile.photos[0];
   const photoUrl = (firstPhoto && (firstPhoto.src || firstPhoto)) || null;
-  // Build a real display name; NEVER persist the old "you" placeholder, which
-  // leaked into the DB and showed every viewer "led by you".
-  const fullName = profile ? fullNameOf(profile.firstName, profile.lastName) : "";
+  // Username-led snapshot, same rule as the join-request snapshot
+  // (personLabel): "@handle" → full name → "Lead". Never persists the old
+  // "you" placeholder that used to leak "led by you" to every viewer.
   return {
     user_id: ownerId,
-    name: (profile && profile.username) || fullName || "Lead",
+    name: personLabel(profile, "Lead"),
     school: (profile && profile.uni) || null,
     role: "Project lead",
     image: photoUrl,

@@ -19,6 +19,7 @@
 import crypto from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 import { emails } from "./_email/template.js";
+import { UNI, bareHandle, personLabel } from "../src/design/data.js";
 
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -50,9 +51,13 @@ function secretsMatch(provided, expected) {
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
-function fullName(p) {
-  const n = [p?.first_name, p?.last_name].filter(Boolean).join(" ").trim();
-  return n || p?.username || "Someone";
+// Person naming (bareHandle / personLabel) is the shared username-led rule in
+// src/design/data.js — one precedence for emails and snapshots alike.
+
+// profiles.university / team_members.school hold UNIVERSITIES ids
+// ("new-school"); emails must say "Parsons", not the raw id.
+function uniLabel(id) {
+  return (id && UNI[id] && UNI[id].name) || "";
 }
 
 function unsubUrl(userId) {
@@ -103,11 +108,23 @@ async function sendEmail(to, list, { subject, html }) {
 // ── per-table planners: { recipientIds, make(unsubUrl) -> {subject,html} } ──
 async function planJoinRequest(tm) {
   if (!tm || tm.status !== "pending") return null;
-  const { data: project } = await admin
-    .from("projects")
-    .select("id,name,owner_id,admins")
-    .eq("id", tm.project_id)
-    .maybeSingle();
+  // Independent reads (project by tm.project_id, requester by tm.user_id),
+  // fetched in parallel — the wasted requester read when the project is gone
+  // is cheaper than a serial round-trip on every join request. The row's
+  // name/school are request-time snapshots (legacy rows hold placeholders
+  // like "Team Member"); prefer the requester's live profile.
+  const [{ data: project }, { data: requester }] = await Promise.all([
+    admin
+      .from("projects")
+      .select("id,name,owner_id,admins")
+      .eq("id", tm.project_id)
+      .maybeSingle(),
+    admin
+      .from("profiles")
+      .select("first_name,last_name,username,university")
+      .eq("id", tm.user_id)
+      .maybeSingle(),
+  ]);
   if (!project) return null;
 
   // `admins` already contains the owner (DB-backfilled) plus any co-leads.
@@ -122,8 +139,8 @@ async function planJoinRequest(tm) {
     recipientIds,
     make: (unsub) =>
       emails.joinRequest({
-        requesterName: tm.name || "A student",
-        school: tm.school || "",
+        requesterName: requester ? personLabel(requester) : (tm.name || "A student"),
+        school: uniLabel(requester?.university || tm.school),
         role: tm.role || "",
         projectTitle: project.name || "your project",
         projectId: project.id,
@@ -152,7 +169,7 @@ async function planJoinApproved(tm, old) {
       .select("first_name,last_name,username")
       .eq("id", project.owner_id)
       .maybeSingle();
-    if (owner) ownerName = fullName(owner);
+    if (owner) ownerName = personLabel(owner);
   }
 
   return {
@@ -196,9 +213,9 @@ async function planNewConnection(c) {
     recipientIds: [String(c.target_id)],
     make: (unsub) =>
       emails.newConnection({
-        sourceName: fullName(source),
-        school: source?.university || "",
-        sourceUsername: source?.username || "",
+        sourceName: personLabel(source),
+        school: uniLabel(source?.university),
+        sourceUsername: bareHandle(source?.username),
         unsubUrl: unsub,
       }),
     // Record the dedupe marker only once the email has actually gone out.
@@ -284,9 +301,9 @@ async function planNewMessage(m) {
     recipientIds: [String(m.recipient_id)],
     make: (unsub) =>
       emails.newMessage({
-        senderName: fullName(source),
-        school: source?.university || "",
-        senderUsername: source?.username || "",
+        senderName: personLabel(source),
+        school: uniLabel(source?.university),
+        senderUsername: bareHandle(source?.username),
         unsubUrl: unsub,
       }),
     // Mark the pair notified only after a confirmed send; the UNIQUE unordered-pair
