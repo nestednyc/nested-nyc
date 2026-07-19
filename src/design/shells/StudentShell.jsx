@@ -78,7 +78,7 @@ export default function StudentShell({ api }) {
         // top bar
         React.createElement("header", { className: "topbar" },
           React.createElement("div", { className: "brand", onClick: () => goNav("discover") },
-            React.createElement("span", { className: "mark" }, "N"),
+            React.createElement("span", { className: "mark" }, "N", React.createElement("span", null, ".")),
             React.createElement("span", { className: "name" }, "Nested", React.createElement("span", null, "."))
           ),
           React.createElement("nav", { className: "nav" },

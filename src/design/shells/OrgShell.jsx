@@ -26,7 +26,7 @@ export default function OrgShell({ api }) {
           // Minimal topbar: brand + org chip + sign-out. No student NAV/search.
           React.createElement("header", { className: "topbar" },
             React.createElement("div", { className: "brand", onClick: () => setRoute("orgDashboard") },
-              React.createElement("span", { className: "mark" }, "N"),
+              React.createElement("span", { className: "mark" }, "N", React.createElement("span", null, ".")),
               React.createElement("span", { className: "name" }, "Nested", React.createElement("span", null, "."))
             ),
             React.createElement("nav", { className: "nav" },
