@@ -9,15 +9,16 @@ import React from 'react'
 import Icon from './icons'
 import OrgForm, { OrgPreview } from './orgForm'
 import { orgService } from '../services/orgService'
+import { resolveOrgUniSlug } from './data'
+import { useUniversitiesList } from './useUniversitiesList'
 
-  const { useState, useEffect, useRef } = React;
+  const { useState, useRef } = React;
 
   function buildOnboardAside({ onCancel }) {
     return (v) => (
       React.createElement("div", { className: "onb-aside corkbg grain" },
         React.createElement("div", { className: "a-top" },
           React.createElement("div", { className: "brand" },
-            React.createElement("span", { className: "mark" }, React.createElement(Icon, { name: "pin", size: 21, stroke: "var(--paper)" })),
             React.createElement("span", { className: "name" }, "Nested", React.createElement("span", null, "."))
           ),
           React.createElement("button", { className: "ghost-link", onClick: onCancel, style: { fontSize: 13 } },
@@ -37,30 +38,28 @@ import { orgService } from '../services/orgService'
 
   function OrgOnboard({ onCancel, onCreated }) {
     const submitted = useRef(false);
-    const [universities, setUniversities] = useState([]);
+    // Seeded universities: the "Campus" picker's slug resolves to a real
+    // university_id UUID for the FK on the insert (shared hook with OrgEdit).
+    const { universities, loaded, loadFailed } = useUniversitiesList();
     const [submitError, setSubmitError] = useState('');
     const [submitting, setSubmitting] = useState(false);
 
-    // Load the seeded universities so the "Campus" picker can resolve a slug
-    // (e.g. "nyu") to a real university_id UUID for the FK on the insert.
-    useEffect(() => {
-      let cancelled = false;
-      orgService.listUniversities().then(({ data }) => {
-        if (!cancelled) setUniversities(data || []);
-      });
-      return () => { cancelled = true; };
-    }, []);
-
     async function onSubmit(values) {
       if (submitted.current) return;
+      // Resolve the picked campus slug → its university_id UUID. If a campus
+      // was picked but can't be resolved — list still loading, failed, empty
+      // (unseeded stack), or slug missing from the seed — refuse rather than
+      // silently create a campus-less org. "Refresh" is honest advice: the
+      // list is fetched once per mount. A no-campus org needs no mapping, so
+      // it passes; the form renders from the client taxonomy (no mount gate).
+      const uniRow = values.uni ? universities.find((u) => u.slug === values.uni) : null;
+      if (values.uni && !uniRow) {
+        setSubmitError("Couldn't load campuses just now — refresh and try again.");
+        return;
+      }
       submitted.current = true;
       setSubmitting(true);
       setSubmitError('');
-
-      // Resolve uni slug → university_id UUID. Falls back to null when the
-      // form left uni blank (universities pick "no parent"; clubs picking a
-      // campus not in the seed also degrade to null).
-      const uniRow = values.uni ? universities.find((u) => u.slug === values.uni) : null;
 
       const { data: org, error } = await orgService.createOrg({
         name: values.name,
@@ -79,13 +78,13 @@ import { orgService } from '../services/orgService'
         return;
       }
 
-      onCreated && onCreated(org);
+      onCreated && onCreated({ ...org, uni: resolveOrgUniSlug(org, universities) });
     }
 
     return React.createElement(OrgForm, {
       mode: 'create',
       aside: buildOnboardAside({ onCancel }),
-      ctaCopy: { primary: submitting ? 'Pinning…' : 'Pin your org', icon: 'pin' },
+      ctaCopy: { primary: submitting ? 'Pinning…' : 'Pin your org', icon: 'check' },
       onSubmit,
       onCancel,
       extraFooter: submitError ? React.createElement("span", { style: { color: "var(--c-startup)", fontFamily: "var(--mono)", fontSize: 12 } }, "// " + submitError) : null,

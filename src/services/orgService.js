@@ -4,6 +4,7 @@
  */
 
 import { supabase, isSupabaseConfigured } from '../lib/supabase'
+import { resolveOrgUniSlug } from '../design/data'
 
 const NOT_CONFIGURED = { data: null, error: { message: 'Supabase not configured' } }
 const NOT_AUTH = { data: null, error: { message: 'Not authenticated' } }
@@ -213,6 +214,22 @@ export const orgService = {
       .eq('type', 'university')
       .order('name', { ascending: true })
     return { data: data || [], error }
+  },
+
+  /**
+   * Enrich an org row with its client-taxonomy campus slug (`uni`), used for
+   * the flyer's campus color + logo. DB rows carry university_id, not a slug;
+   * the seed list is fetched only when there's a parent to resolve — a
+   * university-type org keys off its own slug and needs no list.
+   */
+  async withUniSlug(org) {
+    if (!org) return org
+    let unis = []
+    if (org.university_id) {
+      const { data } = await orgService.listUniversities()
+      unis = data || []
+    }
+    return { ...org, uni: resolveOrgUniSlug(org, unis) }
   },
 
   /**

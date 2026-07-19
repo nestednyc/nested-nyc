@@ -32,7 +32,6 @@ import ProjectForm from './projectForm'
       React.createElement("div", { className: "onb-aside corkbg grain" },
         React.createElement("div", { className: "a-top" },
           React.createElement("div", { className: "brand" },
-            React.createElement("span", { className: "mark" }, React.createElement(Icon, { name: "pin", size: 21, stroke: "var(--paper)" })),
             React.createElement("span", { className: "name" }, "Nested", React.createElement("span", null, "."))
           ),
           React.createElement("button", { className: "ghost-link", onClick: onCancel, style: { fontSize: 13 } },
@@ -111,7 +110,7 @@ import ProjectForm from './projectForm'
       mode: "create",
       profile,
       aside: buildCreateAside({ profile, onCancel }),
-      ctaCopy: { primary: "Pin to the board", icon: "pin" },
+      ctaCopy: { primary: "Pin to the board", icon: "check" },
       onSubmit,
       onCancel,
     });

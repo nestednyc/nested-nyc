@@ -289,7 +289,6 @@ import { authService, isSupabaseConfigured, getErrorMessage } from '../lib/supab
         React.createElement("div", { className: "onb-aside corkbg grain" },
           React.createElement("div", { className: "a-top" },
             React.createElement("div", { className: "brand" },
-              React.createElement("span", { className: "mark" }, React.createElement(Icon, { name: "pin", size: 21, stroke: "var(--paper)" })),
               React.createElement("span", { className: "name" }, "Nested", React.createElement("span", null, "."))
             )
           ),

@@ -34,7 +34,7 @@ import { ProjectCard } from './discover'
     const TABS = [
       { id: "saved", label: "Saved", icon: "bookmark", n: savedList.length },
       { id: "requests", label: "Requests", icon: "send", n: reqList.length },
-      { id: "mine", label: "My projects", icon: "pin", n: mineList.length },
+      { id: "mine", label: "My projects", icon: "flag", n: mineList.length },
     ];
 
     let body;

@@ -66,7 +66,7 @@ import { CatTag, Av, Facepile, ConfirmModal } from './shared'
       note = React.createElement("div", { className: "alert-note" + (canEdit ? " editable" : ""), onClick: canEdit ? startEdit : undefined },
         React.createElement("div", { className: "alert-kicker" }, "// latest update"),
         React.createElement("p", null, p.alert),
-        canEdit && React.createElement("span", { className: "alert-edit" }, React.createElement(Icon, { name: "pin", size: 13 }), "Edit")
+        canEdit && React.createElement("span", { className: "alert-edit" }, "Edit")
       );
     } else if (canEdit) {
       note = React.createElement("button", { className: "alert-add", onClick: startEdit },
@@ -291,8 +291,7 @@ import { CatTag, Av, Facepile, ConfirmModal } from './shared'
 
             React.createElement("div", { className: "detail-cta" },
               isOwner
-                ? React.createElement("button", { className: "btn btn-primary", onClick: () => onEdit(p) },
-                    React.createElement(Icon, { name: "pin", size: 18, stroke: "var(--paper)" }), "Edit flyer")
+                ? React.createElement("button", { className: "btn btn-primary", onClick: () => onEdit(p) }, "Edit flyer")
                 : React.createElement("button", {
                     // `joined` = approved member ("You're in"); `requested` =
                     // pending request ("Request sent"). Both render the green

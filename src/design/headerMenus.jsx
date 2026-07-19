@@ -138,7 +138,7 @@ import { Av } from './shared'
       React.createElement("button", { className: "menu-item", role: "menuitem", onClick: choose(onViewProfile) },
         React.createElement(Icon, { name: "user", size: 18 }), "View profile"),
       React.createElement("button", { className: "menu-item", role: "menuitem", onClick: choose(onEditProfile) },
-        React.createElement(Icon, { name: "pin", size: 18 }), "Edit profile"),
+        React.createElement(Icon, { name: "pencil", size: 18 }), "Edit profile"),
       React.createElement("button", { className: "menu-item", role: "menuitem", onClick: choose(onViewSaved) },
         React.createElement(Icon, { name: "bookmark", size: 18 }), "Saved"),
       // Settings / appearance / notification-pref rows slot in here.

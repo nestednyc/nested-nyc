@@ -23,7 +23,7 @@ import React from 'react'
     calendar: `<rect x="3.5" y="5" width="17" height="16" rx="2.5"/><path d="M3.5 9.5h17M8 3v4M16 3v4"/>`,
     matches: `<path d="M12 20.5 4.2 12.8a4.6 4.6 0 0 1 6.5-6.5l1.3 1.3 1.3-1.3a4.6 4.6 0 0 1 6.5 6.5Z"/>`,
     user: `<circle cx="12" cy="8" r="4"/><path d="M4.5 20a7.5 7.5 0 0 1 15 0"/>`,
-    pin: `<path d="M9 3.5h6l-1 5 3 3.5v2H7v-2l3-3.5-1-5Z"/><path d="M12 14v6.5"/>`,
+    pencil: `<path d="M4 20l1.2-4.2L16.6 4.4a2.05 2.05 0 0 1 2.9 2.9L8.2 18.8 4 20Z"/><path d="M14.6 6.4l3 3"/>`,
     arrowLeft: `<path d="M19 12H5M11 6l-6 6 6 6"/>`,
     arrowRight: `<path d="M5 12h14M13 6l6 6-6 6"/>`,
     check: `<path d="M20 6 9 17l-5-5"/>`,

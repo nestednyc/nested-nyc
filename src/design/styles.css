@@ -123,12 +123,20 @@ input, textarea, select { font-family: inherit; }
   box-shadow: 0 6px 18px -16px oklch(0.2 0.02 60/.9);
 }
 .brand { display: flex; align-items: center; gap: 11px; cursor: pointer; user-select: none; }
+/* The wordmark already starts with N, so the mark only appears where the name
+   is hidden (mobile topbar) — desktop and auth headers run wordmark-only. */
 .brand .mark {
-  width: 34px; height: 34px; border-radius: 9px; background: var(--accent);
-  display: grid; place-items: center; box-shadow: 0 2px 0 var(--accent-ink);
+  display: none;
+  width: 34px; height: 34px;
+  place-items: center;
+  /* Two grid items ("N" text run + the accent-dot span) must flow as columns —
+     default row auto-flow stacks the dot underneath and overflows the box. */
+  grid-auto-flow: column;
   flex: none;
+  color: var(--ink); font-family: var(--disp); font-weight: 800;
+  font-size: 22px; line-height: 1;
 }
-.brand .mark svg { width: 21px; height: 21px; }
+.brand .mark span { color: var(--accent); }
 .brand .name { font-family: var(--disp); font-weight: 800; font-size: 21px; letter-spacing: -0.02em; }
 .brand .name span { color: var(--accent); }
 
@@ -1734,6 +1742,7 @@ input, textarea, select { font-family: inherit; }
   /* ---- top bar: keep brand mark + the 3 section tabs; swap the utilities ---- */
   .topbar { gap: 12px; }
   .topbar .brand .name { display: none; }        /* mark-only */
+  .topbar .brand .mark { display: grid; }
   .topbar .nav { margin-left: 2px; gap: 2px; }
   .topbar .nav button { padding: 9px 11px; }
   .topbar .nav button svg { display: none; }      /* label-only tabs */

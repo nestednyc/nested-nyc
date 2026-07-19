@@ -55,7 +55,7 @@ import { toDbProfile, fromDbProfile, dataUrlToFile } from './profileAdapter'
   // returnTo: validated internal path the user was headed to before the auth
   // wall. Rides the confirmation email as ?next= so even the new-tab link
   // round-trip lands them back where they started.
-  function Onboarding({ onComplete, onOrgPath, onForgot, initialMode, returnTo }) {
+  function Onboarding({ onComplete, onToast, onOrgPath, onForgot, initialMode, returnTo }) {
     const [mode, setMode] = useState(initialMode === "signin" ? "signin" : "signup"); // 'signup' | 'signin'
     const [step, setStep] = useState(0);
     const [email, setEmail] = useState("");
@@ -273,6 +273,10 @@ import { toDbProfile, fromDbProfile, dataUrlToFile } from './profileAdapter'
         return;
       }
 
+      // The already-registered fallback above may have signed in an ORG
+      // account — never write student fields onto its profile row.
+      if (await blockOrgAccount()) return;
+
       const payload = toDbProfile(localProfile, userId);
       const { data: row, error: upErr } = await profileService.upsertProfile(userId, payload);
       if (upErr) {
@@ -296,6 +300,10 @@ import { toDbProfile, fromDbProfile, dataUrlToFile } from './profileAdapter'
       const userId = (vData && vData.user && vData.user.id)
         || (vData && vData.session && vData.session.user && vData.session.user.id);
       if (!userId) { setSubmitError("Couldn't confirm your account. Try the code again."); setSubmitting(false); return; }
+
+      // An unconfirmed ORG email run through the student wizard confirms here —
+      // block it before any student fields are upserted onto the org's row.
+      if (await blockOrgAccount()) return;
 
       const localProfile = {
         username: username.trim(),
@@ -347,6 +355,35 @@ import { toDbProfile, fromDbProfile, dataUrlToFile } from './profileAdapter'
       codeRefs.current[firstEmpty === -1 ? 5 : firstEmpty] && codeRefs.current[firstEmpty === -1 ? 5 : firstEmpty].focus();
     }
 
+    // The student door must never open a student session for an org account:
+    // toast the reason, end the session we just created, reset the CTA.
+    // Returns true when it blocked (callers just `return`). Used by all three
+    // session-creating paths: sign-in, the signup already-registered fallback,
+    // and the OTP verify. Fail CLOSED when the row can't be read: every auth
+    // user has a profiles row (handle_new_user), so an errored/missing fetch
+    // is transient — hold the wizard with a retry error rather than risk
+    // writing student fields onto an org row. (No sign-out on that path: the
+    // caller may well be a legitimate student mid-signup. The DB backstop is
+    // the profile_block_org_student_writes trigger.)
+    async function blockOrgAccount(maybeRow) {
+      let row = maybeRow;
+      if (!row) {
+        const res = await profileService.getCurrentProfile();
+        if (res.error || !res.data) {
+          setSubmitError("Couldn't verify your account — try again.");
+          setSubmitting(false);
+          return true;
+        }
+        row = res.data;
+      }
+      if (!row || row.account_type !== 'org_admin') return false;
+      onToast && onToast("That's an organization account — sign in from the org portal.", "x");
+      const { error: soErr } = await authService.signOut().catch((e) => ({ error: e }));
+      setSubmitting(false);
+      if (soErr) setSubmitError("Couldn't finish signing you out — try again.");
+      return true;
+    }
+
     async function finishSignin() {
       if (submitting) return;
       setSubmitting(true);
@@ -371,6 +408,12 @@ import { toDbProfile, fromDbProfile, dataUrlToFile } from './profileAdapter'
         setSubmitting(false);
         return;
       }
+
+      // Org accounts have their own sign-in — they don't belong in the student
+      // app. Everyone else — including a student who hasn't finished
+      // onboarding — falls through to the normal student path below
+      // (unchanged, pre-existing behavior).
+      if (await blockOrgAccount(row)) return;
 
       setSubmitting(false);
       onComplete(fromDbProfile(row, email.trim()));
@@ -624,7 +667,6 @@ import { toDbProfile, fromDbProfile, dataUrlToFile } from './profileAdapter'
           React.createElement("div", { className: "onb-aside corkbg grain" },
             React.createElement("div", { className: "a-top" },
               React.createElement("div", { className: "brand" },
-                React.createElement("span", { className: "mark" }, React.createElement(Icon, { name: "pin", size: 21, stroke: "var(--paper)" })),
                 React.createElement("span", { className: "name" }, "Nested", React.createElement("span", null, "."))
               )
             ),
@@ -636,7 +678,6 @@ import { toDbProfile, fromDbProfile, dataUrlToFile } from './profileAdapter'
           React.createElement("div", { className: "onb-main grain" },
             React.createElement("div", { className: "onb-mobhead" },
               React.createElement("div", { className: "brand" },
-                React.createElement("span", { className: "mark" }, React.createElement(Icon, { name: "pin", size: 21, stroke: "var(--paper)" })),
                 React.createElement("span", { className: "name" }, "Nested", React.createElement("span", null, "."))
               ),
               React.createElement("p", { className: "onb-mobpitch" }, "You're in — round out your profile so people can find you.")
@@ -689,7 +730,6 @@ import { toDbProfile, fromDbProfile, dataUrlToFile } from './profileAdapter'
           React.createElement("div", { className: "onb-aside corkbg grain" },
             React.createElement("div", { className: "a-top" },
               React.createElement("div", { className: "brand" },
-                React.createElement("span", { className: "mark" }, React.createElement(Icon, { name: "pin", size: 21, stroke: "var(--paper)" })),
                 React.createElement("span", { className: "name" }, "Nested", React.createElement("span", null, "."))
               )
             ),
@@ -700,7 +740,6 @@ import { toDbProfile, fromDbProfile, dataUrlToFile } from './profileAdapter'
           React.createElement("div", { className: "onb-main grain" },
             React.createElement("div", { className: "onb-mobhead" },
               React.createElement("div", { className: "brand" },
-                React.createElement("span", { className: "mark" }, React.createElement(Icon, { name: "pin", size: 21, stroke: "var(--paper)" })),
                 React.createElement("span", { className: "name" }, "Nested", React.createElement("span", null, "."))
               ),
               React.createElement("p", { className: "onb-mobpitch" }, "Find your people for the thing you're building.")
@@ -1023,7 +1062,6 @@ import { toDbProfile, fromDbProfile, dataUrlToFile } from './profileAdapter'
         React.createElement("div", { className: "onb-aside corkbg grain" },
           React.createElement("div", { className: "a-top" },
             React.createElement("div", { className: "brand" },
-              React.createElement("span", { className: "mark" }, React.createElement(Icon, { name: "pin", size: 21, stroke: "var(--paper)" })),
               React.createElement("span", { className: "name" }, "Nested", React.createElement("span", null, "."))
             )
           ),
@@ -1051,7 +1089,6 @@ import { toDbProfile, fromDbProfile, dataUrlToFile } from './profileAdapter'
         React.createElement("div", { className: "onb-main grain" },
           React.createElement("div", { className: "onb-mobhead" },
             React.createElement("div", { className: "brand" },
-              React.createElement("span", { className: "mark" }, React.createElement(Icon, { name: "pin", size: 21, stroke: "var(--paper)" })),
               React.createElement("span", { className: "name" }, "Nested", React.createElement("span", null, "."))
             ),
             React.createElement("p", { className: "onb-mobpitch" }, "Find your people for the thing you're building.")

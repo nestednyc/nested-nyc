@@ -51,7 +51,7 @@ import { Stamp, UniLogo, OrgMini } from './shared'
     const [instagram, setInstagram] = useState(init.instagram);
 
     const editable = mode === "edit";
-    const cta = ctaCopy || { primary: "Pin your org", icon: "pin" };
+    const cta = ctaCopy || { primary: "Pin your org", icon: "check" };
 
     function next() { setStep((s) => Math.min(s + 1, STEP_COUNT - 1)); }
     function back() { setStep((s) => Math.max(s - 1, 0)); }
@@ -256,7 +256,7 @@ import { Stamp, UniLogo, OrgMini } from './shared'
                     style: ctaDisabled ? { opacity: 0.4, pointerEvents: "none" } : {},
                     onClick: submit,
                   },
-                    React.createElement(Icon, { name: cta.icon || "pin", size: 17, stroke: "var(--paper)" }),
+                    React.createElement(Icon, { name: cta.icon || "check", size: 17, stroke: "var(--paper)" }),
                     cta.primary)
                 : React.createElement("button", {
                     className: "btn btn-primary",

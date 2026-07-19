@@ -52,7 +52,7 @@ export function useOrg({ orgAccount, toast, setRoute, setEventDraftId }) {
     }
     setOrgEvents((arr) => [data, ...arr]);
     setRoute("orgDashboard");
-    toast("Pinned to the calendar", "pin");
+    toast("Pinned to the calendar");
   }
   // Save event edits (hoisted from the EventForm edit screen's onSubmit).
   // Takes the id as an argument — FullScreens passes the guarded draft's

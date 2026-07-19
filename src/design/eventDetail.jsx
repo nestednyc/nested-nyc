@@ -293,8 +293,7 @@ import { eventService } from '../services/eventService'
       );
     } else if (isOwner) {
       rsvpSlot = React.createElement("div", null,
-        React.createElement("button", { className: "ev-rsvp-btn", onClick: handleRsvpClick },
-          React.createElement(Icon, { name: "pin", size: 16, stroke: "var(--paper)" }), "Edit event"),
+        React.createElement("button", { className: "ev-rsvp-btn", onClick: handleRsvpClick }, "Edit event"),
         React.createElement("span", { className: "ev-rsvp-cap" }, "// you host this event")
       );
     } else if (isAnon) {

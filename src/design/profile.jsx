@@ -204,8 +204,7 @@ import { Polaroid, resizePhoto, LINK_KINDS } from './shared'
             saving ? "Saving…" : "Save changes"),
         ]
       : [
-          React.createElement("button", { key: "e", className: "btn btn-primary", onClick: startEdit },
-            React.createElement(Icon, { name: "pin", size: 18, stroke: "var(--paper)" }), "Edit profile"),
+          React.createElement("button", { key: "e", className: "btn btn-primary", onClick: startEdit }, "Edit profile"),
         ];
 
     return (
@@ -456,7 +455,7 @@ import { Polaroid, resizePhoto, LINK_KINDS } from './shared'
                 React.createElement("div", { className: "rail-card" },
                   React.createElement("div", { className: "sec-h", style: { marginBottom: 8 } }, "On the board"),
                   React.createElement("div", { className: "kv" },
-                    React.createElement("span", { className: "ic" }, React.createElement(Icon, { name: "pin", size: 17 })),
+                    React.createElement("span", { className: "ic" }, React.createElement(Icon, { name: "file", size: 17 })),
                     React.createElement("span", { className: "kv-t" },
                       React.createElement("small", null, "Pinned"),
                       React.createElement("b", null, projectCount + (projectCount === 1 ? " flyer" : " flyers")))
