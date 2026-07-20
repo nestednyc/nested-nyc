@@ -10,6 +10,7 @@ import FullScreens from './shells/FullScreens'
 import OrgShell from './shells/OrgShell'
 import StudentShell from './shells/StudentShell'
 import { isSupabaseConfigured } from '../lib/supabase'
+import { SHOW_EVENTS } from '../config/features'
 import { profileService } from '../services/profileService'
 import { eventService } from '../services/eventService'
 import { projectService } from '../services/projectService'
@@ -543,6 +544,9 @@ import { useOrg } from './hooks/useOrg'
     function confirmSignOutNow() { setConfirmSignOut(false); signOut(); }
 
     function goNav(id) {
+      // While the Events tab is parked, every nav to the feed lands on the
+      // board — one central redirect instead of per-call-site guards.
+      if (id === "events" && !SHOW_EVENTS) id = "discover";
       // People & Saved need an account — nudge guests to sign in instead.
       if (!profile && (id === "people" || id === "saved")) {
         return requireAuth(id === "people" ? "Sign in to meet other students" : "Sign in to save projects");

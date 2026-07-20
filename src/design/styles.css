@@ -871,7 +871,16 @@ input, textarea, select { font-family: inherit; }
    PEOPLE (discover collaborators)
    ============================================================ */
 .people { max-width: 1340px; margin: 0 auto; padding: 0 clamp(18px,3vw,40px) 90px; }
-.people-sub { display: flex; gap: 6px; padding: 20px 0 8px; }
+.people-stat { font-family: var(--mono); font-size: 12px; color: var(--ink-faint); white-space: nowrap; padding-bottom: 10px; }
+
+/* directory toolbar — search + campus rail (sticky, like the tabs it replaced) */
+.people-tools { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 18px 0 22px; position: sticky; top: 68px; z-index: 30; background: linear-gradient(var(--cork) 72%, transparent); }
+.people-search { flex: 0 1 340px; min-width: 230px; display: inline-flex; align-items: center; gap: 9px; background: var(--paper); border: 1.5px solid var(--paper-edge); border-radius: 999px; padding: 9px 16px; box-shadow: 0 2px 0 oklch(0.2 0.02 60/.07); transition: border-color .14s, box-shadow .14s; cursor: text; }
+.people-search:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-wash); }
+.people-search svg { width: 17px; height: 17px; color: var(--ink-faint); flex: none; }
+.people-search input { border: 0; background: transparent; outline: none; width: 100%; font: inherit; font-size: 14.5px; color: var(--ink); }
+.people-search input::placeholder { color: var(--ink-faint); }
+.people-chips { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
 
 /* photo placeholders — taped polaroids */
 .ph {
@@ -1853,6 +1862,14 @@ input, textarea, select { font-family: inherit; }
   /* connections / notifications cards (330px min track overflows a phone) */
   .conn-grid { grid-template-columns: 1fr; }
   .people-grid { grid-template-columns: 1fr; }
+  /* the toolbar stays on mobile (unlike .filters): search full-width, chips
+     become an edge-scrolling rail */
+  .people-tools { padding: 12px 0 14px; gap: 8px; }
+  .people-search { flex: 1 1 100%; min-width: 0; }
+  .people-chips { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; padding-bottom: 4px; }
+  .people-chips::-webkit-scrollbar { display: none; }
+  .people-chips .chip-filter { flex: none; }
+  .people-stat { display: none; }
   /* multi-column form grids → single column */
   .uni-list { grid-template-columns: 1fr; }
   .pin-style-picker { grid-template-columns: 1fr; }

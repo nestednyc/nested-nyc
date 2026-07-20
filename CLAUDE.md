@@ -72,7 +72,7 @@ src/
 │   ├── events.jsx eventDetail.jsx eventForm.jsx
 │   ├── people.jsx profile.jsx matches.jsx notifications.jsx   # matches.jsx renders the "saved" view
 │   ├── messages.jsx messageThread.jsx messageAttachments.jsx  # DM inbox / open thread / attachment UI
-│   ├── peopleRank.js    # pure ranking for People → Browse ordering (completeness + relevance)
+│   ├── peopleRank.js    # pure ranking for the People grid ordering (completeness + relevance)
 │   ├── headerMenus.jsx  # desktop topbar popovers (bell + account chip); mobile uses the account sheet
 │   ├── userProfile.jsx  # /u/:username — self-fetching student profile page
 │   ├── onboarding.jsx forgot.jsx                              # student auth screens
@@ -89,7 +89,7 @@ src/
 │   └── ErrorBoundary.jsx
 ├── services/            # Supabase data access — ALL return { data, error }, never throw
 ├── lib/supabase.js      # client + authService
-├── config/features.js   # SHOW_TWEAKS (= import.meta.env.DEV) — the only flag
+├── config/features.js   # SHOW_TWEAKS (= import.meta.env.DEV) · SHOW_EVENTS (false — Events tab parked until the first event; /events URLs still work)
 └── utils/migrateLocalStorage.js  # console-only migration helper (side-loaded by main.jsx)
 ```
 

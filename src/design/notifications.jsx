@@ -2,8 +2,8 @@
    NESTED NYC — Notifications (inbox)
    Two stacked sections: incoming connection requests + requests
    to join your projects. Reached via the header bell. Reuses the
-   People conn-card and the detail-page team-row patterns — no new
-   visual language.
+   conn-card (now only rendered here) and the detail-page team-row
+   patterns — no new visual language.
    ============================================================ */
 import React from 'react'
 import Icon from './icons'

@@ -4,6 +4,7 @@
 import React from 'react'
 import Icon from './icons'
 import { avColor, initials, UNI, ORG_TYPES } from './data'
+import { SHOW_EVENTS } from '../config/features'
 
   const { useState, useRef } = React;
 
@@ -331,7 +332,7 @@ import { avColor, initials, UNI, ORG_TYPES } from './data'
       React.createElement("div", { className: "ph" },
         src
           ? React.createElement("img", {
-              src, alt: cap || label || "",
+              src, alt: cap || label || "", loading: "lazy", draggable: false,
               style: { width: "100%", height: "100%", objectFit: "cover", display: "block" },
             })
           : React.createElement("span", { className: "pl" }, editable ? "+ pin a snap" : label)
@@ -366,6 +367,7 @@ import { avColor, initials, UNI, ORG_TYPES } from './data'
   // and SoonPane's icon lookup.
   export const NAV = [
     { id: "discover", label: "Discover", icon: "grid" },
-    { id: "events",   label: "Events",   icon: "calendar" },
+    // Events tab parked behind SHOW_EVENTS until the first event is posted.
+    ...(SHOW_EVENTS ? [{ id: "events", label: "Events", icon: "calendar" }] : []),
     { id: "people",   label: "People",   icon: "users" },
   ];

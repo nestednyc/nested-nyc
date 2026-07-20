@@ -3,9 +3,9 @@
 
    Maps a profiles row to the cork-board People card shape. Connections
    ARE persisted (NestedApp drives connectionService.connect/disconnect)
-   and are now visible to the person on the receiving end — see the
-   People "Incoming" tab. This file stays a pure transformation: no
-   service calls live here.
+   and are visible to the person on the receiving end — incoming
+   connections surface in Notifications and the bell dot. This file
+   stays a pure transformation: no service calls live here.
    ============================================================ */
 import { UNI } from './data'
 

@@ -9,6 +9,7 @@ import React from 'react'
 import OrgProfile from './orgProfile'
 import { orgService } from '../services/orgService'
 import { formatEventDate } from './shared'
+import { SHOW_EVENTS } from '../config/features'
 
   const { useState, useEffect } = React;
 
@@ -79,7 +80,8 @@ import { formatEventDate } from './shared'
           React.createElement("div", { className: "match-empty fade-up" },
             React.createElement("h3", null, "Org not found"),
             React.createElement("p", null, "We couldn't find that organization on Nested."),
-            React.createElement("button", { className: "btn btn-primary", style: { marginTop: 18 }, onClick: onBack }, "Back to events")
+            React.createElement("button", { className: "btn btn-primary", style: { marginTop: 18 }, onClick: onBack },
+              SHOW_EVENTS ? "Back to events" : "Back to the board")
           )
         )
       );

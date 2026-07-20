@@ -1,30 +1,15 @@
 /* ============================================================
-   NESTED NYC — People (discover collaborators)
-   Browse student profiles, connect with people, and message any
-   student directly (or reach out via the links they post).
+   NESTED NYC — People (the student directory)
+   One ranked grid of every student on the board — search it, filter
+   it by campus, connect with people, and message any student
+   directly (or reach out via the links they post).
    ============================================================ */
 import React from 'react'
 import Icon from './icons'
-import { UNI, LINK_ICON, avColor, initials } from './data'
-import { Av, Skeleton } from './shared'
+import { UNI, LINK_ICON } from './data'
+import { UniLogo, Skeleton, Polaroid } from './shared'
 
   const { useState } = React;
-
-  function Polaroid({ label, src }) {
-    return (
-      React.createElement("div", { className: "polaroid" },
-        React.createElement("div", { className: "ph" },
-          src
-            ? React.createElement("img", {
-                className: "pimg", src, alt: label, loading: "lazy", draggable: false,
-                style: { width: "100%", height: "100%", objectFit: "cover", display: "block" },
-              })
-            : React.createElement("span", { className: "pl" }, label)
-        ),
-        React.createElement("div", { className: "cap" }, label)
-      )
-    );
-  }
 
   function LinkPill({ link }) {
     // email → mailto; instagram → canonical profile URL from the bare handle;
@@ -149,20 +134,36 @@ import { Av, Skeleton } from './shared'
     );
   }
 
-  function People({ connected = [], onConnect, onDisconnect, onMessage, people = [], loading = false, error = null, onRetry, onOpenPerson }) {
-    const [mode, setMode] = useState("browse");
+  function People({ connected = [], onConnect, onMessage, people = [], loading = false, error = null, onRetry, onOpenPerson }) {
     // Controlled: NestedApp owns the connection set (optimistic + revert, like
     // toggleSave). We read it and call the handlers; no local connection state.
-    // Opening a profile navigates to /u/:username via onOpenPerson — the old
-    // in-page modal is gone.
+    // Opening a profile navigates to /u/:username via onOpenPerson.
     const connSet = new Set(connected);
 
-    const TABS = [
-      { id: "browse", label: "Browse", icon: "grid" },
-      { id: "connected", label: "Connected", icon: "users", n: connected.length },
-    ];
+    // Directory filters — deliberately local: leaving the page resets them.
+    const [query, setQuery] = useState("");
+    const [campus, setCampus] = useState("all");
 
-    const connectedPeople = people.filter((p) => connSet.has(p.id));
+    // Campus chips cover only campuses with students on the board, busiest
+    // first (name as the tiebreak so equal counts keep a stable order).
+    const uniCounts = {};
+    for (const p of people) uniCounts[p.uni] = (uniCounts[p.uni] || 0) + 1;
+    const campuses = Object.keys(uniCounts)
+      .sort((a, b) => uniCounts[b] - uniCounts[a] || UNI[a].name.localeCompare(UNI[b].name));
+
+    // Filtering trims the ranked list in place, so peopleRank's order carries
+    // through to whatever survives the search + campus chip.
+    const q = query.trim().toLowerCase();
+    const shown = people.filter((p) => {
+      if (campus !== "all" && p.uni !== campus) return false;
+      if (!q) return true;
+      const hay = [
+        p.name, "@" + p.handle, p.bio, p.major, p.building,
+        UNI[p.uni].name, UNI[p.uni].full, ...p.skills, ...p.interests,
+      ].join(" ").toLowerCase();
+      return hay.includes(q);
+    });
+    const clearFilters = () => { setQuery(""); setCampus("all"); };
 
     let body;
     if (loading) {
@@ -174,51 +175,69 @@ import { Av, Skeleton } from './shared'
         React.createElement("p", null, "Something went wrong reaching Nested. Check your connection and try again."),
         React.createElement("button", { className: "btn btn-primary", style: { marginTop: 22 }, onClick: onRetry },
           React.createElement(Icon, { name: "refresh", size: 16, stroke: "var(--paper)" }), "Try again"));
-    } else if (mode === "browse") {
-      body = people.length
-        ? React.createElement("div", { className: "people-grid" },
-            people.map((p) => React.createElement(PersonCard, { key: p.id, person: p, connected: connSet.has(p.id), onConnect, onMessage, onOpen: onOpenPerson })))
-        : React.createElement("div", { className: "match-empty fade-up" },
-            React.createElement("div", { className: "ill" }, React.createElement(Icon, { name: "users", size: 42, stroke: "var(--accent)" })),
-            React.createElement("h3", null, "No other students yet"),
-            React.createElement("p", null, "You're early. As more students join Nested and complete their profiles, they'll show up here to browse and connect with."));
-    } else if (mode === "connected") {
-      body = connectedPeople.length
-        ? React.createElement("div", { className: "conn-grid" },
-            connectedPeople.map((p) => (
-              React.createElement("div", { className: "conn-card", key: p.id },
-                React.createElement("div", { className: "conn-head" },
-                  React.createElement(Av, { name: p.name, img: p.avatar }),
-                  React.createElement("div", { className: "who" },
-                    React.createElement("b", null, p.name),
-                    React.createElement("small", null, "@" + p.handle + " \u00b7 " + UNI[p.uni].name)),
-                  React.createElement("button", { className: "btn btn-ghost", style: { marginLeft: "auto", padding: "7px 12px", fontSize: 13 }, onClick: () => onOpenPerson && onOpenPerson(p) }, "Profile")
-                ),
-                React.createElement(ContactLinks, { person: p })
-              )
-            )))
-        : React.createElement("div", { className: "match-empty fade-up" },
-            React.createElement("div", { className: "ill" }, React.createElement(Icon, { name: "users", size: 42, stroke: "var(--accent)" })),
-            React.createElement("h3", null, "No connections yet"),
-            React.createElement("p", null, "Hit Connect on someone's profile and they'll show up here with their links so you can reach out."),
-            React.createElement("button", { className: "btn btn-primary", style: { marginTop: 22 }, onClick: () => setMode("browse") },
-              React.createElement(Icon, { name: "grid", size: 16, stroke: "var(--paper)" }), "Browse people"));
+    } else if (!people.length) {
+      body = React.createElement("div", { className: "match-empty fade-up" },
+        React.createElement("div", { className: "ill" }, React.createElement(Icon, { name: "users", size: 42, stroke: "var(--accent)" })),
+        React.createElement("h3", null, "No other students yet"),
+        React.createElement("p", null, "You're early. As more students join Nested and complete their profiles, they'll show up here to browse and connect with."));
+    } else if (!shown.length) {
+      body = React.createElement("div", { className: "match-empty fade-up" },
+        React.createElement("div", { className: "ill" }, React.createElement(Icon, { name: "search", size: 42, stroke: "var(--accent)" })),
+        React.createElement("h3", null, "Nobody matches"),
+        React.createElement("p", null,
+          q
+            ? "No one matches \u201c" + query.trim() + "\u201d" + (campus !== "all" ? " at " + UNI[campus].name : "") + ". Try another search or clear the filters."
+            : "No students from " + UNI[campus].name + " are on the board right now."),
+        React.createElement("button", { className: "btn btn-primary", style: { marginTop: 22 }, onClick: clearFilters },
+          React.createElement(Icon, { name: "users", size: 16, stroke: "var(--paper)" }), "Show everyone"));
+    } else {
+      body = React.createElement("div", { className: "people-grid" },
+        shown.map((p) => React.createElement(PersonCard, { key: p.id, person: p, connected: connSet.has(p.id), onConnect, onMessage, onOpen: onOpenPerson })));
     }
+
+    // Toolbar + stat only render once there are real people to filter — the
+    // skeleton, error, and you're-early states keep the page quiet.
+    const ready = !loading && !error && people.length > 0;
 
     return (
       React.createElement("div", { className: "people" },
         React.createElement("div", { className: "disco-head" },
           React.createElement("div", { className: "head-txt" },
             React.createElement("h1", null, "Find your ", React.createElement("em", null, "people")),
-            React.createElement("p", { className: "sub" }, "Students across NYC looking to build with someone. Browse, connect, and message the people you click with.")
-          )
+            React.createElement("p", { className: "sub" }, "Students across NYC looking to build with someone. Search the board, filter by campus, and reach out to the people you click with.")
+          ),
+          ready && React.createElement("div", { className: "people-stat" },
+            shown.length !== people.length
+              ? shown.length + " of " + people.length + (people.length === 1 ? " student" : " students")
+              : people.length + (people.length === 1 ? " student" : " students") + " · " + campuses.length + (campuses.length === 1 ? " campus" : " campuses"))
         ),
-        React.createElement("div", { className: "match-tabs" },
-          TABS.map((t) => (
-            React.createElement("button", { key: t.id, className: "match-tab" + (mode === t.id ? " active" : ""), onClick: () => setMode(t.id) },
-              React.createElement(Icon, { name: t.icon, size: 18 }), t.label,
-              t.n > 0 && React.createElement("span", { className: "b" }, t.n))
-          ))
+        ready && React.createElement("div", { className: "people-tools" },
+          React.createElement("label", { className: "people-search" },
+            React.createElement(Icon, { name: "search", size: 17 }),
+            React.createElement("input", {
+              type: "search",
+              value: query,
+              onChange: (e) => setQuery(e.target.value),
+              placeholder: "Search people, skills, majors…",
+              "aria-label": "Search people",
+            })
+          ),
+          React.createElement("div", { className: "people-chips" },
+            React.createElement("button", { className: "chip-filter" + (campus === "all" ? " active" : ""), onClick: () => setCampus("all") },
+              React.createElement(Icon, { name: "users", size: 17 }), "All",
+              React.createElement("span", { className: "count" }, people.length)),
+            campuses.map((id) => (
+              React.createElement("button", {
+                key: id,
+                className: "chip-filter" + (campus === id ? " active" : ""),
+                onClick: () => setCampus(id),
+                title: UNI[id].full,
+              },
+                React.createElement(UniLogo, { uni: UNI[id], size: 16, radius: "26%" }),
+                UNI[id].name,
+                React.createElement("span", { className: "count" }, uniCounts[id]))
+            ))
+          )
         ),
         body
       )
