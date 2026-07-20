@@ -69,6 +69,9 @@ export default function FullScreens({ screen, draft, editProject, api }) {
             setTimeout(() => setJustVerified(false), 1500);
           },
           onOrgPath: () => { setRoute("orgSignup"); window.scrollTo({ top: 0 }); },
+          // An org account signing in at the student door is rejected there
+          // (toast + sign-out); onToast surfaces the reason before it unmounts.
+          onToast: toast,
           onForgot: (seedEmail) => {
             setForgotEmailSeed(seedEmail || "");
             setForgotFrom("onboarding");

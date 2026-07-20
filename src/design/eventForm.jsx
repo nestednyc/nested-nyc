@@ -309,7 +309,6 @@ import { CatTag, formatEventDate } from './shared'
         React.createElement("div", { className: "onb-aside corkbg grain" },
           React.createElement("div", { className: "a-top" },
             React.createElement("div", { className: "brand" },
-              React.createElement("span", { className: "mark" }, "N"),
               React.createElement("span", { className: "name" }, "Nested", React.createElement("span", null, "."))
             ),
             React.createElement("button", { className: "ghost-link", onClick: onCancel, style: { fontSize: 13 } },

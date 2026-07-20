@@ -8,15 +8,16 @@ import React from 'react'
 import Icon from './icons'
 import OrgForm, { OrgPreview } from './orgForm'
 import { orgService } from '../services/orgService'
+import { resolveOrgUniSlug } from './data'
+import { useUniversitiesList } from './useUniversitiesList'
 
-  const { useState, useEffect } = React;
+  const { useState } = React;
 
   function buildEditAside({ onCancel }) {
     return (v) => (
       React.createElement("div", { className: "onb-aside corkbg grain" },
         React.createElement("div", { className: "a-top" },
           React.createElement("div", { className: "brand" },
-            React.createElement("span", { className: "mark" }, "N"),
             React.createElement("span", { className: "name" }, "Nested", React.createElement("span", null, "."))
           ),
           React.createElement("button", { className: "ghost-link", onClick: onCancel, style: { fontSize: 13 } },
@@ -35,29 +36,39 @@ import { orgService } from '../services/orgService'
   }
 
   function OrgEdit({ org, onCancel, onSaved }) {
-    const [universities, setUniversities] = useState([]);
-    const [uniById, setUniById] = useState({});
+    // Seeded universities: maps a picked campus slug → university_id UUID at
+    // submit, and id → slug for the prefill (shared hook with OrgOnboard).
+    const { universities, uniById, loaded, loadFailed } = useUniversitiesList();
     const [submitting, setSubmitting] = useState(false);
     const [submitError, setSubmitError] = useState('');
 
-    useEffect(() => {
-      let cancelled = false;
-      orgService.listUniversities().then(({ data }) => {
-        if (cancelled) return;
-        setUniversities(data || []);
-        const map = {};
-        (data || []).forEach((u) => { map[u.id] = u; });
-        setUniById(map);
-      });
-      return () => { cancelled = true; };
-    }, []);
-
     if (!org) return null;
 
-    // Prefill: resolve university_id (UUID) → slug for the form's chip picker.
-    const uniSlug = org.university_id && uniById[org.university_id]
-      ? uniById[org.university_id].slug
-      : '';
+    // Hold render until the universities list settles. OrgForm reads its prefill
+    // once (useState initializers at mount), and the submit handler needs the
+    // list to map the picked campus slug → university_id — so we let the fetch
+    // resolve (success OR failure) before OrgForm mounts. Mirrors OrgView's hold.
+    if (!loaded) {
+      return (
+        React.createElement("div", { className: "discover" },
+          React.createElement("div", { className: "disco-head" },
+            React.createElement("div", { className: "head-txt" },
+              React.createElement("h1", null, "Loading…")
+            )
+          )
+        )
+      );
+    }
+
+    // Prefill the campus chip. org.uni is the slug already resolved at session
+    // hydration (and kept fresh on every save), so it's correct even if THIS
+    // screen's listUniversities() is slow or fails; fall back to the freshly
+    // fetched id→slug map only if the enriched slug is somehow absent.
+    // University-type orgs get NO prefill: their org.uni is their OWN slug
+    // (campus branding), not a parent campus — seeding it into the chip would
+    // make a type flip to club silently save a self-referential university_id.
+    const uniSlug = org.type === 'university' ? '' : (org.uni
+      || (org.university_id && uniById[org.university_id] ? uniById[org.university_id].slug : ''));
 
     const initialValues = {
       name: org.name || '',
@@ -74,11 +85,32 @@ import { orgService } from '../services/orgService'
       setSubmitting(true);
       setSubmitError('');
 
-      const uniRow = values.uni ? universities.find((u) => u.slug === values.uni) : null;
+      // Exclude the org's own row: an ex-university org must never become its
+      // own parent campus (a self-referential FK the flyer can't resolve).
+      const uniRow = values.uni
+        ? universities.find((u) => u.slug === values.uni && u.id !== org.id)
+        : null;
+      const campusChanged = values.uni !== (initialValues.uni || '');
+
+      // Setting/switching to a real campus needs the seed list to translate
+      // the slug → university_id. If that mapping isn't available — list
+      // failed, still loading, empty (unseeded stack), or slug missing —
+      // refuse the change with a clear message rather than silently saving
+      // the wrong campus. Clearing needs no list, so it's allowed; an
+      // untouched campus is preserved as-is below. Every other field saves.
+      if (campusChanged && values.uni && !uniRow) {
+        setSubmitting(false);
+        setSubmitError("Couldn't load campuses just now — refresh and try again to change your campus.");
+        return;
+      }
+
       const updates = {
         name: values.name,
         type: values.type,
-        university_id: uniRow ? uniRow.id : null,
+        // Campus untouched → preserve the stored FK verbatim (immune to a
+        // slow/failed/empty list on unrelated saves). Changed → the guard
+        // above guarantees uniRow when a campus was picked; cleared → null.
+        university_id: campusChanged ? (values.uni ? uniRow.id : null) : org.university_id,
         bio: values.bio,
         location: values.location,
         website: values.website,
@@ -95,7 +127,17 @@ import { orgService } from '../services/orgService'
         setSubmitError(error.message || 'Could not save changes. Try again.');
         return;
       }
-      onSaved && onSaved(data);
+      // Keep the dashboard flyer's campus mark. A changed campus passed the
+      // guard, so the fresh list resolves it. Untouched → the FK was preserved
+      // verbatim, so reuse the already-resolved slug when a parent survives
+      // (immune to an empty/failed list); resolveOrgUniSlug still covers the
+      // university-type (own slug) and cleared cases.
+      onSaved && onSaved({
+        ...data,
+        uni: campusChanged
+          ? resolveOrgUniSlug(data, universities)
+          : (data.university_id ? org.uni : resolveOrgUniSlug(data, universities)),
+      });
     }
 
     return React.createElement(OrgForm, {

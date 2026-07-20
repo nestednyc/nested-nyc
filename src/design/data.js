@@ -50,6 +50,21 @@
     return !!uniByEmailDomain(email);
   }
 
+  // An org row's campus → client-taxonomy UNI slug (the color + logo key), or
+  // null when it maps to no known campus. A university-type org keys off its own
+  // slug; a club/other keys off university_id via the loaded universities list.
+  // Single source of truth so the `uni` enrichment can't drift between the
+  // adopt paths (hydrateSession, orgView, and org create/edit all call this).
+  function resolveOrgUniSlug(org, universities) {
+    if (!org) return null;
+    if (org.type === "university" && UNI[org.slug]) return org.slug;
+    if (org.university_id) {
+      const parent = (universities || []).find((u) => u.id === org.university_id);
+      return parent && UNI[parent.slug] ? parent.slug : null;
+    }
+    return null;
+  }
+
   const MAJORS = [
     "Computer Science", "Design / Comm Design", "Business", "Mechanical Eng",
     "Economics", "Fine Arts", "Data Science", "Architecture", "Film / Media",
@@ -92,6 +107,25 @@
     if (parts.length === 0) return "";
     if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
     return (parts[0][0] + parts[1][0]).toUpperCase();
+  };
+
+  // Usernames are stored bare — the "@" is display-only (DB constraint
+  // profiles_username_no_leading_at). Legacy rows may still carry a leading
+  // "@"; strip before prefixing so nothing renders "@@handle".
+  const bareHandle = (username) => String(username || "").replace(/^@+/, "");
+
+  // Username-led person label — the ONE rule for notification emails and the
+  // denormalised team_members.name snapshots: "@handle" when the account has
+  // a username, else the real name, else `fallback`. Reads BOTH row shapes:
+  // DB profiles (first_name/last_name) and cork-board profiles
+  // (firstName/lastName). In-app LIVE display deliberately stays with
+  // projectAdapter.memberIdentity (full-name-first) — do not reroute it here.
+  const personLabel = (p, fallback = "Someone") => {
+    const u = bareHandle(p && p.username);
+    if (u) return "@" + u;
+    const name = [p && (p.first_name || p.firstName), p && (p.last_name || p.lastName)]
+      .filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
+    return name || fallback;
   };
 
   const EVENT_TYPES = [
@@ -213,7 +247,8 @@
     LINK_ICON, avColor, initials, findById, orgEventsOf, sortByDay,
     ownerToken, isProjectAdmin, isProjectOwner, projectAdminSet, coLeadsOf,
     STATUSES, STATUS, statusMeta, DEFAULT_STATUS,
-    uniByEmailDomain, isSupportedEduEmail,
+    uniByEmailDomain, isSupportedEduEmail, resolveOrgUniSlug,
+    bareHandle, personLabel,
   };
 
   export const NestedData = {

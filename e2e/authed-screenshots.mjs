@@ -10,6 +10,7 @@
 import { chromium } from 'playwright';
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
+import { headlessLogin } from './_login.mjs';
 
 const BASE = process.env.BASE_URL || 'http://localhost:5173';
 const OUT = process.env.OUT_DIR || path.join(process.cwd(), 'e2e', 'shots');
@@ -48,13 +49,8 @@ async function run() {
     const errors = [];
     page.on('pageerror', (e) => errors.push('pageerror: ' + e.message.slice(0, 200)));
 
-    // Headless login via the app's own client singleton.
-    await page.goto(BASE + '/', { waitUntil: 'domcontentloaded' });
-    const loginRes = await page.evaluate(async ({ email, pass }) => {
-      const m = await import('/src/lib/supabase.js');
-      const r = await m.authService.signInWithEmailPassword(email, pass);
-      return r && r.error ? ('ERR: ' + (r.error.message || JSON.stringify(r.error))) : 'OK';
-    }, { email: EMAIL, pass: PASS });
+    // Headless login via the app's own client singleton (shared e2e/_login.mjs).
+    const loginRes = await headlessLogin(page, BASE, EMAIL, PASS);
     console.log(`[${vp.tag}] login: ${loginRes}`);
 
     for (const r of ROUTES) {

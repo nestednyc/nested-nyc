@@ -10,7 +10,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node --test src/design/router.test.js src/design/messageAdapter.test.js"
+    "test": "node --test src/design/router.test.js src/design/messageAdapter.test.js src/design/data.test.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.78.0",

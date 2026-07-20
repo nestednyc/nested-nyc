@@ -160,7 +160,6 @@ import { lookupService } from '../services/lookupService'
     const mobHead = React.createElement(React.Fragment, null,
       React.createElement("div", { className: "onb-mobhead" },
         React.createElement("div", { className: "brand" },
-          React.createElement("span", { className: "mark" }, "N"),
           React.createElement("span", { className: "name" }, "Nested", React.createElement("span", null, "."))
         ),
         React.createElement("p", { className: "onb-mobpitch" }, "The shared events calendar for every NYC campus.")
@@ -175,7 +174,6 @@ import { lookupService } from '../services/lookupService'
           React.createElement("div", { className: "onb-aside corkbg grain" },
             React.createElement("div", { className: "a-top" },
               React.createElement("div", { className: "brand" },
-                React.createElement("span", { className: "mark" }, "N"),
                 React.createElement("span", { className: "name" }, "Nested", React.createElement("span", null, "."))
               ),
               React.createElement("button", { className: "ghost-link", onClick: onBack, style: { fontSize: 13 } },
@@ -235,7 +233,6 @@ import { lookupService } from '../services/lookupService'
         React.createElement("div", { className: "onb-aside corkbg grain" },
           React.createElement("div", { className: "a-top" },
             React.createElement("div", { className: "brand" },
-              React.createElement("span", { className: "mark" }, "N"),
               React.createElement("span", { className: "name" }, "Nested", React.createElement("span", null, "."))
             ),
             React.createElement("button", { className: "ghost-link", onClick: onBack, style: { fontSize: 13 } },

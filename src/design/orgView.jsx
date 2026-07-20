@@ -9,7 +9,6 @@ import React from 'react'
 import OrgProfile from './orgProfile'
 import { orgService } from '../services/orgService'
 import { formatEventDate } from './shared'
-import { UNI } from './data'
 
   const { useState, useEffect } = React;
 
@@ -48,18 +47,11 @@ import { UNI } from './data'
           setLoading(false);
           return;
         }
-        // Resolve the org's campus → UNI slug so the poster can show the campus
-        // color + logo (the DB row carries university_id, not a uni slug).
-        let uni = null;
-        if (orgRow.type === 'university' && UNI[orgRow.slug]) {
-          uni = orgRow.slug;
-        } else if (orgRow.university_id) {
-          const { data: unis } = await orgService.listUniversities();
-          if (cancelled) return;
-          const parent = (unis || []).find((u) => u.id === orgRow.university_id);
-          if (parent && UNI[parent.slug]) uni = parent.slug;
-        }
-        setOrg({ ...orgRow, uni });
+        // Campus → UNI slug so the poster can show the campus color + logo;
+        // resolution lives in orgService.withUniSlug.
+        const enriched = await orgService.withUniSlug(orgRow);
+        if (cancelled) return;
+        setOrg(enriched);
         const { data: evs } = await orgService.getOrgEvents(orgRow.id);
         if (cancelled) return;
         setEvents((evs || []).map(adaptEventForRow));

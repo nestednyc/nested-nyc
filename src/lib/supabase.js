@@ -198,7 +198,7 @@ export const authService = {
     if (!formatValidation.valid) return formatValidation
 
     // Student-only network: require a SUPPORTED NYC-university email (allow-list
-    // in data.jsx UNIVERSITIES[].domain, subdomain-aware so baruch.cuny.edu
+    // in data.js UNIVERSITIES[].domain, subdomain-aware so baruch.cuny.edu
     // passes). Org admins sign up via signUpAsOrg(), which skips this; the
     // handle_new_user trigger enforces the same allow-list server-side. Sign-in
     // stays format-only so accounts created before the allow-list aren't locked out.

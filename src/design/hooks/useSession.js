@@ -28,7 +28,6 @@
      is a flagged follow-up at this seam.
    ============================================================ */
 import React from 'react'
-import { NestedData } from '../data'
 import { isSupabaseConfigured, authService, supabase } from '../../lib/supabase'
 import { profileService } from '../../services/profileService'
 import { orgService } from '../../services/orgService'
@@ -143,18 +142,10 @@ export function useSession({
     if (aborted()) return;
     let ownedOrg = (myOrgs.data && myOrgs.data[0]) || null;
     if (ownedOrg) {
-      // Resolve campus → UNI slug for the dashboard flyer echo (color + logo);
-      // the DB row carries university_id, not a uni slug.
-      let orgUni = null;
-      if (ownedOrg.type === 'university' && NestedData.UNI[ownedOrg.slug]) {
-        orgUni = ownedOrg.slug;
-      } else if (ownedOrg.university_id) {
-        const { data: unis } = await orgService.listUniversities();
-        if (aborted()) return;
-        const parent = (unis || []).find((u) => u.id === ownedOrg.university_id);
-        if (parent && NestedData.UNI[parent.slug]) orgUni = parent.slug;
-      }
-      ownedOrg = { ...ownedOrg, uni: orgUni };
+      // Campus → UNI slug for the dashboard flyer echo (color + logo);
+      // resolution lives in orgService.withUniSlug.
+      ownedOrg = await orgService.withUniSlug(ownedOrg);
+      if (aborted()) return;
       setOrgAccount(ownedOrg);
       orgAccountRef.current = ownedOrg; // applyParsed below must see it NOW
       if (cb) {

@@ -45,7 +45,7 @@ Access classes live in router.js (`accessOf`): **public** (discover, events, eve
 ### Auth
 
 - Client: implicit flow, `persistSession`, `detectSessionInUrl` (`src/lib/supabase.js`, which exports the client + `authService`).
-- **Students must use a supported NYC-university email** — not just any `.edu`: since `20260625000002` the `handle_new_user` trigger checks a domain **allowlist** (`is_supported_edu_email`: the `UNIVERSITIES[].domain` entries from `data.jsx`, exact or subdomain match — keep the SQL list in sync with `data.jsx`). Mirrored client-side by `authService.validateEduEmail`; `account_type = 'org_admin'` signups are exempt and existing users are grandfathered.
+- **Students must use a supported NYC-university email** — not just any `.edu`: since `20260625000002` the `handle_new_user` trigger checks a domain **allowlist** (`is_supported_edu_email`: the `UNIVERSITIES[].domain` entries from `data.js`, exact or subdomain match — keep the SQL list in sync with `data.js`). Mirrored client-side by `authService.validateEduEmail`; `account_type = 'org_admin'` signups are exempt and existing users are grandfathered.
 - **Orgs** sign up via `authService.signUpAsOrg()` (no `.edu` requirement) and land on `orgDashboard`.
 - Supabase emails (confirm / magic link / recovery) link to `/auth/confirm` and `/auth/reset`, optionally carrying `?next=<internal path>` (signup forwards a stashed returnTo; org signup sends `next=/org/onboarding`). These are **not React routes** — the SPA fallback serves the app, the boot parse freezes the URL mirror (`authCallbackRef`), `detectSessionInUrl` consumes the token hash, and `hydrateSession()` routes the fresh session: validated `next` → that page; org owner → `orgDashboard`; mid-onboarding → `onboarding`/`orgOnboarding`; otherwise the URL/`/`. Dead links toast and fall home. **Prod requires** Supabase Auth → URL Configuration → Redirect URLs to cover `https://nested.social/*`, else GoTrue drops the `?next=` param.
 - Supported methods: email + password, magic link / 6-digit OTP, password reset.
@@ -79,7 +79,7 @@ src/
 │   ├── org*.jsx                                               # org account screens
 │   ├── shared.jsx       # shared UI primitives
 │   ├── icons.jsx        # custom SVG icon set — do NOT add lucide
-│   ├── data.jsx         # taxonomy constants (CATEGORIES, UNIVERSITIES, MAJORS,
+│   ├── data.js          # taxonomy constants (CATEGORIES, UNIVERSITIES, MAJORS,
 │   │                    #   SKILLS, EVENT_TYPES…) — NOT mock data
 │   ├── *Adapter.js      # pure DB-row ↔ UI-shape transforms (project/profile/people/message)
 │   ├── styles.css       # all styling: tokens, surfaces, responsive rules
@@ -186,12 +186,12 @@ npm install
 npm run dev        # localhost:5173
 npm run build      # production build → dist/
 npm run preview
-npm test           # node --test: router.test.js + messageAdapter.test.js
+npm test           # node --test: router.test.js + messageAdapter.test.js + data.test.js
 ```
 
 - Env (`.env`, see `.env.example`): `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`.
 - Local Supabase stack via the CLI/Docker (`supabase/config.toml`): API :54321, DB :54322, Studio :54323; email confirmations auto-pass locally.
-- **Tests cover only the two pure modules** (`router.js`, `messageAdapter.js`) via `node --test` — no framework. Everything else is verified manually in the browser (Playwright is a devDependency for ad-hoc verification scripts, not a checked-in suite).
+- **Tests cover only the pure modules** (`router.js`, `messageAdapter.js`, and `data.js`'s `resolveOrgUniSlug`) via `node --test` — no framework. Everything else is verified manually in the browser (Playwright is a devDependency for ad-hoc verification scripts, not a checked-in suite).
 
 ## Deployment
 

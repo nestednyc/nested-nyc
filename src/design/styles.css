@@ -129,6 +129,9 @@ input, textarea, select { font-family: inherit; }
   display: none;
   width: 34px; height: 34px;
   place-items: center;
+  /* Two grid items ("N" text run + the accent-dot span) must flow as columns —
+     default row auto-flow stacks the dot underneath and overflows the box. */
+  grid-auto-flow: column;
   flex: none;
   color: var(--ink); font-family: var(--disp); font-weight: 800;
   font-size: 22px; line-height: 1;
