@@ -71,24 +71,3 @@ test('titleFor messageThread shows the peer handle, falls back to Messages', () 
   assert.ok(withName.endsWith('Nested NYC'));
   assert.equal(titleFor('messageThread', {}), titleFor('messages'));
 });
-
-// ---- Brand showcase: /brand (internal logo preview) ----
-
-test('parse("/brand") → the brand route, no params', () => {
-  const r = parse('/brand', '');
-  assert.equal(r.route, 'brand');
-  assert.deepEqual(r.params, {});
-});
-
-test('/brand round-trips through build∘parse', () => {
-  assert.equal(build('brand', {}), '/brand');
-  assert.equal(parse(build('brand', {}), '').route, 'brand');
-});
-
-test('brand is public (anonymously browsable)', () => {
-  assert.equal(accessOf('brand'), 'public');
-});
-
-test('titleFor("brand") → "Brand · Nested NYC"', () => {
-  assert.equal(titleFor('brand'), 'Brand · Nested NYC');
-});

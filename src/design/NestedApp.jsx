@@ -699,9 +699,6 @@ import { useOrg } from './hooks/useOrg'
     // screens. Fall-through order and the compound conditions are load-bearing
     // (a failed condition falls through to the student shell).
 
-    // ---------- BRAND SHOWCASE (internal logo preview, standalone) ----------
-    if (route === "brand") return React.createElement(FullScreens, { screen: "brand", api });
-
     // ---------- ONBOARDING (full-screen, no topbar) ----------
     if (route === "onboarding") return React.createElement(FullScreens, { screen: "onboarding", api });
 

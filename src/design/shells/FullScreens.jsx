@@ -1,8 +1,7 @@
 /* ============================================================
    FullScreens — the full-screen routes (no topbar): the auth
-   flows, org onboarding/edit, event create/edit, project
-   create/edit, and the standalone brand preview. Render-only:
-   every guard (skeleton hold,
+   flows, org onboarding/edit, event create/edit, and project
+   create/edit. Render-only: every guard (skeleton hold,
    missing-draft bounce, admin bounce) stays in NestedApp's
    dispatch — those run render-phase corrections that must not
    execute in a child component. `draft` / `editProject` arrive
@@ -17,7 +16,6 @@ import OrgEdit from '../orgEdit'
 import EventForm from '../eventForm'
 import Create from '../create'
 import Edit from '../edit'
-import BrandShowcase from '../brandShowcase'
 import { Toasts } from '../shared'
 import { StyleTweaks } from '../tweaks-panel'
 import { parse as parseLocation } from '../router'
@@ -44,13 +42,6 @@ export default function FullScreens({ screen, draft, editProject, api }) {
       React.createElement(StyleTweaks, { t, setTweak })
     )
   );
-
-  // Standalone page, deliberately unframed: it brings its own background and
-  // typography (the marks are judged on neutral ground, not on cork), and
-  // nothing on it can raise a toast or want the tweaks panel.
-  if (screen === "brand") {
-      return React.createElement(BrandShowcase, null);
-  }
 
   if (screen === "onboarding") {
       return frame(
