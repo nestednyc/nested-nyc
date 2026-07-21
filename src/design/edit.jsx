@@ -6,7 +6,7 @@
    ============================================================ */
 import React from 'react'
 import Icon from './icons'
-import { CAT, UNI, isProjectOwner } from './data'
+import { CAT, isProjectOwner, cleanProjectLinks } from './data'
 import { Av, Facepile, CatTag, Pin, ConfirmModal } from './shared'
 import ProjectForm from './projectForm'
 
@@ -29,6 +29,7 @@ import ProjectForm from './projectForm'
       pinType: p.pinType || "tape",
       flyerColor: p.flyerColor || "",
       commLink: p.communicationLink || "",
+      links: Array.isArray(p.links) ? [...p.links] : [],
     };
   }
 
@@ -52,13 +53,13 @@ import ProjectForm from './projectForm'
       pinType: v.pinType || "tape",
       flyerColor: v.flyerColor || "",
       commLink: (v.commLink || "").trim(),
+      // urls only — label/kind are derived, so they can't make a no-op look dirty
+      links: cleanProjectLinks(v.links).map((l) => l.url),
     };
   }
 
   function buildEditAside({ project, profile, onCancel }) {
     const cat = project.cat ? CAT[project.cat] : CAT.startup;
-    const uniName = (project.uni && UNI[project.uni]) ? UNI[project.uni].name
-      : (profile && profile.uni && UNI[profile.uni]) ? UNI[profile.uni].name : "Nested";
     const openRoles = (project.roles || []).filter((r) => r.open).slice(0, 3);
     const openCount = (project.roles || []).filter((r) => r.open).length;
     const isTape = (project.pinType || "tape") === "tape";
@@ -89,7 +90,6 @@ import ProjectForm from './projectForm'
                 : React.createElement(Pin, null),
               React.createElement("div", { className: "cat-bar", style: { background: project.flyerColor || cat.color } }),
               React.createElement("div", { className: "body" },
-                React.createElement("div", { className: "stamp-meta" }, uniName),
                 React.createElement(CatTag, { cat }),
                 React.createElement("h3", null, project.title || "Your project"),
                 React.createElement("p", { className: "blurb" }, project.blurb || ""),
@@ -166,6 +166,7 @@ import ProjectForm from './projectForm'
         stage: values.stage,
         commitment: values.commitment,
         communicationLink: values.commLink,
+        links: values.links,
         updatedAt: new Date().toISOString(),
       };
     }

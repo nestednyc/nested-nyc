@@ -99,6 +99,7 @@ import ProjectForm from './projectForm'
         stage: values.stage,
         commitment: values.commitment,
         communicationLink: values.commLink,
+        links: values.links,
         // Live, owner-updatable pulse — flipped inline from the project page.
         status: DEFAULT_STATUS,
         alert: "",

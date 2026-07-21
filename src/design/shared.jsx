@@ -3,7 +3,7 @@
    ============================================================ */
 import React from 'react'
 import Icon from './icons'
-import { avColor, initials, UNI, ORG_TYPES } from './data'
+import { avColor, initials, UNI, ORG_TYPES, LINK_ICON, detectProjectLink, PROJECT_LINK_MAX } from './data'
 import { SHOW_EVENTS } from '../config/features'
 
   const { useState, useRef } = React;
@@ -72,6 +72,55 @@ import { SHOW_EVENTS } from '../config/features'
         React.createElement("text", { x: 60, y: 50, textAnchor: "middle", fontFamily: "Spline Sans Mono, monospace", fontSize: 14, fontWeight: 600, fill: "var(--accent)", letterSpacing: 1 }, ".EDU"),
         React.createElement("text", { x: 60, y: 68, textAnchor: "middle", fontFamily: "Spline Sans Mono, monospace", fontSize: 9, fill: "var(--accent)", letterSpacing: 1 }, "VERIFIED"),
         React.createElement("text", { x: 60, y: 82, textAnchor: "middle", fontFamily: "Spline Sans Mono, monospace", fontSize: 7, fill: "var(--accent)", letterSpacing: 1.5 }, label)
+      )
+    );
+  }
+
+  /* Shared links builder — the rows both the project form (step 5) and the
+     org form (step 2) render. The owning form holds the state as raw strings
+     (cleanProjectLinks normalizes on submit); this renders rows with a live
+     brand chip (detectProjectLink) + add/remove, keeping the ≥1-row invariant.
+     Styling piggybacks the role-builder chrome (see .link-builder in styles). */
+  function linkRowsFrom(list) {
+    const rows = (Array.isArray(list) ? list : [])
+      .map((l) => (typeof l === "string" ? l : (l && l.url) || ""))
+      .filter(Boolean);
+    return rows.length ? rows : [""];
+  }
+
+  function LinkRows({ links, setLinks, placeholders = [] }) {
+    function update(i, val) { setLinks(links.map((v, idx) => (idx === i ? val : v))); }
+    function add() { if (links.length < PROJECT_LINK_MAX) setLinks([...links, ""]); }
+    function remove(i) { setLinks(links.length <= 1 ? [""] : links.filter((_, idx) => idx !== i)); }
+    const emptySingle = links.length <= 1 && !links[0];
+    return (
+      React.createElement("div", { className: "role-builder link-builder" },
+        links.map((v, i) => {
+          const hit = detectProjectLink(v);
+          return React.createElement("div", { className: "row", key: i },
+            React.createElement("input", {
+              placeholder: placeholders[Math.min(i, Math.max(0, placeholders.length - 1))] || "https://…",
+              value: v,
+              maxLength: 300,
+              onChange: (e) => update(i, e.target.value),
+            }),
+            hit && React.createElement("span", { className: "lb-brand", title: hit.url },
+              React.createElement(Icon, { name: LINK_ICON[hit.kind] || "external", size: 13 }),
+              hit.label
+            ),
+            React.createElement("button", {
+              type: "button",
+              className: "rb-x",
+              title: "Remove link",
+              onClick: () => remove(i),
+              disabled: emptySingle,
+              style: emptySingle ? { opacity: 0.3, pointerEvents: "none" } : {},
+            }, React.createElement(Icon, { name: "x", size: 14 }))
+          );
+        }),
+        links.length < PROJECT_LINK_MAX && React.createElement("button", { type: "button", className: "add", onClick: add },
+          React.createElement(Icon, { name: "plus", size: 14 }), "Add another link"
+        )
       )
     );
   }
@@ -361,7 +410,7 @@ import { SHOW_EVENTS } from '../config/features'
     );
   }
 
-  export { Av, Facepile, CatTag, Pin, Stamp, Toasts, UniLogo, formatEventDate, Skeleton, CodeBoxes, ConfirmModal, OrgMini, Polaroid, resizePhoto, LINK_KINDS };
+  export { Av, Facepile, CatTag, Pin, Stamp, Toasts, UniLogo, formatEventDate, Skeleton, CodeBoxes, ConfirmModal, OrgMini, Polaroid, resizePhoto, LINK_KINDS, LinkRows, linkRowsFrom };
 
   // Top-bar tabs — shared by NestedApp's goNav, the StudentShell topbar,
   // and SoonPane's icon lookup.

@@ -67,8 +67,7 @@ import { useUniversitiesList } from './useUniversitiesList'
         university_id: uniRow ? uniRow.id : null,
         bio: values.bio,
         location: values.location,
-        website: values.website,
-        instagram: values.instagram,
+        links: values.links,
       });
 
       if (error) {

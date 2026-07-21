@@ -6,8 +6,8 @@
    ============================================================ */
 import React from 'react'
 import Icon from './icons'
-import { ORG_TYPES, UNIVERSITIES } from './data'
-import { Stamp, UniLogo, OrgMini } from './shared'
+import { ORG_TYPES, UNIVERSITIES, cleanProjectLinks } from './data'
+import { Stamp, UniLogo, OrgMini, LinkRows, linkRowsFrom } from './shared'
 
   const { useState } = React;
 
@@ -19,8 +19,7 @@ import { Stamp, UniLogo, OrgMini } from './shared'
     uni: "",
     bio: "",
     location: "",
-    website: "",
-    instagram: "",
+    links: [],
   };
 
   // Step-3 preview / aside mirror — the shared org flyer rendered with the
@@ -47,8 +46,9 @@ import { Stamp, UniLogo, OrgMini } from './shared'
     const [uni, setUni] = useState(init.uni || (profile && profile.uni) || "");
     const [bio, setBio] = useState(init.bio);
     const [location, setLocation] = useState(init.location);
-    const [website, setWebsite] = useState(init.website);
-    const [instagram, setInstagram] = useState(init.instagram);
+    // Links edit as raw strings (edit mode hands us {kind,url} rows); the
+    // builder always shows ≥1 row and blanks drop on submit.
+    const [links, setLinks] = useState(linkRowsFrom(init.links));
 
     const editable = mode === "edit";
     const cta = ctaCopy || { primary: "Pin your org", icon: "check" };
@@ -77,12 +77,13 @@ import { Stamp, UniLogo, OrgMini } from './shared'
         uni: showUni ? uni : "",
         bio: bio.trim(),
         location: location.trim(),
-        website: website.trim(),
-        instagram: instagram.replace(/^@/, "").trim(),
+        // Store only {kind, url} — label/icon re-derive on read. Both the
+        // onboard and edit wrappers inherit the strip from this one place.
+        links: cleanProjectLinks(links).map(({ kind, url }) => ({ kind, url })),
       });
     }
 
-    const currentValues = { name, type, uni: showUni ? uni : "", bio, location, website, instagram };
+    const currentValues = { name, type, uni: showUni ? uni : "", bio, location, links };
 
     // ---------- step bodies ----------
     let body;
@@ -173,27 +174,12 @@ import { Stamp, UniLogo, OrgMini } from './shared'
           ),
 
           React.createElement("div", { className: "field", style: { marginTop: 22 } },
-            React.createElement("label", null, "Website ", React.createElement("span", { style: { fontFamily: "var(--mono)", fontSize: 11, color: "var(--ink-faint)", fontWeight: 400 } }, "· optional")),
-            React.createElement("div", { className: "input-wrap" },
-              React.createElement(Icon, { name: "globe", size: 17 }),
-              React.createElement("input", {
-                placeholder: "https://your-org.club",
-                value: website,
-                onChange: (e) => setWebsite(e.target.value),
-              })
-            )
-          ),
-
-          React.createElement("div", { className: "field", style: { marginTop: 22 } },
-            React.createElement("label", null, "Instagram ", React.createElement("span", { style: { fontFamily: "var(--mono)", fontSize: 11, color: "var(--ink-faint)", fontWeight: 400 } }, "· optional")),
-            React.createElement("div", { className: "input-wrap" },
-              React.createElement(Icon, { name: "camera", size: 17 }),
-              React.createElement("input", {
-                placeholder: "your.org",
-                value: instagram,
-                onChange: (e) => setInstagram(e.target.value),
-              })
-            )
+            React.createElement("label", null, "Links ", React.createElement("span", { style: { fontFamily: "var(--mono)", fontSize: 11, color: "var(--ink-faint)", fontWeight: 400 } }, "· optional")),
+            React.createElement(LinkRows, {
+              links, setLinks,
+              placeholders: ["https://your-org.club", "@your.org"],
+            }),
+            React.createElement("div", { className: "hint" }, "// your site, @instagram, Discord, Linktree — students see these on your page")
           )
         )
       );

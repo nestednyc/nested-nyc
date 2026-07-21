@@ -129,7 +129,6 @@ import { Facepile, CatTag, Pin, Skeleton } from './shared'
 
         React.createElement("div", { className: "cat-bar", style: { background: p.flyerColor || cat.color } }),
         React.createElement("div", { className: "body" },
-          React.createElement("div", { className: "stamp-meta" }, UNI[p.uni].name),
           React.createElement(CatTag, { cat }),
           React.createElement("h3", null, p.title),
           React.createElement("p", { className: "blurb" }, p.blurb),

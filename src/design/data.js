@@ -174,7 +174,95 @@
     site: "globe", portfolio: "globe", github: "code", linkedin: "external",
     instagram: "camera", email: "mail", calendly: "calendar", twitter: "external",
     dribbble: "palette", figma: "palette", substack: "mail", read: "globe",
+    // project-link platforms (detectProjectLink) beyond the profile set
+    gitlab: "code", tiktok: "camera", youtube: "camera", discord: "chat",
+    slack: "chat", appstore: "download", playstore: "download", devpost: "code",
+    notion: "file", behance: "palette", medium: "pencil", itch: "sparkle",
+    twitch: "camera", linktree: "link",
   };
+
+  /* ── Project links ("find it online") ─────────────────────────────
+     Public links on a flyer: the project's website, app-store page,
+     socials — wherever it lives online. One paste-anything resolver:
+     raw input → { kind, label, url } with an https-normalized url, or
+     null when it isn't a usable http(s) URL. Known platforms brand the
+     pill (label + LINK_ICON[kind]); any other host reads as its bare
+     domain, which is just as telling on a flyer.                       */
+  const PROJECT_LINK_MAX = 4;
+  const LINK_BRANDS = [
+    ["instagram.com", "instagram", "Instagram"],
+    ["github.com", "github", "GitHub"],
+    ["gitlab.com", "gitlab", "GitLab"],
+    ["linkedin.com", "linkedin", "LinkedIn"],
+    ["twitter.com", "twitter", "X / Twitter"],
+    ["x.com", "twitter", "X / Twitter"],
+    ["tiktok.com", "tiktok", "TikTok"],
+    ["youtube.com", "youtube", "YouTube"],
+    ["youtu.be", "youtube", "YouTube"],
+    ["discord.gg", "discord", "Discord"],
+    ["discord.com", "discord", "Discord"],
+    ["slack.com", "slack", "Slack"],
+    ["apps.apple.com", "appstore", "App Store"],
+    ["testflight.apple.com", "appstore", "TestFlight"],
+    ["play.google.com", "playstore", "Google Play"],
+    ["devpost.com", "devpost", "Devpost"],
+    ["substack.com", "substack", "Substack"],
+    ["notion.so", "notion", "Notion"],
+    ["notion.site", "notion", "Notion"],
+    ["figma.com", "figma", "Figma"],
+    ["dribbble.com", "dribbble", "Dribbble"],
+    ["behance.net", "behance", "Behance"],
+    ["medium.com", "medium", "Medium"],
+    ["itch.io", "itch", "itch.io"],
+    ["twitch.tv", "twitch", "Twitch"],
+    ["linktr.ee", "linktree", "Linktree"],
+  ];
+  function detectProjectLink(input) {
+    const raw = (typeof input === "string" ? input : "").trim();
+    if (!raw || raw.length > 300) return null;
+    // A bare "@handle" reads as an Instagram handle (org muscle memory from
+    // the old fixed field). Must run BEFORE the URL parse: WHATWG would parse
+    // the @ as empty userinfo and misdetect it as a site. IG charset, 1–30
+    // chars, no leading/trailing dot; the canonical URL dedupes against a
+    // pasted instagram.com/<handle> link.
+    const handle = raw.match(/^@([a-z0-9_](?:[a-z0-9._]{0,28}[a-z0-9_])?)$/i);
+    if (handle) {
+      return { kind: "instagram", label: "Instagram", url: "https://instagram.com/" + handle[1] };
+    }
+    // Scheme detection deliberately excludes "." from the scheme charset:
+    // no real scheme contains a dot, but "mysite.com:3000" would otherwise
+    // read as scheme "mysite.com:" and get silently dropped instead of
+    // https-prefixed.
+    const withScheme = /^[a-z][a-z0-9+-]*:/i.test(raw) ? raw : "https://" + raw;
+    let u;
+    try { u = new URL(withScheme); } catch (e) { return null; }
+    if (u.protocol !== "https:" && u.protocol !== "http:") return null;
+    const host = u.hostname.toLowerCase();
+    if (!host.includes(".")) return null;
+    const bare = host.replace(/^www\./, "");
+    const hit = LINK_BRANDS.find(([d]) => bare === d || bare.endsWith("." + d));
+    return {
+      kind: hit ? hit[1] : "site",
+      label: hit ? hit[2] : bare,
+      url: withScheme,
+    };
+  }
+  // Any mix of raw strings / {url} rows → clean [{kind, label, url}]:
+  // invalid entries dropped, duplicates collapsed (by url), capped at
+  // PROJECT_LINK_MAX. The one normalizer every surface routes through —
+  // the form on submit, the adapter in BOTH directions — so the shape
+  // can't drift between what's typed, stored, and rendered.
+  function cleanProjectLinks(list) {
+    const out = [];
+    const seen = new Set();
+    (Array.isArray(list) ? list : []).forEach((item) => {
+      const l = detectProjectLink(typeof item === "string" ? item : item && item.url);
+      if (!l || seen.has(l.url)) return;
+      seen.add(l.url);
+      out.push(l);
+    });
+    return out.slice(0, PROJECT_LINK_MAX);
+  }
 
   /* ── Project status ───────────────────────────────────────────────
      The live, owner-updatable pulse of a project. Distinct from `stage`
@@ -249,6 +337,7 @@
     STATUSES, STATUS, statusMeta, DEFAULT_STATUS,
     uniByEmailDomain, isSupportedEduEmail, resolveOrgUniSlug,
     bareHandle, personLabel,
+    detectProjectLink, cleanProjectLinks, PROJECT_LINK_MAX,
   };
 
   export const NestedData = {

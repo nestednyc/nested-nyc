@@ -102,11 +102,11 @@ Migrations live in `supabase/migrations/`, applied in order. ⚠️ Prod migrati
 | Table | Purpose |
 |---|---|
 | `profiles` | one row per auth user: identity, skills, photos, `account_type` (`student` / `org_admin`), links |
-| `projects` | cork-board postings: category, stage/status, roles (JSONB), flyer styling (`pin_type`, `rot`, `flyer_color`) |
+| `projects` | cork-board postings: category, stage/status, roles (JSONB), public `links` (JSONB `{kind,url}` rows — the "Find it online" pills), flyer styling (`pin_type`, `rot`, `flyer_color`) |
 | `team_members` | join requests + team slots: `status` pending/approved/rejected, request `message` |
 | `events` | campus events owned by orgs (`organization_id`), typed via `event_type` |
 | `event_registrations` | RSVPs (user × event) |
-| `organizations` | universities + clubs: unique `slug`, `verified` flag (admin-only) |
+| `organizations` | universities + clubs: unique `slug`, `verified` flag (admin-only), public `links` JSONB `{kind,url}` rows (legacy `website`/`instagram` kept but no longer written) |
 | `org_members` | org owner/admin junction |
 | `connections` | directed student→student edges (PK `user_id, target_id`) |
 | `saved_projects` | bookmarks (unique `user_id, project_id`) |

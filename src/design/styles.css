@@ -457,7 +457,6 @@ input, textarea, select { font-family: inherit; }
 .joined-by { display: flex; align-items: center; gap: 9px; min-width: 0; }
 .joined-by .txt { font-family: var(--mono); font-size: 11px; color: var(--ink-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-.flyer .stamp-meta { position: absolute; top: 14px; right: 16px; font-family: var(--mono); font-size: 10px; color: var(--ink-faint); z-index: 2; }
 
 /* buttons */
 .btn {
@@ -1211,6 +1210,26 @@ input, textarea, select { font-family: inherit; }
   transition: all .15s;
 }
 .role-builder .add:hover { border-color: var(--accent); color: var(--accent); }
+
+/* project "find it online" links — piggybacks the role-builder chrome
+   (rows, inputs, .rb-x, .add); only the column layout + brand chip differ */
+.link-builder .row { grid-template-columns: minmax(0, 1fr) auto auto; }
+.link-builder .lb-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 42px;
+  padding: 0 11px;
+  border: 1.5px solid var(--accent);
+  border-radius: 9px;
+  background: var(--accent-wash);
+  color: var(--accent-ink);
+  font-family: var(--mono);
+  font-size: 11.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.link-builder .lb-brand svg { flex: none; }
 
 /* live flyer preview at step 5 */
 .create-preview-wrap { display: flex; justify-content: center; padding: 6px 0 22px; }

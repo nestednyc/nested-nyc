@@ -13,15 +13,19 @@ import { UniLogo, Skeleton, Polaroid } from './shared'
 
   function LinkPill({ link }) {
     // email → mailto; instagram → canonical profile URL from the bare handle;
-    // everything else is a full https URL → open in a new tab.
+    // everything else is a full https URL → open in a new tab. An explicit
+    // link.url (project links, the team-chat pill) wins over deriving from
+    // the display label — the label is then a human caption, not an address.
     const isEmail = link.kind === "email";
-    const url = link.kind === "instagram"
-      ? "https://instagram.com/" + String(link.label).replace(/^@+/, "").trim()
-      : (/^https?:\/\//i.test(link.label) ? link.label : "https://" + link.label);
+    const raw = link.url
+      || (link.kind === "instagram"
+        ? "https://instagram.com/" + String(link.label).replace(/^@+/, "").trim()
+        : link.label);
+    const url = /^https?:\/\//i.test(raw) ? raw : "https://" + raw;
     const href = isEmail ? "mailto:" + link.label : url;
     return (
       React.createElement("a", {
-        className: "linkpill", href, title: link.label,
+        className: "linkpill", href, title: link.url || link.label,
         target: isEmail ? undefined : "_blank", rel: "noreferrer",
       },
         React.createElement(Icon, { name: LINK_ICON[link.kind] || "external", size: 15 }),
@@ -244,5 +248,5 @@ import { UniLogo, Skeleton, Polaroid } from './shared'
     );
   }
 
-  export { People, ContactLinks, PersonProfile };
+  export { People, ContactLinks, LinkPill, PersonProfile };
   export default People;

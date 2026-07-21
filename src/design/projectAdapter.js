@@ -5,7 +5,7 @@
    src/design/* (create.jsx / edit.jsx / detail.jsx / discover.jsx) and the
    snake_case `projects` row Supabase stores. No service calls in this file.
    ============================================================ */
-import { personLabel } from "./data";
+import { personLabel, cleanProjectLinks } from "./data";
 
 // Cork-board project → Supabase `projects` row payload (snake_case).
 // owner_id is injected by projectService.createProject, so we omit it here —
@@ -32,6 +32,9 @@ export function toDbProject(p, ownerId) {
     status: p.status || "idea",
     alert: p.alert || "",
     flyer_color: p.flyerColor || null,
+    // Store only {kind, url} — label/icon are re-derived on read so the
+    // brand table can evolve without stale rows.
+    links: cleanProjectLinks(p.links).map(({ kind, url }) => ({ kind, url })),
     tags: Array.isArray(p.tags) ? p.tags : [],
     admins,
     roles: Array.isArray(p.roles) ? p.roles : [],
@@ -110,6 +113,7 @@ export function fromDbProject(row) {
     rot: row.rot || "-2deg",
     pinType: row.pin_type || "tape",
     flyerColor: row.flyer_color || "",
+    links: cleanProjectLinks(row.links),
     tags: Array.isArray(row.tags) ? row.tags : [],
     roles: Array.isArray(row.roles) ? row.roles : [],
     // People who actually JOINED — excludes the owner, who LEADS the project

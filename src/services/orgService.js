@@ -132,8 +132,9 @@ export const orgService = {
       logo: input.logo ?? null,
       banner: input.banner ?? null,
       bio: input.bio ?? null,
-      website: input.website ?? null,
-      instagram: input.instagram ?? null,
+      // Public links [{kind,url}] — supersedes the legacy website/instagram
+      // columns, which new orgs leave NULL.
+      links: input.links ?? [],
       location: input.location ?? null,
       owner_user_id: user.id
     }

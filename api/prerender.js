@@ -163,11 +163,22 @@ async function load(type, key) {
   }
 
   if (type === "org") {
-    const { data } = await supa
+    let { data, error } = await supa
       .from("organizations")
-      .select("slug, name, bio, logo, banner")
+      .select("slug, name, bio, logo, banner, links, website, instagram")
       .eq("slug", key)
       .single();
+    // 42703 = undefined column: this deploy is running against a schema
+    // without organizations.links (migration raced the deploy, or a preview
+    // points at a stale DB). Fall back to the legacy select rather than
+    // soft-404ing every org page into the cache.
+    if (error && error.code === "42703") {
+      ({ data } = await supa
+        .from("organizations")
+        .select("slug, name, bio, logo, banner, website, instagram")
+        .eq("slug", key)
+        .single());
+    }
     if (!data) return null;
     const name = data.name || "Organization";
     const desc = clip(data.bio || "", 200) || ("An organization on " + SITE_NAME + ".");
@@ -179,6 +190,21 @@ async function load(type, key) {
     };
     if (data.bio) jsonld.description = clip(data.bio, 300);
     if (absImage(data.logo) !== DEFAULT_OG_IMAGE) jsonld.logo = absImage(data.logo);
+    // The org's own web presence → sameAs. links is the source of truth;
+    // legacy website/instagram cover rows the backfill hasn't reached (the
+    // stored website may be schemeless — normalize it; links urls arrive
+    // client-normalized and anything else is filtered). Bounded like the
+    // client's cleanProjectLinks (4 rows, 300 chars): the column shape isn't
+    // DB-enforced and this bakes into cacheable HTML — never emit an
+    // owner-PATCHed novel into JSON-LD.
+    const legacySite = typeof data.website === "string" ? data.website.trim() : "";
+    const sameAs = (Array.isArray(data.links) && data.links.length
+      ? data.links.map((l) => l && l.url)
+      : [legacySite && (/^https?:\/\//i.test(legacySite) ? legacySite : "https://" + legacySite),
+         data.instagram && "https://instagram.com/" + String(data.instagram).replace(/^@+/, "")]
+    ).filter((u) => typeof u === "string" && u.length <= 300 && /^https?:\/\//i.test(u))
+     .slice(0, 4);
+    if (sameAs.length) jsonld.sameAs = sameAs;
     return {
       name,
       title: name + " · " + SITE_NAME,

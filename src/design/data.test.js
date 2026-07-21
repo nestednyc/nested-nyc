@@ -5,7 +5,7 @@
    ============================================================ */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { resolveOrgUniSlug, bareHandle, personLabel } from './data.js';
+import { resolveOrgUniSlug, bareHandle, personLabel, detectProjectLink, cleanProjectLinks, PROJECT_LINK_MAX } from './data.js';
 
 // Universities as orgService.listUniversities() returns them. 'baruch' is
 // seeded in the DB but NOT in the 18-entry client taxonomy (UNI), so it must
@@ -89,4 +89,93 @@ test('personLabel fallback: default and per-caller', () => {
   assert.equal(personLabel(null), 'Someone');
   assert.equal(personLabel(null, 'Team Member'), 'Team Member');
   assert.equal(personLabel({}, 'Lead'), 'Lead');
+});
+
+// ── project links (detectProjectLink / cleanProjectLinks) ──
+
+test('bare domain → https-normalized site link labeled by its domain', () => {
+  assert.deepEqual(detectProjectLink('subwaypulse.nyc'),
+    { kind: 'site', label: 'subwaypulse.nyc', url: 'https://subwaypulse.nyc' });
+});
+
+test('www. is stripped from the label, kept in the url', () => {
+  assert.deepEqual(detectProjectLink('www.subwaypulse.nyc'),
+    { kind: 'site', label: 'subwaypulse.nyc', url: 'https://www.subwaypulse.nyc' });
+});
+
+test('known platforms brand the pill', () => {
+  assert.equal(detectProjectLink('https://www.instagram.com/subwaypulse').label, 'Instagram');
+  assert.equal(detectProjectLink('https://github.com/team/repo').kind, 'github');
+  assert.equal(detectProjectLink('apps.apple.com/us/app/id123').label, 'App Store');
+  assert.equal(detectProjectLink('https://youtu.be/abc123').label, 'YouTube');
+  assert.equal(detectProjectLink('x.com/subwaypulse').label, 'X / Twitter');
+});
+
+test('platform subdomains still match (someone.substack.com)', () => {
+  assert.equal(detectProjectLink('someone.substack.com').label, 'Substack');
+  assert.equal(detectProjectLink('https://team.notion.site/page').label, 'Notion');
+});
+
+test('an existing http(s) scheme is preserved as typed', () => {
+  assert.equal(detectProjectLink('http://legacy.site').url, 'http://legacy.site');
+});
+
+test('a schemeless host:port is prefixed, not mistaken for a scheme', () => {
+  assert.deepEqual(detectProjectLink('myproject.club:8080/demo'),
+    { kind: 'site', label: 'myproject.club', url: 'https://myproject.club:8080/demo' });
+  assert.equal(detectProjectLink('localhost:5173'), null); // dot-less host still drops
+});
+
+test('a bare @handle resolves as an Instagram profile', () => {
+  assert.deepEqual(detectProjectLink('@nyu.robotics'),
+    { kind: 'instagram', label: 'Instagram', url: 'https://instagram.com/nyu.robotics' });
+  assert.equal(detectProjectLink('@nyuairclub').url, 'https://instagram.com/nyuairclub');
+  // dedupes against the pasted-URL form of the same handle
+  assert.equal(detectProjectLink('@nyu.robotics').url,
+    detectProjectLink('https://instagram.com/nyu.robotics').url);
+});
+
+test('@handle edge cases: malformed handles never resolve as Instagram', () => {
+  assert.equal(detectProjectLink('@'), null);
+  assert.equal(detectProjectLink('@has spaces'), null);
+  assert.equal(detectProjectLink('@' + 'a'.repeat(31)), null); // >30 chars, and no dot for the host path
+  // boundary dots miss the handle regex; they may fall through to a harmless
+  // site pill, but must never be branded Instagram
+  const leading = detectProjectLink('@.leading.dot');
+  assert.ok(!leading || leading.kind !== 'instagram');
+  const trailing = detectProjectLink('@trailing.dot.');
+  assert.ok(!trailing || trailing.kind !== 'instagram');
+  // only a LEADING @ is a handle — an email-looking string is unchanged (site)
+  assert.equal(detectProjectLink('name@domain.com').kind, 'site');
+});
+
+test('non-http schemes and junk are rejected', () => {
+  assert.equal(detectProjectLink('javascript:alert(1)'), null);
+  assert.equal(detectProjectLink('mailto:team@nyu.edu'), null);
+  assert.equal(detectProjectLink('ftp://files.site.com'), null);
+  assert.equal(detectProjectLink('not a url'), null);
+  assert.equal(detectProjectLink('instagram'), null); // no dot — not a real host
+  assert.equal(detectProjectLink(''), null);
+  assert.equal(detectProjectLink(null), null);
+  assert.equal(detectProjectLink('a'.repeat(301) + '.com'), null); // oversized
+});
+
+test('cleanProjectLinks drops invalid rows, dedupes by url, caps the list', () => {
+  const cleaned = cleanProjectLinks([
+    'subwaypulse.nyc',
+    '', 'not a url',
+    'subwaypulse.nyc',                 // duplicate
+    { url: 'https://github.com/team' } // object shape (DB row)
+  ]);
+  assert.deepEqual(cleaned.map((l) => l.url),
+    ['https://subwaypulse.nyc', 'https://github.com/team']);
+  const many = cleanProjectLinks(
+    Array.from({ length: 10 }, (_, i) => 'site' + i + '.com'));
+  assert.equal(many.length, PROJECT_LINK_MAX);
+});
+
+test('cleanProjectLinks tolerates non-array input', () => {
+  assert.deepEqual(cleanProjectLinks(null), []);
+  assert.deepEqual(cleanProjectLinks(undefined), []);
+  assert.deepEqual(cleanProjectLinks('subwaypulse.nyc'), []);
 });

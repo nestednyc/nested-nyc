@@ -5,6 +5,7 @@ import React from 'react'
 import Icon from './icons'
 import { CAT, UNI, isProjectAdmin, isProjectOwner, projectAdminSet, coLeadsOf, statusMeta, STATUSES } from './data'
 import { CatTag, Av, Facepile, ConfirmModal } from './shared'
+import { LinkPill } from './people'
 
   const { useState } = React;
 
@@ -389,6 +390,14 @@ import { CatTag, Av, Facepile, ConfirmModal } from './shared'
                   React.createElement("div", { className: "kv" },
                     React.createElement("span", { className: "ic" }, React.createElement(Icon, { name: "users", size: 17 })),
                     React.createElement("span", { className: "kv-t" }, React.createElement("small", null, "Team"), React.createElement("b", null, (p.joinedCount === 0 ? "Just the lead" : p.joinedCount + " joined") + " · " + p.roles.filter((r) => r.open).length + " roles open"))
+                  )
+                ),
+                // Public "find it online" pills — the project's website /
+                // platform / socials, straight off the flyer's links.
+                Array.isArray(p.links) && p.links.length > 0 && React.createElement("div", { className: "rail-card" },
+                  React.createElement("div", { className: "sec-h" }, "Find it online"),
+                  React.createElement("div", { className: "links" },
+                    p.links.map((l, i) => React.createElement(LinkPill, { key: i, link: l }))
                   )
                 ),
                 React.createElement("div", { className: "rail-card" },
