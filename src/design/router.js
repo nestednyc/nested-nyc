@@ -48,6 +48,7 @@ const ROUTES = [
   { route: "orgEditMe",     path: "/dashboard/edit",            access: "org" },
   { route: "eventCreate",   path: "/dashboard/events/new",      access: "org" },
   { route: "eventEdit",     path: "/dashboard/events/:id/edit", access: "org",     params: { id: "eventDraftId" } },
+  { route: "brand",         path: "/brand",                     access: "public" }, // internal logo preview (temporary)
 ];
 for (const r of ROUTES) r.segs = r.path === "/" ? [] : r.path.slice(1).split("/");
 
@@ -128,6 +129,7 @@ const BUILD = {
   orgEditMe:     () => "/dashboard/edit",
   eventCreate:   () => "/dashboard/events/new",
   eventEdit:     (s) => (s.eventDraftId ? "/dashboard/events/" + enc(s.eventDraftId) + "/edit" : null),
+  brand:         () => "/brand",
   soon:          () => null,
 };
 
@@ -177,6 +179,7 @@ export function titleFor(route, ctx) {
     case "orgEditMe":     return "Edit org page · " + SITE;
     case "eventCreate":   return "Pin an event · " + SITE;
     case "eventEdit":     return "Edit event · " + SITE;
+    case "brand":         return "Brand · " + SITE;
     default:              return SITE;
   }
 }
