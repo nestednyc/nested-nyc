@@ -7,7 +7,7 @@
    ============================================================ */
 import React from 'react'
 import Icon from './icons'
-import { UNI } from './data'
+import { UNI, joinDots } from './data'
 import { Av, Skeleton } from './shared'
 import { ContactLinks } from './people'
 
@@ -28,7 +28,7 @@ import { ContactLinks } from './people'
             React.createElement(Av, { name: p.name, img: p.avatar }),
             React.createElement("div", { className: "who" },
               React.createElement("b", null, p.name),
-              React.createElement("small", null, "@" + p.handle + " · " + ((UNI[p.uni] || {}).name || "")))),
+              React.createElement("small", null, joinDots(p.realName, (UNI[p.uni] || {}).name)))),
           React.createElement("button", {
             className: "btn " + (mutual ? "btn-primary done" : "btn-primary"),
             style: { marginLeft: "auto", padding: "7px 13px", fontSize: 13 },
@@ -50,8 +50,8 @@ import { ContactLinks } from './people'
         React.createElement(Av, { name: req.name, img: req.image }),
         React.createElement("span", { className: "t-who", style: { flex: 1 } },
           React.createElement("b", null, req.name),
-          (req.handle && req.name !== "@" + req.handle)
-            ? React.createElement("small", { style: { display: "block", color: "var(--ink-soft)" } }, "@" + req.handle)
+          (req.realName && req.realName !== req.name)
+            ? React.createElement("small", { style: { display: "block", color: "var(--ink-soft)" } }, req.realName)
             : null,
           React.createElement("small", null,
             "wants to join ",

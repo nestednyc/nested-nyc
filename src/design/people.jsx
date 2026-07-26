@@ -6,7 +6,7 @@
    ============================================================ */
 import React from 'react'
 import Icon from './icons'
-import { UNI, LINK_ICON } from './data'
+import { UNI, LINK_ICON, joinDots } from './data'
 import { UniLogo, Skeleton, Polaroid } from './shared'
 
   const { useState } = React;
@@ -63,7 +63,7 @@ import { UniLogo, Skeleton, Polaroid } from './shared'
           React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 } },
             React.createElement("div", null,
               React.createElement("div", { className: "pc-name" }, person.name),
-              React.createElement("div", { className: "pc-meta" }, "@" + person.handle + " \u00b7 " + UNI[person.uni].name)
+              React.createElement("div", { className: "pc-meta" }, joinDots(person.realName, UNI[person.uni].name))
             )
           ),
           React.createElement("div", { className: "pc-bio" }, person.bio),
@@ -105,7 +105,7 @@ import { UniLogo, Skeleton, Polaroid } from './shared'
         React.createElement("div", { className: "sc-namerow" },
           React.createElement("span", { className: "sc-name", style: { fontSize: 30 } }, person.name)
         ),
-        React.createElement("div", { className: "sc-meta" }, "@" + person.handle + " \u00b7 " + UNI[person.uni].full + " \u00b7 " + person.major + " " + person.year),
+        React.createElement("div", { className: "sc-meta" }, joinDots(person.realName, UNI[person.uni].full, (person.major + " " + person.year).trim())),
         React.createElement("p", { className: "sc-bio", style: { fontSize: 16 } }, person.bio),
         person.building && React.createElement("div", { className: "sc-looking" },
           React.createElement("div", { className: "t" },
@@ -162,7 +162,7 @@ import { UniLogo, Skeleton, Polaroid } from './shared'
       if (campus !== "all" && p.uni !== campus) return false;
       if (!q) return true;
       const hay = [
-        p.name, "@" + p.handle, p.bio, p.major, p.building,
+        p.name, "@" + p.handle, p.realName, p.bio, p.major, p.building,
         UNI[p.uni].name, UNI[p.uni].full, ...p.skills, ...p.interests,
       ].join(" ").toLowerCase();
       return hay.includes(q);

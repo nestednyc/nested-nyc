@@ -12,7 +12,7 @@
    ============================================================ */
 import React from 'react'
 import Icon from './icons'
-import { ETYPE, UNI } from './data'
+import { ETYPE, UNI, fullNameOf, joinDots, personLabel } from './data'
 import { Av, Facepile, Pin, formatEventDate } from './shared'
 import { OrgCard } from './orgProfile'
 import { eventService } from '../services/eventService'
@@ -87,7 +87,7 @@ import { eventService } from '../services/eventService'
       isPast: !!raw.is_past,
       isRegistered: !!raw.isRegistered,
       attendeeNames: attendees && attendees.length
-        ? attendees.map((a) => [a.first_name, a.last_name].filter(Boolean).join(' ').trim() || '?')
+        ? attendees.map((a) => personLabel(a, '?'))
         : [],
       org: { id: orgId, slug: orgSlug, name: orgName, logo: orgLogo, verified: orgVerified },
     };
@@ -156,12 +156,19 @@ import { eventService } from '../services/eventService'
   function AttendeesSheet({ attendees, names, total, connected, selfId, onConnect, onOpenProfile, onClose }) {
     const connSet = new Set(connected || []);
     const rows = (attendees && attendees.length)
-      ? attendees.map((a) => ({
-          id: a.id,
-          name: [a.first_name, a.last_name].filter(Boolean).join(' ').trim() || 'Student',
-          avatar: a.avatar || null,
-          uni: (UNI[a.university] && UNI[a.university].name) || '',
-        }))
+      ? attendees.map((a) => {
+          // Usernames lead (shared personLabel rule); the real name joins the
+          // sub-line only when it adds something beyond the label itself.
+          const label = personLabel(a, 'Student');
+          const real = fullNameOf(a.first_name, a.last_name);
+          return {
+            id: a.id,
+            name: label,
+            realName: real && real !== label ? real : '',
+            avatar: a.avatar || null,
+            uni: (UNI[a.university] && UNI[a.university].name) || '',
+          };
+        })
       : (names || []).map((n) => ({ id: null, name: n, avatar: null, uni: '' }));
 
     const moreCount = Math.max(0, (total || rows.length) - rows.length);
@@ -190,7 +197,7 @@ import { eventService } from '../services/eventService'
                     React.createElement(Av, { name: p.name, img: p.avatar }),
                     React.createElement("div", { className: "att-who" },
                       React.createElement("b", null, p.name, isSelf && React.createElement("span", { className: "att-you" }, "You")),
-                      p.uni && React.createElement("small", null, p.uni)
+                      (p.realName || p.uni) && React.createElement("small", null, joinDots(p.realName, p.uni))
                     ),
                     p.id && !isSelf && onConnect && React.createElement("button", {
                       className: "btn " + (isConn ? "btn-primary done" : "btn-ghost") + " att-connect",

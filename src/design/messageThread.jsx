@@ -216,7 +216,7 @@ import { Attachments, AttachPicker } from './messageAttachments'
             React.createElement(Av, { name, img: peer.avatar, size: 34 }),
             React.createElement("span", { className: "thread-peer-id" },
               React.createElement("b", null, name),
-              handle && React.createElement("small", null, "@" + handle))
+              (peer.realName && peer.realName !== name) && React.createElement("small", null, peer.realName))
           )
         ),
 

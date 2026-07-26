@@ -365,7 +365,7 @@ export const eventService = {
 
     const { data: profiles, error: profileError } = await supabase
       .from('public_profiles')
-      .select('id, first_name, last_name, avatar, university')
+      .select('id, username, first_name, last_name, avatar, university')
       .in('id', userIds)
 
     if (profileError) return { data: [], error: profileError }

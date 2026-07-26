@@ -5,7 +5,7 @@
    ============================================================ */
 import React from 'react'
 import Icon from './icons'
-import { CAT, UNI, ownerToken, DEFAULT_STATUS } from './data'
+import { CAT, UNI, ownerToken, DEFAULT_STATUS, personLabel } from './data'
 import ProjectForm from './projectForm'
 
   const { useRef } = React;
@@ -68,6 +68,9 @@ import ProjectForm from './projectForm'
       const rot = (Math.random() * 6 - 3).toFixed(2) + "deg";
       // Stable ownership token: profile.id (Supabase) or username (local-only).
       const owner = ownerToken(profile);
+      // One label for both owner fields — the same @username-led rule
+      // (personLabel) fromDbProject resolves after the refetch.
+      const label = personLabel(profile, "you");
       // Phase 2: call projectService.createProject(...) here; ownerId becomes
       // the RLS `owner = auth.uid()` check and admins[] the co-admin grant list.
       onCreate({
@@ -86,10 +89,10 @@ import ProjectForm from './projectForm'
         // Who pinned it (super-admin) and who may edit it. Co-admins get
         // appended to `admins` later when the owner promotes a member.
         ownerId: owner,
-        ownerName: profile && profile.username ? profile.username : "you",
+        ownerName: label,
         admins: owner ? [owner] : [],
         lead: {
-          name: profile && profile.username ? profile.username : "you",
+          name: label,
           role: "Project lead",
           bio: "",
         },

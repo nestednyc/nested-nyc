@@ -5,7 +5,7 @@
    ============================================================ */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { resolveOrgUniSlug, bareHandle, personLabel, detectProjectLink, cleanProjectLinks, PROJECT_LINK_MAX } from './data.js';
+import { resolveOrgUniSlug, bareHandle, personLabel, fullNameOf, joinDots, detectProjectLink, cleanProjectLinks, PROJECT_LINK_MAX } from './data.js';
 
 // Universities as orgService.listUniversities() returns them. 'baruch' is
 // seeded in the DB but NOT in the 18-entry client taxonomy (UNI), so it must
@@ -89,6 +89,24 @@ test('personLabel fallback: default and per-caller', () => {
   assert.equal(personLabel(null), 'Someone');
   assert.equal(personLabel(null, 'Team Member'), 'Team Member');
   assert.equal(personLabel({}, 'Lead'), 'Lead');
+});
+
+// ── shared name/meta builders (fullNameOf / joinDots) ──
+
+test('fullNameOf joins and collapses stray whitespace', () => {
+  assert.equal(fullNameOf('Maya', 'Chen'), 'Maya Chen');
+  assert.equal(fullNameOf('Mary  Jane', 'Watson'), 'Mary Jane Watson'); // internal double space collapses
+  assert.equal(fullNameOf(' Maya ', ''), 'Maya');
+  assert.equal(fullNameOf('', 'Chen'), 'Chen');
+  assert.equal(fullNameOf(null, undefined), '');
+});
+
+test('joinDots keeps only non-empty parts — no dangling separators', () => {
+  assert.equal(joinDots('Maya Chen', 'Parsons'), 'Maya Chen · Parsons');
+  assert.equal(joinDots('', 'Parsons'), 'Parsons');
+  assert.equal(joinDots('Maya Chen', ''), 'Maya Chen');
+  assert.equal(joinDots('Maya Chen', 'Parsons', 'Design'), 'Maya Chen · Parsons · Design');
+  assert.equal(joinDots('', null, undefined), '');
 });
 
 // ── project links (detectProjectLink / cleanProjectLinks) ──
