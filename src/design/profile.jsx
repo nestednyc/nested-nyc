@@ -3,7 +3,7 @@
    ============================================================ */
 import React from 'react'
 import Icon from './icons'
-import { UNI, CAT, FIELDS, SKILLS, LINK_ICON } from './data'
+import { UNI, CAT, FIELDS, SKILLS, LINK_ICON, fullNameOf, joinDots, personLabel } from './data'
 import { ContactLinks } from './people'
 import { Polaroid, resizePhoto, LINK_KINDS } from './shared'
 
@@ -75,9 +75,10 @@ import { Polaroid, resizePhoto, LINK_KINDS } from './shared'
 
     const firstName = view.firstName || "";
     const lastName = view.lastName || "";
-    const displayName = (firstName || lastName)
-      ? (firstName + (lastName ? " " + lastName : "")).trim()
-      : (view.name || "@" + view.username);
+    const realName = fullNameOf(firstName, lastName);
+    // @username is the headline (shared personLabel rule); the real name only
+    // appears in the meta line below when set.
+    const displayName = personLabel(view, view.name || "Your profile");
 
     // For the rail "Reach me" view-mode display, build the array of pills:
     // object links → array, plus the email (verified, from onboarding).
@@ -259,7 +260,7 @@ import { Polaroid, resizePhoto, LINK_KINDS } from './shared'
               style: { marginTop: 10, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" },
             },
               React.createElement("span", null,
-                "@" + view.username + " · " + uniObj.name + (view.major ? " · " + view.major : "")
+                joinDots(realName !== displayName ? realName : "", uniObj.name, view.major)
               ),
               editing
                 ? React.createElement(React.Fragment, null,

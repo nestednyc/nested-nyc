@@ -114,17 +114,28 @@
   // "@"; strip before prefixing so nothing renders "@@handle".
   const bareHandle = (username) => String(username || "").replace(/^@+/, "");
 
-  // Username-led person label — the ONE rule for notification emails and the
-  // denormalised team_members.name snapshots: "@handle" when the account has
-  // a username, else the real name, else `fallback`. Reads BOTH row shapes:
-  // DB profiles (first_name/last_name) and cork-board profiles
-  // (firstName/lastName). In-app LIVE display deliberately stays with
-  // projectAdapter.memberIdentity (full-name-first) — do not reroute it here.
+  // The ONE full-name builder — joins first/last and collapses stray
+  // whitespace. Every real-name composition (adapters, profile, attendees,
+  // personLabel itself) goes through here so the rule can't fork.
+  const fullNameOf = (first, last) =>
+    ((first || "") + " " + (last || "")).replace(/\s+/g, " ").trim();
+
+  // Person meta lines ("Maya Chen · Parsons · Design"): join the non-empty
+  // parts with a middot so no screen hand-rolls the separator or the
+  // empty-part handling.
+  const joinDots = (...parts) => parts.filter(Boolean).join(" · ");
+
+  // Username-led person label — the ONE precedence for EVERY appearance of a
+  // person: notification emails, the denormalised team_members.name snapshots,
+  // and the live UI (memberIdentity / toPerson route through it). "@handle"
+  // when the account has a username, else the real name, else `fallback`; the
+  // real name only ever renders as a secondary meta line. Reads BOTH row
+  // shapes: DB profiles (first_name/last_name) and cork-board profiles
+  // (firstName/lastName).
   const personLabel = (p, fallback = "Someone") => {
     const u = bareHandle(p && p.username);
     if (u) return "@" + u;
-    const name = [p && (p.first_name || p.firstName), p && (p.last_name || p.lastName)]
-      .filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
+    const name = fullNameOf(p && (p.first_name || p.firstName), p && (p.last_name || p.lastName));
     return name || fallback;
   };
 
@@ -248,7 +259,7 @@
     ownerToken, isProjectAdmin, isProjectOwner, projectAdminSet, coLeadsOf,
     STATUSES, STATUS, statusMeta, DEFAULT_STATUS,
     uniByEmailDomain, isSupportedEduEmail, resolveOrgUniSlug,
-    bareHandle, personLabel,
+    bareHandle, personLabel, fullNameOf, joinDots,
   };
 
   export const NestedData = {

@@ -5,7 +5,7 @@
    src/design/* (create.jsx / edit.jsx / detail.jsx / discover.jsx) and the
    snake_case `projects` row Supabase stores. No service calls in this file.
    ============================================================ */
-import { personLabel } from "./data";
+import { bareHandle, fullNameOf, personLabel } from "./data";
 
 // Cork-board project → Supabase `projects` row payload (snake_case).
 // owner_id is injected by projectService.createProject, so we omit it here —
@@ -44,12 +44,6 @@ export function toDbProject(p, ownerId) {
 // join) into a display identity routes through here, so the precedence lives in
 // a single place instead of being recopied into every read.
 
-// The live full name, collapsing the trailing/double whitespace some first/last
-// fields carry. The single name-builder shared by every identity path.
-function fullNameOf(first, last) {
-  return ((first || "") + " " + (last || "")).replace(/\s+/g, " ").trim();
-}
-
 // Older creates persisted the literal placeholder "you" as a name (when the
 // creator had no username yet). Never show it — treat it as empty. Applied to
 // EVERY denormalised snapshot so it can't leak on one surface but not another.
@@ -60,21 +54,26 @@ function cleanName(s) {
 // Canonical identity for a team_members-shaped row carrying an embedded
 // `profiles` join. Prefers the LIVE profile over the denormalised snapshot the
 // row captured at request/create time:
-//   name   = live full name → "@username" (always present) → cleaned snapshot → fallback
-//   handle = the person's current username (for the @-mention sub-line); "" if unknown
-//   image  = live first photo / avatar → row.image snapshot
+//   name     = "@username" → live full name → cleaned snapshot → fallback
+//              (the shared personLabel precedence — usernames lead everywhere)
+//   realName = live full name for the secondary meta line; "" when unknown OR
+//              when it's already the headline (username-less rows), so no
+//              consumer can print the name twice
+//   handle   = the person's current bare username; "" if unknown
+//   image    = live first photo / avatar → row.image snapshot
 // `fallback` is the neutral last resort ("Lead" / "Member" / "Team Member"),
 // reached only when the join delivered no profile at all. `snapshots` are extra
 // denormalised name sources (e.g. projects.author_name) tried before row.name.
 export function memberIdentity(row, { fallback = "Member", snapshots = [] } = {}) {
   const pr = (row && row.profiles) || null;
   const full = pr ? fullNameOf(pr.first_name, pr.last_name) : "";
-  const handle = (pr && pr.username) || "";
   const snap = [...snapshots, row && row.name].map(cleanName).find((s) => s) || "";
   const photo = pr && ((Array.isArray(pr.photos) && pr.photos[0]) || pr.avatar);
+  const name = personLabel(pr, "") || snap || fallback;
   return {
-    name: full || (handle ? "@" + handle : "") || snap || fallback,
-    handle,
+    name,
+    realName: full && full !== name ? full : "",
+    handle: bareHandle(pr && pr.username),
     image: photo || (row && row.image) || null,
   };
 }
@@ -123,12 +122,12 @@ export function fromDbProject(row) {
     admins: Array.isArray(row.admins) && row.admins.length
       ? row.admins
       : (row.owner_id ? [row.owner_id] : []),
-    lead: { name: leadId.name, handle: leadId.handle, role: "Project lead", bio: "", userId: row.owner_id || null, image: leadId.image },
+    lead: { name: leadId.name, realName: leadId.realName, handle: leadId.handle, role: "Project lead", bio: "", userId: row.owner_id || null, image: leadId.image },
     // memberId = the team_members row id, so owner actions that target the
     // row itself (kick) don't have to re-query by project+user.
     team: crew.map((m) => {
       const id = memberIdentity(m, { fallback: "Member" });
-      return { name: id.name, handle: id.handle, role: m.role || "Member", userId: m.user_id || null, memberId: m.id || null, image: id.image };
+      return { name: id.name, realName: id.realName, handle: id.handle, role: m.role || "Member", userId: m.user_id || null, memberId: m.id || null, image: id.image };
     }),
     event: row.timeline || "",
     place: row.place || "",

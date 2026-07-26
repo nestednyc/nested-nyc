@@ -134,6 +134,7 @@ export function enrichConversations(inbox, people) {
     return {
       ...r,
       name: (peer && peer.name) || "Student",
+      realName: (peer && peer.realName) || null,
       avatar: (peer && peer.avatar) || null,
       handle: (peer && peer.handle) || null,
     };

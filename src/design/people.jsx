@@ -5,7 +5,7 @@
    ============================================================ */
 import React from 'react'
 import Icon from './icons'
-import { UNI, LINK_ICON, avColor, initials } from './data'
+import { UNI, LINK_ICON, avColor, initials, joinDots } from './data'
 import { Av, Skeleton } from './shared'
 
   const { useState } = React;
@@ -74,7 +74,7 @@ import { Av, Skeleton } from './shared'
           React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 } },
             React.createElement("div", null,
               React.createElement("div", { className: "pc-name" }, person.name),
-              React.createElement("div", { className: "pc-meta" }, "@" + person.handle + " \u00b7 " + UNI[person.uni].name)
+              React.createElement("div", { className: "pc-meta" }, joinDots(person.realName, UNI[person.uni].name))
             )
           ),
           React.createElement("div", { className: "pc-bio" }, person.bio),
@@ -116,7 +116,7 @@ import { Av, Skeleton } from './shared'
         React.createElement("div", { className: "sc-namerow" },
           React.createElement("span", { className: "sc-name", style: { fontSize: 30 } }, person.name)
         ),
-        React.createElement("div", { className: "sc-meta" }, "@" + person.handle + " \u00b7 " + UNI[person.uni].full + " \u00b7 " + person.major + " " + person.year),
+        React.createElement("div", { className: "sc-meta" }, joinDots(person.realName, UNI[person.uni].full, (person.major + " " + person.year).trim())),
         React.createElement("p", { className: "sc-bio", style: { fontSize: 16 } }, person.bio),
         person.building && React.createElement("div", { className: "sc-looking" },
           React.createElement("div", { className: "t" },
@@ -191,7 +191,7 @@ import { Av, Skeleton } from './shared'
                   React.createElement(Av, { name: p.name, img: p.avatar }),
                   React.createElement("div", { className: "who" },
                     React.createElement("b", null, p.name),
-                    React.createElement("small", null, "@" + p.handle + " \u00b7 " + UNI[p.uni].name)),
+                    React.createElement("small", null, joinDots(p.realName, UNI[p.uni].name))),
                   React.createElement("button", { className: "btn btn-ghost", style: { marginLeft: "auto", padding: "7px 12px", fontSize: 13 }, onClick: () => onOpenPerson && onOpenPerson(p) }, "Profile")
                 ),
                 React.createElement(ContactLinks, { person: p })

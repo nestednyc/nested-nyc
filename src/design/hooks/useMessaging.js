@@ -198,12 +198,12 @@ export function useMessaging({
       let peer = (threadPeer && threadPeer.handle && threadPeer.handle.toLowerCase() === wanted) ? threadPeer : null;
       if (!peer) {
         const found = people.find((p) => p.handle && p.handle.toLowerCase() === wanted);
-        if (found) peer = { id: found.id, handle: found.handle, name: found.name, avatar: found.avatar };
+        if (found) peer = { id: found.id, handle: found.handle, name: found.name, realName: found.realName, avatar: found.avatar };
       }
       if (!peer) {
         const { data } = await profileService.getByUsername(messageThreadHandle);
         if (cancelled) return;
-        if (data) { const p = toPerson(data); peer = { id: p.id, handle: p.handle, name: p.name, avatar: p.avatar }; }
+        if (data) { const p = toPerson(data); peer = { id: p.id, handle: p.handle, name: p.name, realName: p.realName, avatar: p.avatar }; }
       }
       if (cancelled) return;
       if (!peer || !peer.id) { setThreadStatus("missing"); return; }
@@ -329,14 +329,14 @@ export function useMessaging({
       window.scrollTo({ top: 0 });
     };
     if (target.handle) {
-      go({ id: pid, handle: target.handle, name: target.name || "Student", avatar: target.avatar || null });
+      go({ id: pid, handle: target.handle, name: target.name || "Student", realName: target.realName || null, avatar: target.avatar || null });
       return;
     }
     if (!isSupabaseConfigured()) { toast("Couldn't open that conversation", "x"); return; }
     profileService.getPublicProfile(pid).then(({ data }) => {
       if (!data || !data.username) { toast("Couldn't open that conversation", "x"); return; }
       const p = toPerson(data);
-      go({ id: p.id, handle: p.handle, name: p.name, avatar: p.avatar });
+      go({ id: p.id, handle: p.handle, name: p.name, realName: p.realName, avatar: p.avatar });
     });
   }
 

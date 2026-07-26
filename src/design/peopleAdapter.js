@@ -7,7 +7,7 @@
    People "Incoming" tab. This file stays a pure transformation: no
    service calls live here.
    ============================================================ */
-import { UNI } from './data'
+import { UNI, bareHandle, fullNameOf, personLabel } from './data'
 
 function initials(name) {
   const parts = String(name || "").replace(/^@+/, "").trim().split(/\s+/).filter(Boolean);
@@ -19,7 +19,14 @@ function initials(name) {
 // Supabase profiles row → cork-board People card. Defaults keep UNI[uni]
 // and every array field safe so the People cards never crash.
 export function toPerson(row) {
-  const name = `${row.first_name || ""} ${row.last_name || ""}`.trim() || row.username || "Student";
+  // Usernames lead everywhere (the shared personLabel rule in data.js); the
+  // real name demotes to the secondary meta line when the person set one.
+  const name = personLabel(row, "Student");
+  // realName feeds the secondary meta line — kept only when it adds info
+  // beyond the label (for a username-less row personLabel IS the real name,
+  // and rendering it again would print the name twice).
+  const full = fullNameOf(row.first_name, row.last_name);
+  const realName = full && full !== name ? full : "";
   const fields = Array.isArray(row.fields) ? row.fields : [];
   const skills = Array.isArray(row.skills) ? row.skills : [];
   const label = initials(name);
@@ -29,7 +36,8 @@ export function toPerson(row) {
   return {
     id: row.id,
     name,
-    handle: row.username || "student",
+    realName,
+    handle: bareHandle(row.username) || "student",
     uni: UNI[row.university] ? row.university : "nyu",
     major: row.major || "",
     year: row.year || "",

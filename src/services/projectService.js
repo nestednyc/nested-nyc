@@ -508,9 +508,9 @@ export const projectService = {
       .order('joined_at', { ascending: false })
     if (error) return { data: [], error }
 
-    // Prefer the requester's LIVE identity (full name → @username → snapshot)
-    // over the stale team_members.name, so a nameless requester shows their
-    // @handle instead of the "Team Member" placeholder.
+    // Prefer the requester's LIVE identity (@username → full name → snapshot,
+    // the shared personLabel precedence) over the stale team_members.name, so
+    // a nameless requester shows their @handle instead of "Team Member".
     const rows = (data || []).map((m) => ({ ...m, ...requestIdentity(m) }))
     return { data: rows, error: null }
   },
@@ -616,8 +616,8 @@ export const projectService = {
 
     // Attach the project context the Notifications UI reads as req.project, and
     // override the snapshot name/handle/image with the requester's LIVE identity
-    // (full name → @username → snapshot) so nameless requesters show their
-    // @handle instead of the "Team Member" placeholder.
+    // (@username → full name → snapshot, the shared personLabel precedence) so
+    // nameless requesters show their @handle instead of "Team Member".
     const rows = (data || []).map((m) => ({
       ...m,
       ...requestIdentity(m),

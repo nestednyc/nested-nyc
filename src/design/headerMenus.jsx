@@ -9,7 +9,7 @@
    ============================================================ */
 import React from 'react'
 import Icon from './icons'
-import { UNI } from './data'
+import { UNI, joinDots } from './data'
 import { Av } from './shared'
 
   const { useState } = React;
@@ -66,7 +66,7 @@ import { Av } from './shared'
                 React.createElement(Av, { name: p.name, img: p.avatar }),
                 React.createElement("span", { className: "nr-txt" },
                   React.createElement("b", null, p.name),
-                  React.createElement("small", null, "@" + p.handle + (uniName ? " · " + uniName : ""))
+                  React.createElement("small", null, joinDots(p.realName, uniName))
                 )
               ),
               React.createElement("span", { className: "nr-actions" },
