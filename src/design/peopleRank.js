@@ -1,7 +1,7 @@
 /* ============================================================
-   NESTED NYC — People ranking (who surfaces first in Browse)
+   NESTED NYC — People ranking (who surfaces first in the grid)
 
-   Pure, side-effect-free ordering for the People → Browse grid. Ranks raw
+   Pure, side-effect-free ordering for the People grid. Ranks raw
    Supabase `profiles` rows relative to the signed-in viewer so the most
    collaboration-relevant students rise to the top. NestedApp calls rankPeople()
    on the raw rows BEFORE mapping them through toPerson (raw rows carry the exact

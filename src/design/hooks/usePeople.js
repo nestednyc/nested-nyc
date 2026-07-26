@@ -34,7 +34,7 @@ export function usePeople({ profile, toast, requireAuth }) {
     if (connected.includes(id)) return;
     setConnected((arr) => [...arr, id]);
     const p = people.find((x) => x.id === id);
-    toast("Connected with " + (p ? p.name.split(" ")[0] : "them") + " — reach out via their links", "heart");
+    toast("Connected with " + (p ? p.name.split(" ")[0] : "them") + " — say hi with a message", "heart");
     if (!isSupabaseConfigured()) return;
     const { error } = await connectionService.connect(id);
     if (error) {

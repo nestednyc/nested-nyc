@@ -4,8 +4,8 @@
    ============================================================ */
 import React from 'react'
 import Icon from './icons'
-import { CATEGORIES, CAT, UNI, INTERESTS, STAGES, COMMITMENTS } from './data'
-import { Av, Facepile, CatTag, Pin } from './shared'
+import { CATEGORIES, CAT, UNI, INTERESTS, STAGES, COMMITMENTS, cleanProjectLinks } from './data'
+import { Av, Facepile, CatTag, Pin, LinkRows, linkRowsFrom } from './shared'
 
   const { useState } = React;
 
@@ -31,6 +31,7 @@ import { Av, Facepile, CatTag, Pin } from './shared'
     commitment: "",
     pinType: "tape",
     commLink: "",
+    links: [],
     flyerColor: "",
   };
 
@@ -49,6 +50,9 @@ import { Av, Facepile, CatTag, Pin } from './shared'
     if (!Array.isArray(init.roles) || init.roles.length === 0) {
       init.roles = [{ title: "", note: "", open: true }];
     }
+    // Links edit as raw strings (edit mode hands us {kind,label,url} rows);
+    // like roles, the UI always shows ≥1 row and drops blanks on submit.
+    const initLinks = linkRowsFrom(init.links);
 
     const [step, setStep] = useState(0);
     const [cat, setCat] = useState(init.cat);
@@ -63,6 +67,7 @@ import { Av, Facepile, CatTag, Pin } from './shared'
     const [commitment, setCommitment] = useState(init.commitment);
     const [pinType, setPinType] = useState(init.pinType || "tape");
     const [commLink, setCommLink] = useState(init.commLink || "");
+    const [links, setLinks] = useState(initLinks);
     const [flyerColor, setFlyerColor] = useState(init.flyerColor || "");
 
     const editable = mode === "edit";
@@ -114,12 +119,13 @@ import { Av, Facepile, CatTag, Pin } from './shared'
         commitment,
         pinType,
         commLink: commLink.trim(),
+        links: cleanProjectLinks(links),
         flyerColor,
       });
     }
 
     // Values passed to the aside render-prop on every render (for live previews).
-    const currentValues = { cat, stage, timeline, title, tagline, place, about, roles, tags, commitment, pinType, commLink, flyerColor };
+    const currentValues = { cat, stage, timeline, title, tagline, place, about, roles, tags, commitment, pinType, commLink, links, flyerColor };
 
     // ---------- step bodies ----------
     let body;
@@ -330,7 +336,6 @@ import { Av, Facepile, CatTag, Pin } from './shared'
       );
     } else {
       const previewCat = cat ? CAT[cat] : CAT.startup;
-      const previewUni = (profile && profile.uni && UNI[profile.uni]) ? UNI[profile.uni].name : "Nested";
       const openCount = cleanRoles.filter((r) => r.open).length;
       const openTitles = cleanRoles.filter((r) => r.open).slice(0, 3).map((r) => r.title);
       const isTape = pinType === "tape";
@@ -355,7 +360,6 @@ import { Av, Facepile, CatTag, Pin } from './shared'
                 : React.createElement(Pin, null),
               React.createElement("div", { className: "cat-bar", style: { background: flyerColor || previewCat.color } }),
               React.createElement("div", { className: "body" },
-                React.createElement("div", { className: "stamp-meta" }, previewUni),
                 React.createElement(CatTag, { cat: previewCat }),
                 React.createElement("h3", null, title.trim() || "Your project"),
                 React.createElement("p", { className: "blurb" }, tagline.trim() || "A short pitch — what is it, who is it for, why now."),
@@ -417,6 +421,15 @@ import { Av, Facepile, CatTag, Pin } from './shared'
                 : React.createElement("span", { style: { fontFamily: "var(--mono)", fontSize: 12, color: "var(--ink-faint)" } }, "// defaults to your category color")
             ),
             React.createElement("div", { className: "hint" }, "// personalize the strip across the top of your flyer"),
+          ),
+
+          React.createElement("div", { className: "field", style: { marginTop: 22 } },
+            React.createElement("label", null, "Project links ", React.createElement("span", { style: { fontFamily: "var(--mono)", fontSize: 11, color: "var(--ink-faint)", fontWeight: 400 } }, "· optional")),
+            React.createElement(LinkRows, {
+              links, setLinks,
+              placeholders: ["https://yourproject.com", "https://instagram.com/yourproject"],
+            }),
+            React.createElement("div", { className: "hint" }, "// public, on the flyer — your site, App Store, GitHub, Instagram… wherever this project lives online")
           ),
 
           React.createElement("div", { className: "field", style: { marginTop: 22 } },

@@ -7,15 +7,21 @@
    ============================================================ */
 import React from 'react'
 import Icon from './icons'
-import { ETYPE, UNI, ORG_TYPES } from './data'
+import { ETYPE, UNI, ORG_TYPES, cleanProjectLinks } from './data'
 import { Av, Facepile, CatTag, Stamp, UniLogo } from './shared'
+import { LinkPill } from './people'
 
-  // Force user-supplied org links into an http(s) context so a javascript:/data:
-  // URL can't execute when clicked. Mirrors the LinkPill guard in people.jsx.
-  const safeUrl = (u) => {
-    const s = (u || "").trim();
-    return s ? (/^https?:\/\//i.test(s) ? s : "https://" + s) : null;
-  };
+  // Public links for an org row: the links column, falling back to the legacy
+  // website/instagram pair for rows the backfill hasn't reached (old tabs,
+  // un-migrated local stacks). cleanProjectLinks is also the safety gate — an
+  // owner can PATCH arbitrary JSON into links via PostgREST, so raw rows are
+  // never mapped into pills without it (only http(s) urls survive).
+  function orgLinks(org) {
+    const src = (Array.isArray(org.links) && org.links.length)
+      ? org.links
+      : [org.website, org.instagram && "https://instagram.com/" + String(org.instagram).replace(/^@+/, "")].filter(Boolean);
+    return cleanProjectLinks(src);
+  }
 
   function orgSub(org) {
     const typeLabel = (ORG_TYPES.find((t) => t.id === org.type) || {}).label || "Organization";
@@ -109,6 +115,10 @@ import { Av, Facepile, CatTag, Stamp, UniLogo } from './shared'
     const uniObj = org.uni && UNI[org.uni] ? UNI[org.uni] : null;
     const barColor = uniObj ? uniObj.color : "var(--accent)";
     const meta = [orgSub(org), org.location].filter(Boolean).join(" · ");
+    const links = orgLinks(org);
+    // "Visit site" stays a website affordance — a branded link (Instagram,
+    // Linktree…) already says where it goes on its own pill.
+    const siteLink = links.find((l) => l.kind === "site") || null;
 
     return (
       React.createElement("div", { className: "org-wrap" },
@@ -134,11 +144,8 @@ import { Av, Facepile, CatTag, Stamp, UniLogo } from './shared'
 
             org.bio && React.createElement("p", { className: "org-bio" }, org.bio),
 
-            (org.website || org.instagram) && React.createElement("div", { className: "org-links" },
-              org.website && React.createElement("a", { className: "linkpill", href: safeUrl(org.website), target: "_blank", rel: "noreferrer" },
-                React.createElement(Icon, { name: "globe", size: 14 }), org.website.replace(/^https?:\/\//, "")),
-              org.instagram && React.createElement("a", { className: "linkpill", href: "https://instagram.com/" + org.instagram, target: "_blank", rel: "noreferrer" },
-                React.createElement(Icon, { name: "camera", size: 14 }), "@" + org.instagram)
+            links.length > 0 && React.createElement("div", { className: "org-links" },
+              links.map((l, i) => React.createElement(LinkPill, { key: i, link: l }))
             ),
 
             React.createElement("div", { className: "org-cta" },
@@ -146,7 +153,7 @@ import { Av, Facepile, CatTag, Stamp, UniLogo } from './shared'
                 following
                   ? [React.createElement(Icon, { name: "check", size: 17, stroke: "var(--paper)", key: "i" }), "Following"]
                   : [React.createElement(Icon, { name: "plus", size: 17, stroke: "var(--paper)", key: "i" }), "Follow"]),
-              org.website && React.createElement("a", { className: "btn btn-ghost", href: safeUrl(org.website), target: "_blank", rel: "noreferrer" },
+              siteLink && React.createElement("a", { className: "btn btn-ghost", href: siteLink.url, target: "_blank", rel: "noreferrer" },
                 React.createElement(Icon, { name: "external", size: 16 }), "Visit site")
             ),
 

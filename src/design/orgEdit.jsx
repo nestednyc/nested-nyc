@@ -77,8 +77,13 @@ import { useUniversitiesList } from './useUniversitiesList'
       uni: uniSlug,
       bio: org.bio || '',
       location: org.location || '',
-      website: org.website || '',
-      instagram: org.instagram || '',
+      // Seed the builder from links; a pre-migration row (empty links, legacy
+      // website/instagram populated) synthesizes rows so the editor still
+      // shows them. Plain https strings, so this doesn't lean on the
+      // @-handle resolver.
+      links: (Array.isArray(org.links) && org.links.length)
+        ? [...org.links]
+        : [org.website, org.instagram && 'https://instagram.com/' + String(org.instagram).replace(/^@+/, '')].filter(Boolean),
     };
 
     async function onSubmit(values) {
@@ -113,8 +118,12 @@ import { useUniversitiesList } from './useUniversitiesList'
         university_id: campusChanged ? (values.uni ? uniRow.id : null) : org.university_id,
         bio: values.bio,
         location: values.location,
-        website: values.website,
-        instagram: values.instagram,
+        links: values.links,
+        // Legacy fields are superseded by links — null them on every save so
+        // a deliberately emptied builder can't resurrect old pills through
+        // the read-side legacy fallback.
+        website: null,
+        instagram: null,
       };
       // Slug is deliberately NOT in updates — slug changes break inbound links
       // and aren't a user-facing concern. orgService.updateOrg would accept it

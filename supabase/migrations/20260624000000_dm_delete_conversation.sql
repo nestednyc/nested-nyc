@@ -2,7 +2,7 @@
 -- DM Sprint 8 — "delete conversation" (delete-for-me).
 --
 -- Every message is ONE shared row read by both participants (S1 schema), and
--- delete-for-everyone is out of scope (MESSAGING_PLAN.md "Out of scope"). So a
+-- delete-for-everyone is out of scope (see CLAUDE.md § Direct messages). So a
 -- hard delete is impossible without destroying the peer's copy. The v1 semantic
 -- is therefore a per-user CLEAR WATERMARK (the familiar "delete chat" behaviour):
 -- clearing hides every message in that thread up to now() FOR THE CALLER ONLY;

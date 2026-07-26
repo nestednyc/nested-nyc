@@ -241,7 +241,6 @@ export default function StudentShell({ api }) {
           people,
           connected,
           onConnect,
-          onDisconnect,
           onMessage: (person) => openThread(person),
           onOpenPerson: (person) => openPerson(person.handle),
           loading: projectsLoading,
