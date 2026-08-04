@@ -55,7 +55,9 @@ import { toDbProfile, fromDbProfile, dataUrlToFile } from './profileAdapter'
   // returnTo: validated internal path the user was headed to before the auth
   // wall. Rides the confirmation email as ?next= so even the new-tab link
   // round-trip lands them back where they started.
-  function Onboarding({ onComplete, onToast, onOrgPath, onForgot, initialMode, returnTo }) {
+  // resumeProfile: a signed-in student whose row never finished onboarding
+  // (hydrateSession routed them back here) — boots straight into enrichment.
+  function Onboarding({ onComplete, onToast, onOrgPath, onForgot, initialMode, returnTo, resumeProfile }) {
     const [mode, setMode] = useState(initialMode === "signin" ? "signin" : "signup"); // 'signup' | 'signin'
     const [step, setStep] = useState(0);
     const [email, setEmail] = useState("");
@@ -108,9 +110,13 @@ import { toDbProfile, fromDbProfile, dataUrlToFile } from './profileAdapter'
 
     // ---- Post-confirmation profile enrichment ----
     // Once the .edu account exists and the core profile is saved, the wizard
-    // doesn't exit — it continues into optional, skippable steps (name+photo,
-    // skills, the details) on the now-live session. Skipping any of them, or
-    // "Finish later", still lands the user in with a basic profile.
+    // doesn't exit — it continues into the enrichment steps on the now-live
+    // session. ONE of them is required: the profile photo (step 0). The core
+    // save writes onboarding_completed:false, and only finishEnrichment flips
+    // it true — with the photo aboard — so a student can't reach the app (or
+    // the /people views, which filter on the flag) faceless. Everything else
+    // (name, skills, the details) stays optional/skippable, and closing the
+    // tab mid-wizard just resumes enrichment on the next sign-in.
     const [enrich, setEnrich] = useState(false);
     const [enrichStep, setEnrichStep] = useState(0);
     const [enrichUserId, setEnrichUserId] = useState(null);
@@ -127,6 +133,14 @@ import { toDbProfile, fromDbProfile, dataUrlToFile } from './profileAdapter'
     const [links, setLinks] = useState({ github: "", portfolio: "", linkedin: "", instagram: "" });
     const photoOpRef = useRef(0); // bumped on each pick/clear to void a superseded in-flight upload
 
+    // The one required enrichment: at least one photo, freshly uploaded or
+    // already on the row (a resumed session that got that far last time).
+    const hasPhoto = !!photoUrl || !!(baseProfile && baseProfile.photos && baseProfile.photos.length);
+    // Exits that complete onboarding unlock only once the photo is in. The dev
+    // preview shows step 0 in its real locked state but may still walk the
+    // later panels (nothing saves there anyway).
+    const canLeaveEarly = hasPhoto || (enrichUserId === "preview" && enrichStep > 0);
+
     // Dev-only preview: /signup?preview=enrich jumps straight into the
     // enrichment panels with mock data so the new UI can be eyeballed without
     // the full signup + email-confirm round-trip. Compiled out of prod builds.
@@ -140,6 +154,16 @@ import { toDbProfile, fromDbProfile, dataUrlToFile } from './profileAdapter'
         }
       } catch (e) {}
     }, []);
+
+    // Mid-onboarding resume: the account exists and is signed in, but the row
+    // never completed (photo requirement) — skip the signup steps entirely and
+    // land on the enrichment wizard where they left off.
+    useEffect(() => {
+      if (!resumeProfile || !resumeProfile.id || resumeProfile.onboardingCompleted || enrich) return;
+      setMode("signup");
+      if (resumeProfile.email) setEmail(resumeProfile.email);
+      enterEnrichment(resumeProfile.id, resumeProfile);
+    }, [resumeProfile]);
 
     const totalSteps = mode === "signup" ? SIGNUP_STEPS : SIGNIN_STEPS;
 
@@ -277,7 +301,9 @@ import { toDbProfile, fromDbProfile, dataUrlToFile } from './profileAdapter'
       // account — never write student fields onto its profile row.
       if (await blockOrgAccount()) return;
 
-      const payload = toDbProfile(localProfile, userId);
+      // Core save holds onboarding_completed:false — the wizard's required
+      // photo (finishEnrichment) is what completes the profile.
+      const payload = toDbProfile(localProfile, userId, { onboardingCompleted: false });
       const { data: row, error: upErr } = await profileService.upsertProfile(userId, payload);
       if (upErr) {
         setSubmitError(getErrorMessage(upErr));
@@ -312,7 +338,8 @@ import { toDbProfile, fromDbProfile, dataUrlToFile } from './profileAdapter'
         fields: interests,
         email: email.trim(),
       };
-      const { data: row, error: upErr } = await profileService.upsertProfile(userId, toDbProfile(localProfile, userId));
+      // Same as the direct-signup path: completion waits for the wizard's photo.
+      const { data: row, error: upErr } = await profileService.upsertProfile(userId, toDbProfile(localProfile, userId, { onboardingCompleted: false }));
       if (upErr) { setSubmitError(getErrorMessage(upErr)); setSubmitting(false); return; }
 
       enterEnrichment(userId, fromDbProfile(row, email.trim()));
@@ -410,21 +437,27 @@ import { toDbProfile, fromDbProfile, dataUrlToFile } from './profileAdapter'
       }
 
       // Org accounts have their own sign-in — they don't belong in the student
-      // app. Everyone else — including a student who hasn't finished
-      // onboarding — falls through to the normal student path below
-      // (unchanged, pre-existing behavior).
+      // app.
       if (await blockOrgAccount(row)) return;
+
+      // A student whose row never completed (photo requirement) resumes the
+      // enrichment wizard instead of entering the app faceless.
+      if (!row.onboarding_completed) {
+        enterEnrichment(row.id, fromDbProfile(row, email.trim()));
+        return;
+      }
 
       setSubmitting(false);
       onComplete(fromDbProfile(row, email.trim()));
     }
 
     // After the account exists and the core profile is written, keep the user
-    // in the wizard for optional enrichment — unless they were deep-linked
-    // somewhere (returnTo), in which case honor that and exit straight away.
+    // in the wizard for enrichment. Deep-linked signups (returnTo) come through
+    // too — the photo is required before anyone enters the app — and still land
+    // on their stashed destination afterward: onComplete's caller consumes the
+    // returnTo stash when the wizard finishes.
     function enterEnrichment(uid, base) {
       setSubmitting(false);
-      if (returnTo && returnTo !== "/") { onComplete(base); return; }
       setEnrichUserId(uid);
       setBaseProfile(base);
       if (base && base.firstName) setFirstName(base.firstName);
@@ -514,6 +547,14 @@ import { toDbProfile, fromDbProfile, dataUrlToFile } from './profileAdapter'
     async function finishEnrichment(forceEnter) {
       if (submitting || photoUploading) return;
       if (enrichUserId === "preview") { setSubmitError("preview mode — nothing is saved here"); return; }
+      // No photo, no profile — every exit funnels through here, so this guard
+      // covers them all (the DB trigger enforce_photo_on_onboarding backstops
+      // it server-side). Walk them back to the snap step.
+      if (!hasPhoto) {
+        setEnrichStep(0);
+        setSubmitError("one snap first — the board runs on real faces");
+        return;
+      }
       const cleanLinks = {};
       Object.entries(links).forEach(([k, v]) => { if (v && v.trim()) cleanLinks[k] = v.trim(); });
       const merged = {
@@ -527,13 +568,10 @@ import { toDbProfile, fromDbProfile, dataUrlToFile } from './profileAdapter'
         links: cleanLinks,
         photos: photoUrl ? [{ src: photoUrl }] : (baseProfile.photos || []),
       };
-      const touched = merged.firstName || merged.lastName || merged.bio || skills.length ||
-        merged.year || merged.building || Object.keys(cleanLinks).length || photoUrl;
-      // Nothing added → enter on the basic profile, skip a redundant write.
-      // Guard first: onComplete navigates away, and setting submitting disables
-      // every exit control so a double-tap can't fire it twice (double route/toast).
-      if (!touched) { setSubmitting(true); onComplete(baseProfile); return; }
-
+      // The old "nothing added → skip the write" shortcut is gone: this write
+      // is what flips onboarding_completed true (the core save holds false),
+      // so it is never redundant — a skipped write would strand the row
+      // incomplete and bounce the student back into the wizard next session.
       setSubmitting(true);
       setSubmitError("");
       const payload = toDbProfile(merged, enrichUserId);
@@ -563,21 +601,25 @@ import { toDbProfile, fromDbProfile, dataUrlToFile } from './profileAdapter'
     if (enrich) {
       const isLast = enrichStep === ENRICH_STEPS - 1;
       const busy = submitting || photoUploading;
+      // Step 0 won't advance without the photo. The dev preview stays walkable
+      // (real users can't reach it; nothing saves there).
+      const stepLocked = enrichStep === 0 && !hasPhoto && enrichUserId !== "preview";
 
       let panel;
       if (enrichStep === 0) {
         panel = (
           React.createElement("div", { className: "fade-up", key: "e0" },
-            React.createElement("span", { className: "onb-kicker" }, "You're in · Put a face to it"),
-            React.createElement("h1", null, "Make it yours."),
-            React.createElement("p", { className: "desc" }, "Add your name and a photo so teammates recognize you — or skip and add these later from your profile."),
+            React.createElement("span", { className: "onb-kicker" }, "You're in · Real people only"),
+            React.createElement("h1", null, "Put a face on the board."),
+            React.createElement("p", { className: "desc" }, "Nested is real students, not gray circles — your photo is your pin. Add one good snap so people know who they're building with. ", React.createElement("b", null, "The name can wait; the face can't.")),
             React.createElement("div", { className: "onb-id-row" },
               React.createElement("div", { className: "onb-snap" },
                 React.createElement(Polaroid, {
                   src: photoPreview || photoUrl, editable: true,
                   onPick: pickEnrichPhoto, onClear: clearEnrichPhoto,
                 }),
-                React.createElement("div", { className: "onb-snap-hint" }, photoUploading ? "uploading…" : "// one good snap")
+                React.createElement("div", { className: "onb-snap-hint" },
+                  photoUploading ? "uploading…" : (hasPhoto ? "// that's the one" : "// required — one good snap"))
               ),
               React.createElement("div", { className: "onb-id-fields" },
                 React.createElement("div", { className: "field" },
@@ -672,7 +714,7 @@ import { toDbProfile, fromDbProfile, dataUrlToFile } from './profileAdapter'
             ),
             React.createElement("div", { className: "onb-pitch" },
               React.createElement("h2", null, "You're in.", React.createElement("br"), "Now make it", React.createElement("br"), "yours."),
-              React.createElement("p", null, "A name, a face, a few skills — that's how the right people find you on the board. Every step here is optional; skip anything and finish later.")
+              React.createElement("p", null, "One good snap gets you on the board — that part's required, it's how people know you're real. Everything after it is optional; skip anything and finish later.")
             )
           ),
           React.createElement("div", { className: "onb-main grain" },
@@ -699,12 +741,16 @@ import { toDbProfile, fromDbProfile, dataUrlToFile } from './profileAdapter'
               submitError && React.createElement("div", { className: "enrich-err", style: { marginTop: 14, fontFamily: "var(--mono)", fontSize: 12.5, color: "var(--c-startup)" } }, "// " + submitError),
               React.createElement("div", { className: "onb-actions onb-actions-enrich" },
                 enrichStep > 0 && React.createElement("button", { className: "ghost-link enrich-back", onClick: enrichBack, disabled: busy }, "← Back"),
-                React.createElement("button", { className: "ghost-link onb-finishlater", onClick: () => finishEnrichment(true), disabled: busy }, "Finish later →"),
+                // Early exits appear only once the required snap is in —
+                // before that there is nothing to finish "later".
+                canLeaveEarly && React.createElement("button", { className: "ghost-link onb-finishlater", onClick: () => finishEnrichment(true), disabled: busy }, "Finish later →"),
                 React.createElement("span", { className: "spacer" }),
-                !isLast && React.createElement("button", { className: "ghost-link", onClick: enrichNext, disabled: busy }, "Skip"),
+                enrichStep > 0 && !isLast && React.createElement("button", { className: "ghost-link", onClick: enrichNext, disabled: busy }, "Skip"),
                 React.createElement("button", {
                   className: "btn btn-primary",
-                  disabled: busy, style: busy ? { opacity: 0.5, pointerEvents: "none" } : {},
+                  disabled: busy || stepLocked,
+                  style: (busy || stepLocked) ? { opacity: 0.5, pointerEvents: "none" } : {},
+                  title: stepLocked ? "Add your snap first — it's the one required step" : undefined,
                   onClick: enrichNext,
                 },
                   submitting ? "Just a sec…" : (isLast ? "Enter Nested" : "Continue"),
@@ -714,7 +760,8 @@ import { toDbProfile, fromDbProfile, dataUrlToFile } from './profileAdapter'
             ),
             // Mobile-only "Finish later" — pulled out of the action cluster to a
             // single de-emphasized link beneath the card (reuses .onb-orgline voice).
-            React.createElement("button", {
+            // Same photo gate as the desktop link.
+            canLeaveEarly && React.createElement("button", {
               className: "onb-mobfinish", onClick: () => finishEnrichment(true), disabled: busy, type: "button",
             }, "Finish later →")
           )
