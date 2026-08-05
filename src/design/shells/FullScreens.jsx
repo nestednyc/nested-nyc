@@ -27,7 +27,7 @@ export default function FullScreens({ screen, draft, editProject, api }) {
     authMode, toast, setJustVerified,
     forgotEmailSeed, setForgotEmailSeed, forgotFrom, setForgotFrom,
     orgAuthMode, setOrgAuthMode,
-    profile, adoptProfile, orgAccount, adoptOrgAccount, hydrateSession, signOut,
+    profile, adoptProfile, orgAccount, adoptOrgAccount, pendingStudent, hydrateSession, signOut,
     detailId, setEditId, setEventDraftId,
     projectsList, createProject, saveProjectEdits, deleteProjectById,
     createOrgEvent, updateOrgEvent,
@@ -48,6 +48,7 @@ export default function FullScreens({ screen, draft, editProject, api }) {
         React.createElement(Onboarding, {
           initialMode: authMode,
           returnTo: peekReturnTo(),
+          resumeProfile: pendingStudent, // mid-onboarding session → wizard resumes at enrichment
           onComplete: (p) => {
             adoptProfile(p); // ref + state together — applyParsed below role-gates on it
             const ret = takeReturnTo();

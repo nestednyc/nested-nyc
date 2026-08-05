@@ -66,6 +66,11 @@ export function useSession({
   if (!persisted.current.joinedAt) persisted.current.joinedAt = Date.now();
 
   const [profile, setProfile] = useState(persisted.current.profile || null);
+  // A signed-in student whose row never completed onboarding (the required
+  // photo). Never adopted as identity — FullScreens hands it to the Onboarding
+  // screen so the wizard resumes at enrichment instead of showing signup.
+  // Cleared whenever a real identity lands or the session ends.
+  const [pendingStudent, setPendingStudent] = useState(null);
   // True until the first hydrateSession resolves — lets deep-linked gated
   // screens hold a skeleton instead of crashing on a null profile/org.
   const [sessionPending, setSessionPending] = useState(() => isSupabaseConfigured());
@@ -114,6 +119,7 @@ export function useSession({
 
     if (!session) {
       // No live session — guest mode. Wipe any stale cached profile.
+      setPendingStudent(null);
       if (persisted.current.profile) {
         setProfile(null);
         profileRef.current = null;
@@ -176,8 +182,12 @@ export function useSession({
       authCallbackRef.current = null;
       replaceNextRef.current = true;
       if (metaAcct === "org_admin") {
+        setPendingStudent(null);
         setRoute("orgOnboarding");
       } else {
+        // Hand the half-made row (if any) to the wizard so it can resume
+        // enrichment — the photo requirement means these rows exist now.
+        setPendingStudent(row ? fromDbProfile(row, (session.user && session.user.email) || "") : null);
         setAuthMode("signup");
         setRoute("onboarding");
       }
@@ -186,6 +196,7 @@ export function useSession({
 
     const sessUser = session.user || {};
     const hydrated = fromDbProfile(row, sessUser.email);
+    setPendingStudent(null);
     setProfile(hydrated);
     profileRef.current = hydrated; // applyParsed below must see it NOW
     if (cb) {
@@ -214,6 +225,7 @@ export function useSession({
   // creation, org edit-save) must come through here — a bare setProfile/
   // setOrgAccount leaves the ref lagging until the next effect flush.
   function adoptProfile(p) {
+    setPendingStudent(null); // the wizard finished — the half-made row is history
     setProfile(p);
     profileRef.current = p;
   }
@@ -238,6 +250,7 @@ export function useSession({
       }
       if (event === "SIGNED_OUT") {
         setProfile(null);
+        setPendingStudent(null);
         try { localStorage.removeItem(LS); } catch (e) {}
         onSignedOut();
       }
@@ -353,11 +366,12 @@ export function useSession({
     }
     setProfile(null);
     setOrgAccount(null);
+    setPendingStudent(null);
     try { localStorage.removeItem(LS); } catch (e) {}
   }
 
   return {
-    profile, orgAccount, sessionPending,
+    profile, orgAccount, sessionPending, pendingStudent,
     joinedAt: persisted.current.joinedAt,
     adoptProfile, adoptOrgAccount, // raw setters stay internal — see above
     hydrateSession, saveProfileToSupabase, signOutAuth,

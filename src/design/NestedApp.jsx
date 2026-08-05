@@ -179,7 +179,7 @@ import { useOrg } from './hooks/useOrg'
     // each domain's reset*.
     const { toasts, toast } = useToasts();
     const {
-      profile, orgAccount, sessionPending, joinedAt,
+      profile, orgAccount, sessionPending, pendingStudent, joinedAt,
       adoptProfile, adoptOrgAccount,
       hydrateSession, saveProfileToSupabase, signOutAuth,
     } = useSession({
@@ -666,7 +666,7 @@ import { useOrg } from './hooks/useOrg'
       // root hydration-barrier surface
       projectsLoading, loadErrors, retrySurface,
       // session — identity installs go through adopt* (ref + state together)
-      profile, adoptProfile, orgAccount, adoptOrgAccount, joinedAt,
+      profile, adoptProfile, orgAccount, adoptOrgAccount, pendingStudent, joinedAt,
       hydrateSession, saveProfileToSupabase, signOut,
       // people
       people, connected, incoming, incomingPending, onConnect, onDisconnect,

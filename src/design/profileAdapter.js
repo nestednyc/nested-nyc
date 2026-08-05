@@ -28,7 +28,11 @@ export function linksToObject(maybeLinks) {
 
 // Cork-board profile → Supabase profiles row payload (snake_case).
 // Pass the row to profileService.upsertProfile(userId, payload).
-export function toDbProfile(local, userId) {
+// onboardingCompleted defaults true (profile-editor saves, enrichment finish);
+// the signup CORE save passes false so completion — and with it visibility on
+// /people (the views filter on the flag) — only happens once the wizard's
+// required photo is in. The enforce_photo_on_onboarding trigger backstops this.
+export function toDbProfile(local, userId, { onboardingCompleted = true } = {}) {
   const photos = (local.photos || [])
     .map((slot) => {
       if (!slot) return null;
@@ -52,7 +56,7 @@ export function toDbProfile(local, userId) {
     year: local.year || null,
     building: local.building || null,
     links: linksToObject(local.links),
-    onboarding_completed: true,
+    onboarding_completed: onboardingCompleted,
   };
 }
 
