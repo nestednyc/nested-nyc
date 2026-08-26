@@ -21,6 +21,12 @@
   --c-hack:     oklch(0.66 0.13 78);
   --c-side:     oklch(0.56 0.12 152);
   --c-research: oklch(0.53 0.14 310);
+  /* relaunch category palette (class/hack/side stay above: event types +
+     semantic uses — side=success, hack=warn, startup=danger — keep them) */
+  --c-brand:    oklch(0.66 0.13 78);
+  --c-film:     oklch(0.55 0.13 250);
+  --c-music:    oklch(0.56 0.15 350);
+  --c-personal: oklch(0.56 0.12 152);
 
   --accent: oklch(0.60 0.185 30);
   --accent-ink: oklch(0.42 0.16 32);
@@ -556,6 +562,60 @@ input, textarea, select { font-family: inherit; }
 .team-row.clickable { cursor: pointer; border-radius: 10px; padding: 5px 8px; margin: -5px -8px; transition: background .14s ease; }
 .team-row.clickable:hover { background: var(--accent-wash); }
 .team-row.clickable:hover .t-who b { color: var(--accent-ink); }
+/* ============================================================
+   JOIN REQUESTS — "the polaroid" (requestCard.jsx)
+   Row: photo in a small tilted polaroid, handle + context beside
+   it, note + quick chips on one footer line. Clicking the
+   identity opens the application card (modal below).
+   ============================================================ */
+.req-id { display: flex; flex: 1; min-width: 0; }
+.req-id.clickable { cursor: pointer; border-radius: 10px; padding: 5px 8px; margin: -5px -8px; transition: background .14s ease; }
+.req-id.clickable:hover { background: var(--accent-wash); }
+
+.reqp + .reqp { margin-top: 18px; padding-top: 18px; border-top: 1px dashed var(--line); }
+.reqp .req-id { gap: 14px; align-items: center; }
+.reqp-shot { width: 78px; flex: none; transform: rotate(calc(2deg * var(--tilt))); }
+.reqp-shot .ph { background: var(--accent-wash); display: grid; place-items: center; overflow: hidden; }
+.reqp-shot .ph img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.reqp-info { flex: 1; min-width: 0; }
+.reqp-info b { display: block; font-size: 14px; line-height: 1.25; }
+.reqp-info small { display: block; font-family: var(--mono); font-size: 10.5px; color: var(--ink-soft); font-weight: 500; margin-top: 4px; }
+.reqp .req-id.clickable:hover .reqp-info b { color: var(--accent-ink); }
+.reqp-foot { display: flex; align-items: flex-end; gap: 10px; margin-top: 9px; }
+.reqp-note { flex: 1; min-width: 0; font-family: var(--mono); font-size: 10.5px; color: var(--ink-faint); margin: 0; align-self: center; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.reqp-acts { display: flex; justify-content: flex-end; gap: 6px; margin-left: auto; }
+.reqp-ico { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 9px; border: 1.5px solid var(--paper-edge); background: var(--paper); color: var(--ink-soft); cursor: pointer; transition: border-color .12s, background .12s, color .12s; }
+.reqp-ico.ok:hover { border-color: var(--c-side); color: var(--c-side); }
+.reqp-ico.no:hover { border-color: var(--c-startup); color: var(--c-startup); }
+
+/* THE APPLICATION CARD — everything the row can't fit: full note as a taped
+   pitch, school / major / year, bio + skills (self-fetched), the decision
+   buttons, and marginalia links onward (profile / DM / project). */
+.modal.reqcard { max-width: 430px; }
+.reqcard-head { display: flex; gap: 18px; align-items: center; margin-bottom: 18px; }
+.reqcard-shot { width: 108px; flex: none; transform: rotate(calc(-2.5deg * var(--tilt))); }
+.reqcard-shot .cap { font-size: 10px; }
+.reqcard-who { flex: 1; min-width: 0; }
+.reqcard-who b { display: block; font-family: var(--disp); font-size: 19px; line-height: 1.2; }
+.reqcard-role { display: block; margin-top: 6px; font-family: var(--mono); font-size: 11.5px; font-weight: 600; color: var(--accent-ink); }
+.reqcard-who small { display: block; margin-top: 7px; font-family: var(--mono); font-size: 10.5px; color: var(--ink-faint); }
+.reqcard-pitch { position: relative; background: var(--paper); border: 1px solid var(--paper-edge); border-radius: 3px; padding: 18px 16px 14px; margin: 4px 2px 14px; transform: rotate(calc(-0.8deg * var(--tilt))); box-shadow: 0 8px 18px -12px oklch(0.2 0.02 60 / .5); }
+.reqcard-tape { position: absolute; top: -9px; left: 50%; transform: translateX(-50%) rotate(-2deg); width: 64px; height: 20px; background: oklch(0.86 0.07 95 / 0.55); box-shadow: 0 2px 6px -2px oklch(0.2 0 0 / .3); }
+.reqcard-pitch p { margin: 0; font-family: var(--disp); font-style: italic; font-size: 15px; line-height: 1.5; color: var(--ink); overflow-wrap: anywhere; max-height: 170px; overflow-y: auto; }
+.reqcard-bio { font-size: 13px; line-height: 1.55; color: var(--ink-soft); margin: 0 0 12px; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.reqcard-skills { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.reqcard-skills .tag2 { max-width: 100%; overflow-wrap: anywhere; }
+.reqcard-more { font-family: var(--mono); font-size: 10.5px; color: var(--ink-faint); }
+.reqcard-links { display: flex; flex-wrap: wrap; gap: 8px 18px; margin: 14px 0 16px; padding-top: 13px; border-top: 1px dashed var(--line); }
+.reqcard-link { background: none; border: 0; padding: 0; cursor: pointer; font-family: var(--mono); font-size: 11.5px; font-weight: 600; color: var(--accent-ink); text-decoration: underline dotted; }
+.reqcard-link:hover { color: var(--accent); }
+.reqcard-acts { display: flex; gap: 10px; }
+.reqcard-acts .btn { flex: 1; justify-content: center; }
+@media (max-width: 860px) {
+  .reqcard-shot { width: 86px; }
+  .reqcard-who b { font-size: 17px; }
+  .reqcard-pitch p { max-height: 130px; }
+}
 /* Crew manager modal: one labeled chip per row for the role move; kick is a
    mono marginalia link in the sub-line. Never two buttons side by side. */
 .crew-chip {

@@ -2,13 +2,20 @@
    NESTED NYC — Taxonomy + shared bits
    ============================================================ */
   const CATEGORIES = [
-    { id: "startup",  label: "Startup",       icon: "startup",  color: "var(--c-startup)",  wash: "oklch(0.62 0.17 33 / .16)",  ink: "oklch(0.42 0.13 33)" },
-    { id: "class",    label: "Class Project", icon: "class",    color: "var(--c-class)",    wash: "oklch(0.55 0.13 250 / .16)", ink: "oklch(0.40 0.11 250)" },
-    { id: "hack",     label: "Hackathon",     icon: "hack",     color: "var(--c-hack)",     wash: "oklch(0.66 0.13 78 / .20)",  ink: "oklch(0.42 0.1 78)" },
-    { id: "side",     label: "Side Project",  icon: "side",     color: "var(--c-side)",     wash: "oklch(0.56 0.12 152 / .16)", ink: "oklch(0.40 0.1 152)" },
-    { id: "research", label: "Research",      icon: "research", color: "var(--c-research)", wash: "oklch(0.53 0.14 310 / .16)", ink: "oklch(0.40 0.12 310)" },
+    { id: "startup",  label: "Startup",          icon: "startup",  color: "var(--c-startup)",  wash: "oklch(0.62 0.17 33 / .16)",  ink: "oklch(0.42 0.13 33)" },
+    { id: "brand",    label: "Brand",            icon: "brand",    color: "var(--c-brand)",    wash: "oklch(0.66 0.13 78 / .20)",  ink: "oklch(0.42 0.1 78)" },
+    { id: "film",     label: "Film",             icon: "film",     color: "var(--c-film)",     wash: "oklch(0.55 0.13 250 / .16)", ink: "oklch(0.40 0.11 250)" },
+    { id: "music",    label: "Music",            icon: "music",    color: "var(--c-music)",    wash: "oklch(0.56 0.15 350 / .16)", ink: "oklch(0.40 0.13 350)" },
+    { id: "personal", label: "Personal Project", icon: "personal", color: "var(--c-personal)", wash: "oklch(0.56 0.12 152 / .16)", ink: "oklch(0.40 0.1 152)" },
+    { id: "research", label: "Research",         icon: "research", color: "var(--c-research)", wash: "oklch(0.53 0.14 310 / .16)", ink: "oklch(0.40 0.12 310)" },
   ];
   const CAT = Object.fromEntries(CATEGORIES.map((c) => [c.id, c]));
+
+  // Pre-relaunch category ids that may still exist in DB rows → their new
+  // home. Mirrors the row backfill in migration 20260826000000 so a stale
+  // client / un-migrated row can never render an id CAT doesn't know.
+  const LEGACY_CATS = { class: "personal", hack: "personal", side: "personal" };
+  const normalizeCat = (id) => (CAT[id] ? id : LEGACY_CATS[id] || "personal");
 
   const UNIVERSITIES = [
     // logo = each school's brand mark, self-hosted under public/logos/<id>.<ext>
@@ -340,7 +347,7 @@
   }
 
   export {
-    CATEGORIES, CAT, UNIVERSITIES, UNI, MAJORS, INTERESTS, FIELDS, SKILLS,
+    CATEGORIES, CAT, normalizeCat, UNIVERSITIES, UNI, MAJORS, INTERESTS, FIELDS, SKILLS,
     EVENT_TYPES, ETYPE, STAGES, COMMITMENTS,
     ORG_TYPES, ORG_TYPE,
     LINK_ICON, avColor, initials, findById, orgEventsOf, sortByDay,

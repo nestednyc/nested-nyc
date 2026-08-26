@@ -75,7 +75,7 @@ import { ProjectCard } from './discover'
               // joined render the green "Joined" state instead.
               onEdit: (profile && isProjectAdmin(p, profile)) ? onEdit : undefined,
             })))
-        : React.createElement(EmptyState, { icon: "plus", pin: true, title: "Pin your first project", body: "Recruiting for a startup, class team, or hackathon crew? Post it and we'll match you with students across NYC.", cta: "Start a project", onCta: onStart });
+        : React.createElement(EmptyState, { icon: "plus", pin: true, title: "Pin your first project", body: "Recruiting for a startup, a brand, a film, or your own project? Post it and we'll match you with students across NYC.", cta: "Start a project", onCta: onStart });
     }
 
     return (

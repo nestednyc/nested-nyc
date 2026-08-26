@@ -5,7 +5,7 @@
    src/design/* (create.jsx / edit.jsx / detail.jsx / discover.jsx) and the
    snake_case `projects` row Supabase stores. No service calls in this file.
    ============================================================ */
-import { bareHandle, cleanProjectLinks, fullNameOf, personLabel } from "./data";
+import { bareHandle, cleanProjectLinks, fullNameOf, normalizeCat, personLabel } from "./data";
 
 // Cork-board project → Supabase `projects` row payload (snake_case).
 // owner_id is injected by projectService.createProject, so we omit it here —
@@ -19,7 +19,9 @@ export function toDbProject(p, ownerId) {
     name: p.title || "",
     tagline: p.blurb || "",
     description: p.about || "",
-    category: p.cat || null,
+    // Normalize on write too, so an edit of a legacy-vocab project (or any
+    // future stale caller) can never submit an id the CHECK constraint rejects.
+    category: p.cat ? normalizeCat(p.cat) : null,
     university: p.uni || null,
     author_name: p.ownerName || "",
     commitment: p.commitment || null,
@@ -104,7 +106,7 @@ export function fromDbProject(row) {
   const leadId = memberIdentity(ownerMember, { fallback: "Lead", snapshots: [row.author_name] });
   return {
     id: row.id,
-    cat: row.category || "side",
+    cat: normalizeCat(row.category),
     uni: row.university || "nyu",
     title: row.name || "",
     blurb: row.tagline || "",

@@ -1114,11 +1114,11 @@ import { toDbProfile, fromDbProfile, dataUrlToFile } from './profileAdapter'
           ),
           React.createElement("div", { className: "onb-pitch" },
             React.createElement("h2", null, "Find your people", React.createElement("br"), "for the thing", React.createElement("br"), "you're building."),
-            React.createElement("p", null, "Startups, class projects, hackathon teams, research, side quests — the student-built layer for whatever you're making in NYC."),
+            React.createElement("p", null, "Startups, brands, films, music, research, personal projects — the student-built layer for whatever you're making in NYC."),
             React.createElement("div", { className: "onb-mini-board" },
               React.createElement("div", { className: "mini-flyer", style: { transform: "rotate(-3deg)" } },
-                React.createElement("div", { className: "cat-bar", style: { background: "var(--c-hack)" } }),
-                React.createElement("b", null, "Subway Pulse"), React.createElement("small", null, "Cooper · hackathon")
+                React.createElement("div", { className: "cat-bar", style: { background: "var(--c-music)" } }),
+                React.createElement("b", null, "Demo Mixtape"), React.createElement("small", null, "Juilliard · music")
               ),
               React.createElement("div", { className: "mini-flyer", style: { transform: "rotate(2.5deg)", marginTop: 14 } },
                 React.createElement("div", { className: "cat-bar", style: { background: "var(--c-startup)" } }),

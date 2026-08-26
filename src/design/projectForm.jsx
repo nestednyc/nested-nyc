@@ -16,7 +16,7 @@ import { Av, Facepile, CatTag, Pin, LinkRows, linkRowsFrom } from './shared'
   ];
   // Approx hex per category — only seeds the native color input's swatch; the
   // live flyer still uses the exact CSS var until the user picks a custom color.
-  const CAT_HEX = { startup: "#c0563b", class: "#4f6bd0", hack: "#b8902f", side: "#3f9d6c", research: "#9b4dca" };
+  const CAT_HEX = { startup: "#c0563b", brand: "#b8902f", film: "#4f6bd0", music: "#bd4d80", personal: "#3f9d6c", research: "#9b4dca" };
 
   const EMPTY_VALUES = {
     cat: "",
