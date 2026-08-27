@@ -12,10 +12,16 @@ import { SHOW_EVENTS } from '../config/features'
     const style = { background: color || avColor(name) };
     if (size) { style.width = size; style.height = size; style.fontSize = Math.round(size * 0.36); }
     if (img) {
+      // Absolute-fill, not height:100% — .av is display:grid, and a grid item's
+      // percentage height resolves against the auto implicit row rather than the
+      // fixed span, so portrait photos rendered at natural aspect (top band of
+      // the photo in the circle, face clipped at the bottom). Pinning the img to
+      // the span keeps object-fit:cover cropping about the center at any aspect.
+      style.position = "relative";
       return React.createElement("span", { className: "av", style },
         React.createElement("img", {
           src: img, alt: name, loading: "lazy",
-          style: { width: "100%", height: "100%", objectFit: "cover", borderRadius: "inherit", display: "block" },
+          style: { position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", borderRadius: "inherit" },
         }));
     }
     return React.createElement("span", { className: "av", style }, label || initials(name));
