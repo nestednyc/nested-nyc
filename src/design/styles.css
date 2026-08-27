@@ -299,9 +299,9 @@ input, textarea, select { font-family: inherit; }
 .start-btn:active { transform: translateY(2px); box-shadow: 0 1px 0 oklch(0.16 0.015 60); }
 .start-btn svg { width: 19px; height: 19px; }
 
-/* filter rail */
-.filters { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 22px 0 26px; position: sticky; top: 68px; z-index: 30; background: linear-gradient(var(--cork) 70%, transparent); }
-.surface-newsprint .filters { background: linear-gradient(var(--cork) 70%, transparent); }
+/* filter rail — scrolls with the page. Deliberately NOT sticky: flyers sliding
+   under a pinned bar always read as clipped, whatever the bar's background. */
+.filters { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 22px 0 26px; }
 .chip-filter {
   display: inline-flex; align-items: center; gap: 8px;
   border: 1.5px solid var(--paper-edge); background: var(--paper);
@@ -933,7 +933,7 @@ input, textarea, select { font-family: inherit; }
 .people-stat { font-family: var(--mono); font-size: 12px; color: var(--ink-faint); white-space: nowrap; padding-bottom: 10px; }
 
 /* directory toolbar — search + campus rail (sticky, like the tabs it replaced) */
-.people-tools { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 18px 0 22px; position: sticky; top: 68px; z-index: 30; background: linear-gradient(var(--cork) 72%, transparent); }
+.people-tools { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 18px 0 22px; position: sticky; top: 68px; z-index: 30; background: linear-gradient(var(--cork) calc(100% - 10px), transparent); }
 .people-search { flex: 0 1 340px; min-width: 230px; display: inline-flex; align-items: center; gap: 9px; background: var(--paper); border: 1.5px solid var(--paper-edge); border-radius: 999px; padding: 9px 16px; box-shadow: 0 2px 0 oklch(0.2 0.02 60/.07); transition: border-color .14s, box-shadow .14s; cursor: text; }
 .people-search:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-wash); }
 .people-search svg { width: 17px; height: 17px; color: var(--ink-faint); flex: none; }
