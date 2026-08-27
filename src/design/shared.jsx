@@ -415,8 +415,9 @@ import { SHOW_EVENTS } from '../config/features'
   // Top-bar tabs — shared by NestedApp's goNav, the StudentShell topbar,
   // and SoonPane's icon lookup.
   export const NAV = [
-    { id: "discover", label: "Discover", icon: "grid" },
+    { id: "discover",  label: "Discover",  icon: "grid" },
     // Events tab parked behind SHOW_EVENTS until the first event is posted.
     ...(SHOW_EVENTS ? [{ id: "events", label: "Events", icon: "calendar" }] : []),
-    { id: "people",   label: "People",   icon: "users" },
+    { id: "community", label: "Community", icon: "board" },
+    { id: "people",    label: "People",    icon: "users" },
   ];

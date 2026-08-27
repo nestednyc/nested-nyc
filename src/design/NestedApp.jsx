@@ -26,6 +26,7 @@ import { usePeople } from './hooks/usePeople'
 import { useMessaging } from './hooks/useMessaging'
 import { useProjects } from './hooks/useProjects'
 import { useEvents } from './hooks/useEvents'
+import { useCommunity } from './hooks/useCommunity'
 import { useOrg } from './hooks/useOrg'
 
   const { useState, useEffect, useRef } = React;
@@ -217,8 +218,20 @@ import { useOrg } from './hooks/useOrg'
     });
     const { rsvped, setRsvped, toggleRsvp, resetEvents } = useEvents({ profile, toast, requireAuth });
     const {
+      feed, feedLoading, feedFilter, selectFeedFilter, savedPosts, savedLoading,
+      postLikes, postSaves, postComments, posting, ensureFeed,
+      createCommunityPost, deleteCommunityPost, togglePostLike, togglePostSave,
+      loadPostComments, addCommunityComment, deleteCommunityComment, resetCommunity,
+    } = useCommunity({ profile, toast, requireAuth });
+    const {
       orgEvents, orgEventsLoading, createOrgEvent, updateOrgEvent, resetOrg,
     } = useOrg({ orgAccount, toast, setRoute, setEventDraftId });
+
+    // The community feed loads lazily on the first visit to the board —
+    // deliberately NOT part of the signed-in boot barrier.
+    useEffect(() => {
+      if (route === "community" && profile) ensureFeed();
+    }, [route, profile && profile.id]);
 
     // Dismiss whichever dropdown is open on outside-click / Escape.
     useEffect(() => {
@@ -528,6 +541,7 @@ import { useOrg } from './hooks/useOrg'
       await signOutAuth();
       resetProjects();    // feed + the saved/joined/requested buckets
       resetEvents();      // RSVPs
+      resetCommunity();   // community board feed, marks, comment caches
       resetPeople();      // connection edges
       resetMessaging();   // inbox, open thread + peer, block set, failed-send stash
       resetOrg();         // org event list
@@ -547,11 +561,15 @@ import { useOrg } from './hooks/useOrg'
       // While the Events tab is parked, every nav to the feed lands on the
       // board — one central redirect instead of per-call-site guards.
       if (id === "events" && !SHOW_EVENTS) id = "discover";
-      // People & Saved need an account — nudge guests to sign in instead.
-      if (!profile && (id === "people" || id === "saved")) {
-        return requireAuth(id === "people" ? "Sign in to meet other students" : "Sign in to save projects");
+      // People, Saved & Community need an account — nudge guests to sign in instead.
+      if (!profile && (id === "people" || id === "saved" || id === "community")) {
+        return requireAuth(
+          id === "people" ? "Sign in to meet other students"
+          : id === "community" ? "Sign in to see the community board"
+          : "Sign in to save projects"
+        );
       }
-      if (id === "discover" || id === "events" || id === "people" || id === "saved") { setRoute(id); }
+      if (id === "discover" || id === "events" || id === "people" || id === "saved" || id === "community") { setRoute(id); }
       else { setSoonLabel(NAV.find((n) => n.id === id).label); setRoute("soon"); }
       window.scrollTo({ top: 0 });
     }
@@ -686,6 +704,11 @@ import { useOrg } from './hooks/useOrg'
       // events + org
       rsvped, toggleRsvp, orgEvents, orgEventsLoading,
       createOrgEvent, updateOrgEvent,
+      // community board
+      feed, feedLoading, feedFilter, selectFeedFilter, savedPosts, savedLoading,
+      postLikes, postSaves, postComments, posting,
+      createCommunityPost, deleteCommunityPost, togglePostLike, togglePostSave,
+      loadPostComments, addCommunityComment, deleteCommunityComment,
       toast,
     };
 

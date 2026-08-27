@@ -18,6 +18,7 @@ import Discover, { ProjectCard } from '../discover'
 import Events from '../events'
 import Matches from '../matches'
 import People, { ContactLinks } from '../people'
+import Community from '../community'
 import UserProfile from '../userProfile'
 import Notifications from '../notifications'
 import Messages from '../messages'
@@ -70,6 +71,10 @@ export default function StudentShell({ api }) {
     eventViewId, setEventViewId, eventViewFrom,
     orgViewSlug, setOrgViewSlug, profileViewUsername, messageThreadHandle,
     setEventDraftId, openEventDetail, openOrgView, openPerson, openProfile,
+    feed, feedLoading, feedFilter, selectFeedFilter, savedPosts, savedLoading,
+    postLikes, postSaves, postComments, posting,
+    createCommunityPost, deleteCommunityPost, togglePostLike, togglePostSave,
+    loadPostComments, addCommunityComment, deleteCommunityComment,
     toast,
   } = api;
 
@@ -235,6 +240,23 @@ export default function StudentShell({ api }) {
           onOpenProfile: openProfile,
           onConnect,
           connected,
+        }),
+
+        route === "community" && React.createElement(Community, {
+          profile,
+          projects: projectsList,
+          feed, feedLoading, feedFilter, onSelectFilter: selectFeedFilter,
+          savedPosts, savedLoading,
+          postLikes, postSaves, postComments, posting,
+          onCreatePost: createCommunityPost,
+          onDeletePost: deleteCommunityPost,
+          onToggleLike: togglePostLike,
+          onToggleSave: togglePostSave,
+          onLoadComments: loadPostComments,
+          onAddComment: addCommunityComment,
+          onDeleteComment: deleteCommunityComment,
+          onOpenProject: openProject,
+          onStart: () => { setRoute("create"); window.scrollTo({ top: 0 }); },
         }),
 
         route === "people" && React.createElement(People, {

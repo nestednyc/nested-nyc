@@ -31,6 +31,7 @@ const ROUTES = [
   { route: "detail",        path: "/projects/:id",              access: "public",  params: { id: "detailId" } },
   { route: "edit",          path: "/projects/:id/edit",         access: "student", params: { id: "editId" } },
   { route: "create",        path: "/create",                    access: "student" },
+  { route: "community",     path: "/community",                 access: "student" },
   { route: "people",        path: "/people",                    access: "student" },
   { route: "saved",         path: "/saved",                     access: "student" },
   { route: "notifications", path: "/notifications",             access: "student" },
@@ -112,6 +113,7 @@ const BUILD = {
   detail:        (s) => (s.detailId ? "/projects/" + enc(s.detailId) : null),
   edit:          (s) => (s.editId ? "/projects/" + enc(s.editId) + "/edit" : null),
   create:        () => "/create",
+  community:     () => "/community",
   people:        () => "/people",
   saved:         () => "/saved",
   notifications: () => "/notifications",
@@ -161,6 +163,7 @@ export function titleFor(route, ctx) {
     case "detail":        return c.detailTitle ? c.detailTitle + " · " + SITE : SITE;
     case "edit":          return "Edit flyer · " + SITE;
     case "create":        return "Pin a project · " + SITE;
+    case "community":     return "Community · " + SITE;
     case "people":        return "People · " + SITE;
     case "saved":         return "Saved · " + SITE;
     case "notifications": return "Notifications · " + SITE;
