@@ -9,10 +9,11 @@ import React from 'react'
 import Icon from './icons'
 import { EVENT_TYPES, ETYPE, INTERESTS } from './data'
 import { CatTag, formatEventDate } from './shared'
+import { QuestionBuilder, questionIssues, normalizeQuestions } from './eventRsvp'
 
   const { useState } = React;
 
-  const STEP_COUNT = 3;
+  const STEP_COUNT = 4;
 
   const EMPTY = {
     title: '',
@@ -25,6 +26,7 @@ import { CatTag, formatEventDate } from './shared'
     location: '',
     address: '',
     max_attendees: '',
+    questions: [],
   };
 
   function EventPreviewCard({ values, org }) {
@@ -74,6 +76,8 @@ import { CatTag, formatEventDate } from './shared'
     const [location, setLocation] = useState(init.location);
     const [address, setAddress] = useState(init.address);
     const [maxAttendees, setMaxAttendees] = useState(init.max_attendees || '');
+    // Questions for attendees (the RSVP sheet) — see eventRsvp.jsx.
+    const [questions, setQuestions] = useState(Array.isArray(init.questions) ? init.questions : []);
 
     const editable = mode === 'edit';
     const cta = editable ? { primary: "Save changes", icon: "check" } : { primary: "Pin it", icon: "check" };
@@ -91,9 +95,11 @@ import { CatTag, formatEventDate } from './shared'
     const dateMissing = !date;
     const dateInPast = !!date && !dateInFuture;
 
+    const qIssues = questionIssues(questions);
     const stepGates = [
       !!title.trim() && !!eventType && !!description.trim(),
       dateInFuture && !!time.trim() && !!location.trim(),
+      qIssues.length === 0,
       true,
     ];
     const canNext = stepGates[step];
@@ -113,6 +119,7 @@ import { CatTag, formatEventDate } from './shared'
         location: location.trim(),
         address: address.trim() || null,
         max_attendees: Number.isFinite(cap) && cap > 0 ? cap : null,
+        questions: normalizeQuestions(questions),
         is_past: false,
         organizer_name: (org && org.name) || null,
         organizer_image: (org && org.logo) || null,
@@ -273,10 +280,20 @@ import { CatTag, formatEventDate } from './shared'
           )
         )
       );
+    } else if (step === 2) {
+      body = (
+        React.createElement("div", { className: "fade-up", key: "ev-q" },
+          React.createElement("span", { className: "onb-kicker" }, "Step 3 · Questions for attendees"),
+          React.createElement("h1", null, "Anything you need to know?"),
+          React.createElement("p", { className: "desc" }, "Optional. Whatever you'd put on a sign-up form — dietary needs, a birthday, which track they're coming for. Students answer when they hit “I'm going”; only you and they can see the answers."),
+          React.createElement(QuestionBuilder, { questions, onChange: setQuestions }),
+          qIssues.length > 0 && React.createElement("div", { className: "hint", style: { color: "var(--c-startup)", marginTop: 10 } }, "// " + qIssues[0])
+        )
+      );
     } else {
       body = (
         React.createElement("div", { className: "fade-up", key: "ev2" },
-          React.createElement("span", { className: "onb-kicker" }, editable ? "Step 3 · Save it" : "Step 3 · Pin it"),
+          React.createElement("span", { className: "onb-kicker" }, editable ? "Step 4 · Save it" : "Step 4 · Pin it"),
           React.createElement("h1", null, editable ? "Ready to save?" : "Ready to pin it?"),
           React.createElement("p", { className: "desc" }, editable
             ? "Here's how your event reads on the shared calendar. Save your changes — they go live right away."
@@ -284,7 +301,9 @@ import { CatTag, formatEventDate } from './shared'
 
           React.createElement("div", { className: "create-preview-wrap" },
             React.createElement(EventPreviewCard, { values, org })
-          )
+          ),
+          normalizeQuestions(questions).length > 0 && React.createElement("div", { className: "hint", style: { marginTop: 14 } },
+            "// " + normalizeQuestions(questions).length + (normalizeQuestions(questions).length === 1 ? " question" : " questions") + " for attendees when they RSVP")
         )
       );
     }
@@ -316,7 +335,7 @@ import { CatTag, formatEventDate } from './shared'
           ),
           React.createElement("div", { className: "onb-pitch" },
             React.createElement("h2", null, editable ? "Edit your" : "Pin your", React.createElement("br"), editable ? "event." : "next event."),
-            React.createElement("p", null, "Three quick steps — basics, when & where, then a preview. Students see it on the shared NYC calendar the moment you pin it."),
+            React.createElement("p", null, "Four quick steps — basics, when & where, questions for attendees, then a preview. Students see it on the shared NYC calendar the moment you pin it."),
             React.createElement("div", { className: "onb-mini-board" },
               React.createElement(EventPreviewCard, { values, org })
             )

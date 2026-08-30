@@ -10,6 +10,24 @@ import Icon from './icons'
 import { UNI, joinDots } from './data'
 import { Av, Skeleton } from './shared'
 import { ContactLinks } from './people'
+import { notificationText, groupActivity } from './notificationAdapter'
+import { postTimeAgo } from './postAdapter'
+
+  const { useEffect, useState } = React;
+
+  // One activity item — a like, a comment, a mention. Click → the note.
+  function ActivityRow({ n, isNew, onOpen }) {
+    return (
+      React.createElement("button", { type: "button", className: "act-row" + (isNew ? "" : " read"), onClick: () => onOpen && onOpen(n) },
+        React.createElement("span", { className: "act-dot" }),
+        React.createElement(Av, { name: n.actor.name, img: n.actor.avatar || null }),
+        React.createElement("span", { className: "act-txt" },
+          React.createElement("b", null, notificationText(n)),
+          n.snippet && React.createElement("small", null, n.kind === "post_comment" || n.kind === "mention" ? "“" + n.snippet + "”" : n.snippet)),
+        React.createElement("span", { className: "act-time" }, postTimeAgo(n.at))
+      )
+    );
+  }
 
   // One incoming connection — moved verbatim from People's old "incoming" tab.
   // The identity block (avatar + name) opens the person's full ProfileModal so
@@ -74,8 +92,26 @@ import { ContactLinks } from './people'
     );
   }
 
-  function Notifications({ incoming = [], connected = [], projectRequests = [], onConnect, onApprove, onReject, onOpenProject, onOpenProfile, loading = false, error = null, onRetry }) {
+  function Notifications({
+    incoming = [], connected = [], projectRequests = [], onConnect, onApprove, onReject, onOpenProject, onOpenProfile,
+    activity = [], activityLoading = false, unreadActivity = 0, onMarkAllRead, onOpenActivity,
+    loading = false, error = null, onRetry,
+  }) {
     const connSet = new Set(connected);
+    // Opening the page reads the activity: remember which rows were new when
+    // it first rendered (they keep their dot for this visit), then flip them
+    // read on the server. Waits for the first load so a cold visit works too.
+    // Rows that arrive live while the page is open join the set and get read too.
+    const [newIds, setNewIds] = useState(null);
+    useEffect(() => {
+      if (activityLoading) return;
+      const fresh = activity.filter((a) => !a.read).map((a) => a.id);
+      if (!fresh.length) { if (newIds === null && activity.length) setNewIds(new Set()); return; }
+      setNewIds((prev) => new Set([...(prev || []), ...fresh]));
+      if (onMarkAllRead) onMarkAllRead();
+    }, [activityLoading, activity.length, unreadActivity]);
+    const grouped = groupActivity(activity);
+    const newCount = newIds ? grouped.filter((g) => g.ids.some((id) => newIds.has(id))).length : 0;
 
     let body;
     if (loading) {
@@ -87,11 +123,11 @@ import { ContactLinks } from './people'
         React.createElement("p", null, "Something went wrong reaching Nested. Check your connection and try again."),
         React.createElement("button", { className: "btn btn-primary", style: { marginTop: 22 }, onClick: onRetry },
           React.createElement(Icon, { name: "refresh", size: 16, stroke: "var(--paper)" }), "Try again"));
-    } else if (!incoming.length && !projectRequests.length) {
+    } else if (!incoming.length && !projectRequests.length && !activity.length && !activityLoading) {
       body = React.createElement("div", { className: "match-empty fade-up" },
         React.createElement("div", { className: "ill" }, React.createElement(Icon, { name: "bell", size: 42, stroke: "var(--accent)" })),
         React.createElement("h3", null, "You're all caught up"),
-        React.createElement("p", null, "New connection requests and requests to join your projects will show up here."));
+        React.createElement("p", null, "Connection requests, requests to join your projects, and likes, comments and mentions on the board all land here."));
     } else {
       body = React.createElement("div", null,
         incoming.length > 0 && React.createElement("div", { className: "notif-sec" },
@@ -103,7 +139,12 @@ import { ContactLinks } from './people'
           React.createElement("div", { className: "sec-h" }, "Requests to join · " + projectRequests.length),
           React.createElement("div", { className: "rail-card" },
             React.createElement("div", { className: "team-pile" },
-              projectRequests.map((req) => React.createElement(RequestRow, { key: req.id, req, onApprove, onReject, onOpenProject })))))
+              projectRequests.map((req) => React.createElement(RequestRow, { key: req.id, req, onApprove, onReject, onOpenProject }))))),
+        (activity.length > 0 || activityLoading) && React.createElement("div", { className: "notif-sec" },
+          React.createElement("div", { className: "sec-h" }, "Activity" + (newCount ? " · " + newCount + " new" : "")),
+          React.createElement("div", { className: "rail-card act-list" },
+            activityLoading && !activity.length && React.createElement("div", { className: "ev-skel line", style: { width: "60%" } }),
+            grouped.map((n) => React.createElement(ActivityRow, { key: n.id, n, isNew: !!(newIds && n.ids.some((id) => newIds.has(id))), onOpen: onOpenActivity }))))
       );
     }
 
@@ -112,7 +153,7 @@ import { ContactLinks } from './people'
         React.createElement("div", { className: "disco-head" },
           React.createElement("div", { className: "head-txt" },
             React.createElement("h1", null, "Your ", React.createElement("em", null, "notifications")),
-            React.createElement("p", { className: "sub" }, "People who connected with you, and students asking to join your projects.")
+            React.createElement("p", { className: "sub" }, "People who connected with you, students asking to join your projects, and what's happening to your notes on the board.")
           )
         ),
         body

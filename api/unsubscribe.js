@@ -36,9 +36,14 @@ function first(v) {
   return Array.isArray(v) ? v[0] : v;
 }
 
-function validToken(userId, t) {
-  if (!userId || !t || !UNSUB_SECRET) return false;
-  const expected = crypto.createHmac("sha256", UNSUB_SECRET).update(String(userId)).digest("hex");
+// kind: "" (every email — profiles.email_opt_out) or "digest" (the weekly
+// digest only — profiles.digest_opt_out). The digest token signs
+// "<userId>:digest" so the two links can't be swapped.
+const KINDS = new Set(["", "digest"]);
+
+function validToken(userId, t, kind = "") {
+  if (!userId || !t || !UNSUB_SECRET || !KINDS.has(kind)) return false;
+  const expected = crypto.createHmac("sha256", UNSUB_SECRET).update(kind ? `${userId}:${kind}` : String(userId)).digest("hex");
   const a = Buffer.from(String(t));
   const b = Buffer.from(expected);
   return a.length === b.length && crypto.timingSafeEqual(a, b);
@@ -53,8 +58,9 @@ function attr(s) {
     .replace(/>/g, "&gt;");
 }
 
-function selfUrl(userId, t, action) {
-  const base = `/api/unsubscribe?u=${encodeURIComponent(userId)}&t=${encodeURIComponent(t)}`;
+function selfUrl(userId, t, action, kind = "") {
+  let base = `/api/unsubscribe?u=${encodeURIComponent(userId)}&t=${encodeURIComponent(t)}`;
+  if (kind) base += `&kind=${encodeURIComponent(kind)}`;
   return action ? `${base}&action=${action}` : base;
 }
 
@@ -91,8 +97,9 @@ function confirm(title, body, postUrl, button) {
   );
 }
 
-async function setOptOut(userId, value) {
-  return admin.from("profiles").update({ email_opt_out: value }).eq("id", userId);
+async function setOptOut(userId, value, kind = "") {
+  const patch = kind === "digest" ? { digest_opt_out: value } : { email_opt_out: value };
+  return admin.from("profiles").update(patch).eq("id", userId);
 }
 
 export default async function handler(req, res) {
@@ -100,7 +107,9 @@ export default async function handler(req, res) {
   const userId = first(q.u);
   const t = first(q.t);
   const action = first(q.action);
+  const kind = first(q.kind) || "";
   const method = (req.method || "GET").toUpperCase();
+  const digest = kind === "digest";
 
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   res.setHeader("Cache-Control", "no-store");
@@ -108,7 +117,7 @@ export default async function handler(req, res) {
   if (!admin) {
     return res.status(500).send(note("Something went wrong", "Email preferences are temporarily unavailable. Please try again later."));
   }
-  if (!validToken(userId, t)) {
+  if (!validToken(userId, t, kind)) {
     return res.status(400).send(note("Invalid link", "This unsubscribe link is invalid or has expired."));
   }
 
@@ -118,18 +127,20 @@ export default async function handler(req, res) {
     if (action === "resubscribe") {
       return res.status(200).send(
         confirm(
-          "Resubscribe to Nested emails?",
-          "You'll start receiving Nested notification emails again.",
-          selfUrl(userId, t, "resubscribe"),
+          digest ? "Resubscribe to the weekly digest?" : "Resubscribe to Nested emails?",
+          digest ? "You'll get \"This week on the board\" again — once a week, never more." : "You'll start receiving Nested notification emails again.",
+          selfUrl(userId, t, "resubscribe", kind),
           "Resubscribe me"
         )
       );
     }
     return res.status(200).send(
       confirm(
-        "Unsubscribe from Nested emails?",
-        "Click below to stop receiving Nested notification emails — join requests, approvals, new connections, and org updates.",
-        selfUrl(userId, t),
+        digest ? "Unsubscribe from the weekly digest?" : "Unsubscribe from Nested emails?",
+        digest
+          ? "Click below to stop the weekly \"This week on the board\" email. Join requests, approvals and messages keep coming."
+          : "Click below to stop receiving Nested notification emails — join requests, approvals, new connections, org updates and the weekly digest.",
+        selfUrl(userId, t, null, kind),
         "Unsubscribe me"
       )
     );
@@ -142,18 +153,18 @@ export default async function handler(req, res) {
     return res.status(429).send(note("Too many requests", "Please wait a moment and try again."));
   }
   if (action === "resubscribe") {
-    const { error } = await setOptOut(userId, false);
+    const { error } = await setOptOut(userId, false, kind);
     if (error) return res.status(500).send(note("Something went wrong", "We couldn't update your preferences. Please try again."));
-    return res.status(200).send(note("You're resubscribed", "You'll receive Nested notification emails again."));
+    return res.status(200).send(note("You're resubscribed", digest ? "The weekly digest is back on." : "You'll receive Nested notification emails again."));
   }
 
-  const { error } = await setOptOut(userId, true);
+  const { error } = await setOptOut(userId, true, kind);
   if (error) return res.status(500).send(note("Something went wrong", "We couldn't update your preferences. Please try again."));
-  const resub = selfUrl(userId, t, "resubscribe");
+  const resub = selfUrl(userId, t, "resubscribe", kind);
   return res.status(200).send(
     note(
       "You've been unsubscribed",
-      `You won't receive Nested notification emails anymore. Changed your mind? <a href="${attr(resub)}" style="color:#A6391F;">Resubscribe</a>.`
+      `${digest ? "No more weekly digest." : "You won't receive Nested notification emails anymore."} Changed your mind? <a href="${attr(resub)}" style="color:#A6391F;">Resubscribe</a>.`
     )
   );
 }

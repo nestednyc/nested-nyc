@@ -10,6 +10,8 @@ import OrgForm, { OrgPreview } from './orgForm'
 import { orgService } from '../services/orgService'
 import { resolveOrgUniSlug } from './data'
 import { useUniversitiesList } from './useUniversitiesList'
+import { dataUrlToFile } from './profileAdapter'
+import { storageService } from '../services/storageService'
 
   const { useState } = React;
 
@@ -84,6 +86,9 @@ import { useUniversitiesList } from './useUniversitiesList'
       links: (Array.isArray(org.links) && org.links.length)
         ? [...org.links]
         : [org.website, org.instagram && 'https://instagram.com/' + String(org.instagram).replace(/^@+/, '')].filter(Boolean),
+      logo: org.logo || '',
+      joinQuestions: Array.isArray(org.join_questions) ? org.join_questions : [],
+      joinUrl: org.join_url || '',
     };
 
     async function onSubmit(values) {
@@ -109,9 +114,24 @@ import { useUniversitiesList } from './useUniversitiesList'
         return;
       }
 
+      // A freshly picked logo arrives as a data: URL — upload it first and
+      // save the public URL; an untouched or removed logo saves as-is.
+      let logo = values.logo || null;
+      if (logo && logo.startsWith('data:')) {
+        const file = await dataUrlToFile(logo, 'logo.jpg');
+        const { url, error: upErr } = await storageService.uploadOrgLogo(org.id, file);
+        if (upErr || !url) {
+          setSubmitting(false);
+          setSubmitError((upErr && upErr.message) || "Couldn't upload the logo — try a smaller image.");
+          return;
+        }
+        logo = url;
+      }
+
       const updates = {
         name: values.name,
         type: values.type,
+        logo,
         // Campus untouched → preserve the stored FK verbatim (immune to a
         // slow/failed/empty list on unrelated saves). Changed → the guard
         // above guarantees uniRow when a campus was picked; cleared → null.
@@ -119,6 +139,8 @@ import { useUniversitiesList } from './useUniversitiesList'
         bio: values.bio,
         location: values.location,
         links: values.links,
+        join_questions: values.joinQuestions || [],
+        join_url: values.joinUrl ? values.joinUrl : null,
         // Legacy fields are superseded by links — null them on every save so
         // a deliberately emptied builder can't resurrect old pills through
         // the read-side legacy fallback.

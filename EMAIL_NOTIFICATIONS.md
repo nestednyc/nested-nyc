@@ -1,7 +1,8 @@
 # Email notifications
 
 Transactional emails for Nested, sent from Vercel serverless functions when
-Supabase rows change. Five notifications today:
+Supabase rows change, plus one scheduled digest. Seven event-driven
+notifications today:
 
 | Trigger (Supabase) | Email | Recipient |
 |---|---|---|
@@ -10,6 +11,13 @@ Supabase rows change. Five notifications today:
 | `connections` INSERT | New connection | The target |
 | `organizations` UPDATE (verified → `true`) | You're verified | The org owner |
 | `messages` INSERT (**first of a pair only**) | New message | The message recipient |
+| `reports` INSERT | Community report (internal) | `REPORT_RECIPIENTS` |
+| `org_memberships` INSERT (status `pending`, or a rejected row re-applied) | Club application | The org owner |
+| `org_memberships` UPDATE (`pending` → `accepted`) | You're in (club) | The applicant |
+| `organizations` INSERT (club / community) | New org waiting for review (internal) | `ADMIN_RECIPIENTS` (falls back to `REPORT_RECIPIENTS`) |
+
+And the **weekly digest** — `api/digest.js`, run by Vercel Cron every Monday
+14:00 UTC (`vercel.json` → `crons`). See §5.
 
 ## Architecture
 
@@ -37,6 +45,9 @@ reach the browser.
 | `EMAIL_FROM` | `Nested <hi@nested.social>` (the domain must be verified in Resend) |
 | `APP_URL` | `https://www.nested.social` (used to build links inside emails) |
 | `UNSUBSCRIBE_SECRET` | Optional; HMAC key for unsubscribe links (defaults to `WEBHOOK_SECRET`) |
+| `REPORT_RECIPIENTS` | Comma-separated founder addresses that receive community reports |
+| `ADMIN_RECIPIENTS` | Optional; addresses for "new org waiting for review" (defaults to `REPORT_RECIPIENTS`) |
+| `CRON_SECRET` | Vercel sets `Authorization: Bearer <CRON_SECRET>` on cron invocations of `/api/digest`; set it so nobody else can trigger a send |
 
 ## 1. Resend
 
@@ -54,15 +65,25 @@ the column exists in prod (Supabase → Table editor) rather than trusting
 
 ## 3. Webhooks (Supabase → Database → Webhooks)
 
-Create **four** webhooks, all pointing at `https://www.nested.social/api/notify`,
+Create **six** webhooks, all pointing at `https://www.nested.social/api/notify`,
 HTTP method **POST**, each with an HTTP header `x-webhook-secret: <WEBHOOK_SECRET>`:
 
 | Name | Table | Events |
 |---|---|---|
 | `notify_team_members` | `team_members` | Insert, Update |
 | `notify_connections` | `connections` | Insert |
-| `notify_organizations` | `organizations` | Update |
+| `notify_organizations` | `organizations` | **Insert**, Update |
 | `notify_messages` | `messages` | Insert |
+| `notify_reports` | `reports` | Insert |
+| `notify_org_memberships` | `org_memberships` | Insert, Update |
+
+`notify_reports` is an **internal alert**, not a user email: every community
+report (post / comment / profile, migration `20260830000002`) is mailed to the
+comma-separated addresses in the `REPORT_RECIPIENTS` env var (e.g.
+`hamza@…, rodney@…`). No opt-out applies. Without that env var the webhook is
+accepted and skipped. The email inlines the reported text (there's no per-post
+URL); three distinct reports auto-hide the post/comment — reset
+`report_count` on the row to restore it.
 
 `notify.js` filters precisely (pending inserts, the pending→approved flip, the
 verified false→true flip, and — for `messages` — only the **first** message of a
@@ -106,6 +127,19 @@ create trigger notify_messages
     '{}', '5000');
 ```
 </details>
+
+## 5. Weekly digest (cron)
+
+`vercel.json` schedules `GET /api/digest` for Mondays 14:00 UTC (10am ET).
+Vercel authenticates the call with `Authorization: Bearer <CRON_SECRET>`; a
+manual run can send `x-webhook-secret` instead. `?dry=1` returns the plan and a
+sample email without sending. One email per student with
+`onboarding_completed`, not `email_opt_out`, not `digest_opt_out` (migration
+`20260831000002`); `digest_log` (user × ISO week) makes a re-run idempotent, a
+quiet week sends nothing, and sends go through Resend's batch endpoint (50 per
+call). The footer's "Unsubscribe from the weekly digest" link hits
+`/api/unsubscribe?kind=digest` with its own HMAC (`<userId>:digest`) and flips
+only `digest_opt_out`; the all-email link keeps working as before.
 
 ## 4. Deploy order (matters — `main` auto-deploys to prod)
 

@@ -50,8 +50,25 @@ function esc(s) {
  * @param {string} o.ctaUrl      button link
  * @param {string} o.footerNote  why they're receiving this
  * @param {string} [o.unsubUrl]  manage-preferences / unsubscribe link
+ * @param {Array}  [o.sections]  optional list blocks: [{ title, items: [{ label, sub, url }] }]
+ * @param {Array}  [o.footerLinks] optional footer links [{ label, url }] (replaces the single preferences link)
  */
 export function renderEmail(o) {
+  const sections = (o.sections || [])
+    .filter((s) => s && Array.isArray(s.items) && s.items.length)
+    .map((s) => `<div style="margin:0 0 22px;">
+         <div style="font-family:${FONT_MONO};font-size:11px;letter-spacing:.06em;color:${T.inkFaint};text-transform:uppercase;margin-bottom:6px;">// ${esc(s.title)}</div>
+         ${s.items.map((it) => `<div style="padding:9px 0;border-top:1px dashed ${T.border};">
+           <a href="${it.url}" style="font-family:${FONT_BODY};font-weight:700;font-size:15px;color:${T.ink};text-decoration:none;">${esc(it.label)}</a>
+           ${it.sub ? `<div style="font-family:${FONT_BODY};font-size:13.5px;line-height:1.5;color:${T.inkSoft};margin-top:2px;">${esc(it.sub)}</div>` : ""}
+         </div>`).join("")}
+       </div>`)
+    .join("");
+  const footerLinks = (o.footerLinks && o.footerLinks.length
+    ? o.footerLinks
+    : [{ label: "Manage email preferences", url: o.unsubUrl || (SITE + "/profile") }])
+    .map((l) => `<a href="${l.url}" style="color:${T.inkFaint};text-decoration:underline;">${esc(l.label)}</a>`)
+    .join(" &nbsp;·&nbsp; ");
   const note = o.note && String(o.note).trim()
     ? `<div style="border-left:3px solid ${T.accent};background:${T.noteBg};border-radius:0 8px 8px 0;padding:13px 16px;margin:0 0 26px;">
          <div style="font-family:${FONT_MONO};font-size:11px;letter-spacing:.04em;color:${T.inkFaint};text-transform:uppercase;margin-bottom:5px;">// their note</div>
@@ -93,6 +110,8 @@ export function renderEmail(o) {
 
             ${note}
 
+            ${sections}
+
             <table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
               <tr><td style="border-radius:10px;background:${T.ink};">
                 <a href="${o.ctaUrl}" style="display:inline-block;padding:13px 26px;font-family:${FONT_BODY};font-weight:700;font-size:15px;color:${T.card};text-decoration:none;border-radius:10px;">${esc(o.ctaLabel)} &nbsp;&rarr;</a>
@@ -107,7 +126,7 @@ export function renderEmail(o) {
       <tr><td style="padding:22px 8px 0;">
         <div style="font-family:${FONT_BODY};font-size:12.5px;line-height:1.5;color:${T.inkFaint};">${esc(o.footerNote || "")}</div>
         <div style="font-family:${FONT_MONO};font-size:11px;margin-top:9px;">
-          <a href="${o.unsubUrl || (SITE + "/profile")}" style="color:${T.inkFaint};text-decoration:underline;">Manage email preferences</a>
+          ${footerLinks}
         </div>
       </td></tr>
 
@@ -156,6 +175,36 @@ export const emails = {
     }),
   }),
 
+  // → club owner: a student applied to join their club
+  clubJoinRequest: ({ applicantName, school, clubName, unsubUrl }) => ({
+    subject: `${applicantName} wants to join ${clubName}`,
+    html: renderEmail({
+      preheader: `${applicantName} applied to join ${clubName}`,
+      eyebrow: "someone wants in",
+      heading: `${applicantName} wants to join ${clubName}`,
+      body: `${applicantName}${school ? ` from ${school}` : ""} tapped Join on your page${" and answered your questions"}. Take a look and bring them onto the roster if it's a fit.`,
+      ctaLabel: "Review applications",
+      ctaUrl: url("/dashboard/members"),
+      footerNote: "You're getting this because you run an org on Nested.",
+      unsubUrl,
+    }),
+  }),
+
+  // → applicant: the club accepted them
+  clubJoinAccepted: ({ clubName, clubSlug, unsubUrl }) => ({
+    subject: `You're in — welcome to ${clubName}`,
+    html: renderEmail({
+      preheader: `${clubName} accepted your application`,
+      eyebrow: "you're in",
+      heading: `Welcome to ${clubName}`,
+      body: `${clubName} accepted your application. You're on the roster, and you'll see their posts and events on your board from here on.`,
+      ctaLabel: `Open ${clubName}`,
+      ctaUrl: url(`/org/${clubSlug}`),
+      footerNote: "You're getting this because you applied to join a club on Nested.",
+      unsubUrl,
+    }),
+  }),
+
   // → target: another student connected with them
   newConnection: ({ sourceName, school, sourceUsername, unsubUrl }) => ({
     subject: `${sourceName} connected with you on Nested`,
@@ -183,6 +232,64 @@ export const emails = {
       ctaUrl: url(senderUsername ? `/messages/${senderUsername}` : `/messages`),
       footerNote: "You're getting this because someone messaged you for the first time on Nested.",
       unsubUrl,
+    }),
+  }),
+
+  // → the founders (REPORT_RECIPIENTS): a student flagged something on the board
+  newReport: ({ reporterName, reporterSchool, targetLabel, excerpt, reason, targetType, targetId }) => {
+    const clip = excerpt && excerpt.length > 280 ? excerpt.slice(0, 277) + "…" : excerpt;
+    return {
+      subject: `Report: ${targetLabel}`,
+      html: renderEmail({
+        preheader: `${reporterName} reported ${targetLabel}`,
+        eyebrow: "community report",
+        heading: `${reporterName} reported ${targetLabel}`,
+        body: `${reporterName}${reporterSchool ? ` from ${reporterSchool}` : ""} flagged ${targetLabel} on the community board.${clip ? ` What they reported: “${clip}”` : ""} (${targetType} ${targetId})`,
+        note: reason,
+        ctaLabel: "Open the board",
+        ctaUrl: url(`/community`),
+        footerNote: "Internal alert — this address is on REPORT_RECIPIENTS for Nested. Three distinct reports auto-hide a post or comment; reset posts.report_count / post_comments.report_count to restore it.",
+        unsubUrl: null,
+      }),
+    };
+  },
+
+  // → the founders (ADMIN_RECIPIENTS): a new org signed up and is waiting for verification
+  newOrg: ({ name, type, slug, location, bio, ownerEmail, school }) => ({
+    subject: `New org waiting for review: ${name}`,
+    html: renderEmail({
+      preheader: `${name} signed up on Nested`,
+      eyebrow: "new org",
+      heading: `${name} signed up`,
+      body: `A new ${type || "org"}${school ? ` at ${school}` : ""}${location ? ` (${location})` : ""} just created its page${ownerEmail ? ` — owner ${ownerEmail}` : ""}. It stays invisible until verified. To approve it, run as service role: update public.organizations set verified = true where slug = '${slug}';`,
+      note: bio,
+      ctaLabel: "Open its page",
+      ctaUrl: url(`/org/${encodeURIComponent(slug || "")}`),
+      footerNote: "Internal alert — this address is on ADMIN_RECIPIENTS for Nested. The page 404s for everyone but the owner until the org is verified.",
+      unsubUrl: null,
+    }),
+  }),
+
+  // → every student who hasn't opted out: the week on the board, school first
+  weeklyDigest: ({ firstName, school, posts, events, flyers, unsubUrl, digestUnsubUrl }) => ({
+    subject: `This week on the board${school ? ` at ${school}` : ""}`,
+    html: renderEmail({
+      preheader: `${posts.length} notes, ${events.length} events and ${flyers.length} new flyers this week`,
+      eyebrow: "this week on the board",
+      heading: `${firstName ? firstName + ", here's" : "Here's"} what happened on Nested this week`,
+      body: `${school ? `What students at ${school} and across NYC pinned` : "What NYC students pinned"} in the last seven days — wins, asks, and what's coming up.`,
+      sections: [
+        { title: "on the board", items: posts },
+        { title: "coming up", items: events },
+        { title: "new flyers", items: flyers },
+      ],
+      ctaLabel: "Open the board",
+      ctaUrl: url(`/community`),
+      footerNote: "You're getting this weekly because you're a student on Nested. Once a week, never more.",
+      footerLinks: [
+        { label: "Unsubscribe from the weekly digest", url: digestUnsubUrl },
+        { label: "All email preferences", url: unsubUrl },
+      ],
     }),
   }),
 

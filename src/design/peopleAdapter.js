@@ -48,5 +48,7 @@ export function toPerson(row) {
     building: row.building || "",
     interests: fields,
     links: row.links || {},
+    // Signup time (ms) — the community rail's "New around <school>" sorts on it.
+    createdAt: row.created_at ? new Date(row.created_at).getTime() : 0,
   };
 }

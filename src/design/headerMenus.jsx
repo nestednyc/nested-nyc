@@ -11,8 +11,10 @@ import React from 'react'
 import Icon from './icons'
 import { UNI, joinDots } from './data'
 import { Av } from './shared'
+import { notificationText, groupActivity } from './notificationAdapter'
+import { postTimeAgo } from './postAdapter'
 
-  const { useState } = React;
+  const { useState, useEffect, useRef } = React;
 
   // How many pending items the bell preview shows before "View all".
   const NOTIF_PREVIEW = 5;
@@ -23,11 +25,20 @@ import { Av } from './shared'
   // calls the same async handler the full page uses, which updates app
   // state and drops the row from the source array. These are not a
   // read/unread feed, so there's deliberately no "mark all as read".
-  function NotifPanel({ open, count = 0, incoming = [], projectRequests = [], loading = false,
-    onApprove, onReject, onConnect, onOpenProfile, onOpenProject, onViewAll, onClose }) {
+  function NotifPanel({ open, count = 0, incoming = [], projectRequests = [], activity = [], unreadCount = 0, loading = false,
+    onApprove, onReject, onConnect, onOpenProfile, onOpenProject, onOpenActivity, onSeen, onViewAll, onClose }) {
     // Per-row in-flight set — disables a row's buttons (and dims it) while its
     // async action runs; on success the source array updates and the row leaves.
     const [acting, setActing] = useState(() => new Set());
+    // Opening the panel = seeing the activity. Remember which rows were new
+    // at that moment (they keep their dot while the panel is open), then
+    // flip them read on the server.
+    const newIds = useRef(new Set());
+    useEffect(() => {
+      if (!open) { newIds.current = new Set(); return; }
+      activity.filter((a) => !a.read).forEach((a) => newIds.current.add(a.id));
+      if (onSeen) onSeen();
+    }, [open, unreadCount]);
     if (!open) return null;
 
     function run(key, fn) {
@@ -41,6 +52,9 @@ import { Av } from './shared'
     const rows = [];
     incoming.forEach((p) => rows.push({ kind: "conn", key: "c" + p.id, p }));
     projectRequests.forEach((req) => rows.push({ kind: "join", key: "j" + req.id, req }));
+    // Activity (likes / comments / mentions) after the actionable rows, new first.
+    const isNew = (n) => n.ids.some((id) => newIds.current.has(id)) || !n.read;
+    groupActivity(activity).sort((a, b) => (isNew(a) ? 0 : 1) - (isNew(b) ? 0 : 1)).forEach((n) => rows.push({ kind: "act", key: "a" + n.id, n, fresh: isNew(n) }));
     const shown = rows.slice(0, NOTIF_PREVIEW);
 
     let inner;
@@ -74,6 +88,21 @@ import { Av } from './shared'
                   className: "nr-ico connect", title: "Connect back", "aria-label": "Connect back", disabled: busy,
                   onClick: (e) => { e.stopPropagation(); run(r.key, () => onConnect && onConnect(p.id)); },
                 }, React.createElement(Icon, { name: "heart", size: 16 }))
+              )
+            );
+          }
+          if (r.kind === "act") {
+            const n = r.n;
+            return React.createElement("div", { key: r.key, className: "notif-row act" + (r.fresh ? " unread" : "") },
+              React.createElement("button", {
+                className: "nr-main", role: "menuitem",
+                onClick: () => { onClose && onClose(); onOpenActivity && onOpenActivity(n); },
+              },
+                React.createElement(Av, { name: n.actor.name, img: n.actor.avatar || null }),
+                React.createElement("span", { className: "nr-txt" },
+                  React.createElement("b", null, notificationText(n)),
+                  React.createElement("small", null, (n.snippet ? n.snippet + " · " : "") + postTimeAgo(n.at))
+                )
               )
             );
           }

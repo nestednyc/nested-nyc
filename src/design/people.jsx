@@ -7,7 +7,7 @@
 import React from 'react'
 import Icon from './icons'
 import { UNI, LINK_ICON, joinDots } from './data'
-import { UniLogo, Skeleton, Polaroid } from './shared'
+import { Av, UniLogo, Skeleton, Polaroid } from './shared'
 
   const { useState } = React;
 
@@ -94,7 +94,15 @@ import { UniLogo, Skeleton, Polaroid } from './shared'
   // The card's inner content, shared by the /u/:username page (userProfile.jsx)
   // which wraps it in a backbar + paper shell. Pass showConnect:false to hide
   // the action row (e.g. viewing yourself).
-  function PersonProfile({ person, connected, canMessage, onConnect, onMessage, isBlocked = false, onBlock, onUnblock, showConnect = true }) {
+  function ClubsLine({ clubs, onOpenOrg }) {
+    if (!Array.isArray(clubs) || !clubs.length) return null;
+    return React.createElement("div", { className: "pf-clubs" },
+      React.createElement("span", { className: "lbl" }, "Clubs"),
+      clubs.map((c) => React.createElement("button", { key: c.id, type: "button", className: "pf-club", onClick: () => c.slug && onOpenOrg && onOpenOrg(c.slug), title: c.name },
+        React.createElement(Av, { name: c.name, img: c.logo || null, size: 20 }), c.name)));
+  }
+
+  function PersonProfile({ person, connected, canMessage, onConnect, onMessage, isBlocked = false, onBlock, onUnblock, showConnect = true, clubs, onOpenOrg }) {
     // `connected` drives the Connect/Disconnect toggle (the viewer's OUTGOING
     // edge). Messaging no longer requires a connection — `canMessage` is set by
     // the caller (true for anyone but yourself); falls back to `connected` if unset.
@@ -106,6 +114,7 @@ import { UniLogo, Skeleton, Polaroid } from './shared'
           React.createElement("span", { className: "sc-name", style: { fontSize: 30 } }, person.name)
         ),
         React.createElement("div", { className: "sc-meta" }, joinDots(person.realName, UNI[person.uni].full, (person.major + " " + person.year).trim())),
+        React.createElement(ClubsLine, { clubs, onOpenOrg }),
         React.createElement("p", { className: "sc-bio", style: { fontSize: 16 } }, person.bio),
         person.building && React.createElement("div", { className: "sc-looking" },
           React.createElement("div", { className: "t" },
@@ -248,5 +257,5 @@ import { UniLogo, Skeleton, Polaroid } from './shared'
     );
   }
 
-  export { People, ContactLinks, LinkPill, PersonProfile };
+  export { People, ContactLinks, LinkPill, PersonProfile, ClubsLine };
   export default People;
