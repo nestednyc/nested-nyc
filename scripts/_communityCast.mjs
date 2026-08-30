@@ -108,11 +108,11 @@ const GUARDED_TABLES = ['profiles', 'organizations', 'events', 'posts'];
 
 /** Create-or-confirm one auth user through the admin REST API (works the
     same against the local stack and a hosted project). */
-export async function ensureUser(API, SR, email, meta) {
+export async function ensureUser(API, SR, email, meta, password = PASSWORD) {
   const res = await fetch(`${API}/auth/v1/admin/users`, {
     method: 'POST',
     headers: { apikey: SR, Authorization: `Bearer ${SR}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password: PASSWORD, email_confirm: true, user_metadata: meta }),
+    body: JSON.stringify({ email, password, email_confirm: true, user_metadata: meta }),
   });
   if (res.ok) { console.log(`  created ${email}`); return; }
   const body = await res.text();

@@ -18,8 +18,13 @@ const refIdx = process.argv.indexOf('--ref');
 const REF = refIdx > -1 ? process.argv[refIdx + 1] : null;
 const PAT = process.env.SUPABASE_PAT;
 if (!REF || !/^[a-z]{20}$/.test(REF)) { console.error('Usage: SUPABASE_PAT=sbp_… node scripts/seed-staging-community.mjs --ref <project-ref>'); process.exit(2); }
-if (REF === PROD_REF) { console.error('REFUSING: that is the PRODUCTION project.'); process.exit(3); }
+const yesProd = process.argv.includes('--yes-prod');
+if (REF === PROD_REF && !yesProd) { console.error('REFUSING: that is the PRODUCTION project. Re-run with --yes-prod if Hamza explicitly asked for the shared-DB preview seed.'); process.exit(3); }
 if (!PAT || !PAT.startsWith('sbp_')) { console.error('Missing SUPABASE_PAT (sbp_…) in the environment.'); process.exit(2); }
+// On prod the demo accounts must NOT use the published Passw0rd! — require a
+// private password so nobody can walk into the fake accounts on the live site.
+const SEED_PW = process.env.SEED_PASSWORD;
+if (REF === PROD_REF && (!SEED_PW || SEED_PW.length < 12)) { console.error('Prod seeding requires SEED_PASSWORD (12+ chars) in the environment.'); process.exit(2); }
 
 // Management API via curl — urllib/fetch user-agents hit Cloudflare 1010.
 function mapi(method, path, body) {
@@ -42,12 +47,13 @@ if (!sr) { console.error('Could not fetch the service_role key: ' + JSON.stringi
 const API = `https://${REF}.supabase.co`;
 
 console.log(`Seeding STAGING ${REF} (community-only cast) …`);
-for (const s of STUDENTS) await ensureUser(API, sr.api_key, s.email, {});
-for (const o of ORGS) await ensureUser(API, sr.api_key, o.email, { account_type: 'org_admin' });
+const pw = SEED_PW || PASSWORD;
+for (const s of STUDENTS) await ensureUser(API, sr.api_key, s.email, {}, pw);
+for (const o of ORGS) await ensureUser(API, sr.api_key, o.email, { account_type: 'org_admin' }, pw);
 console.log('Applying data SQL …');
 runSql(buildSeedSql({ guardMode: 'disable-triggers', includeProjects: false }));
 
 const counts = runSql(`SELECT (SELECT count(*) FROM auth.users) AS users, (SELECT count(*) FROM public.organizations WHERE type='club') AS clubs,
   (SELECT count(*) FROM public.posts) AS posts, (SELECT count(*) FROM public.projects) AS projects, (SELECT count(*) FROM public.events) AS events`);
 console.log('Counts:', JSON.stringify(counts));
-console.log(`\nStaging seed complete. Password for all: ${PASSWORD}`);
+console.log(`\nSeed complete. Demo-account password: ${SEED_PW ? '(the SEED_PASSWORD you provided)' : PASSWORD}`);
