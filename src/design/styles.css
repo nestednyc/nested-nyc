@@ -2278,6 +2278,10 @@ input, textarea, select { font-family: inherit; }
 .com-imgs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; margin-top: 12px; border-radius: 10px; overflow: hidden; }
 .com-imgs img { width: 100%; height: 100%; object-fit: cover; display: block; background: var(--paper-2); aspect-ratio: 1; }
 .com-imgs img:first-child { grid-column: 1 / -1; aspect-ratio: 4 / 3; max-height: 560px; object-position: 50% 30%; }
+/* A lone image shows WHOLE — natural aspect, no crop (QR codes, screenshots,
+   posters must stay readable). Height-capped; when the cap bites, contain
+   letterboxes onto paper instead of cropping. Grids of 2+ keep cover tiles. */
+.com-imgs.n1 img { aspect-ratio: auto; height: auto; max-height: 560px; object-fit: contain; object-position: center; }
 /* 2 photos: a wide second frame; 3 photos: two equal thumbs — no empty cells */
 .com-imgs.n2 img:nth-child(2) { grid-column: 1 / -1; aspect-ratio: 5 / 2; }
 .com-imgs.n3 { grid-template-columns: 1fr 1fr; }
