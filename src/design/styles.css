@@ -2667,10 +2667,15 @@ input, textarea, select { font-family: inherit; }
 .com-rail-card p { font-size: 13.5px; }
 .com-rail-org .av { width: 36px; height: 36px; font-size: 12px; }
 .com-left { display: none; }
-@media (min-width: 1480px) {
-  .com-cols.three { grid-template-columns: 224px minmax(0, 1fr) 340px; }
+/* Standard laptop fullscreen (1280–1479) gets a slimmer Your-corner column;
+   1480+ gets the full-width one. Below 1280 the column stays hidden. */
+@media (min-width: 1280px) {
+  .com-cols.three { grid-template-columns: 200px minmax(0, 1fr) 340px; }
   .com-left { display: flex; flex-direction: column; gap: 16px; position: sticky; top: 86px; max-height: calc(100vh - 100px); overflow-y: auto; scrollbar-width: none; }
   .com-left::-webkit-scrollbar { display: none; }
+}
+@media (min-width: 1480px) {
+  .com-cols.three { grid-template-columns: 224px minmax(0, 1fr) 340px; }
 }
 .yc-proj { display: flex; flex-direction: column; gap: 2px; padding: 4px 0; }
 .yc-proj .com-rail-proj { padding: 4px 2px; }
