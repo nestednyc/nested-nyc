@@ -122,8 +122,12 @@ export async function ensureUser(API, SR, email, meta, password = PASSWORD) {
 
 /** The full idempotent seed as one SQL script.
     guardMode: 'replica' (local, superuser) | 'disable-triggers' (hosted).
-    includeProjects: false = community-page data only (no Discover flyers). */
-export function buildSeedSql({ guardMode = 'replica', includeProjects = true } = {}) {
+    includeProjects: false = community-page data only (no Discover flyers).
+    includeStudents: false = clubs only — org posts/events/spotlight, no fake
+    student identities, no likes/comments/saves/follows (all student actions);
+    implies includeProjects: false (student-owned projects need owners). */
+export function buildSeedSql({ guardMode = 'replica', includeProjects = true, includeStudents = true } = {}) {
+if (!includeStudents) includeProjects = false;
 const allEmails = [...STUDENTS.map((s) => s.email), ...ORGS.map((o) => o.email)];
 const sql = [];
 sql.push(`BEGIN;`);
@@ -155,7 +159,7 @@ if (guardMode === 'replica') {
 }
 
 // students
-for (const s of STUDENTS) {
+for (const s of includeStudents ? STUDENTS : []) {
   sql.push(`UPDATE public.profiles SET onboarding_completed = TRUE, username = ${q(s.username)}, first_name = ${q(s.first)}, last_name = ${q(s.last)},
     university = ${q(s.uni)}, major = ${q(s.major)}, year = ${q(s.year)}, bio = ${q(s.bio)}, skills = ${arr(s.skills)},
     photos = ${arr([avatar(s.img)])}, avatar = ${q(avatar(s.img))}
@@ -189,8 +193,8 @@ for (const p of includeProjects ? PROJECTS : []) {
   sql.push(`INSERT INTO public.projects (id, name, tagline, description, category, university, author_name, owner_id, publish_to_discover, stage, status, pin_type, rot, view_count, admins, roles)
     VALUES (${q(uuid('proj:' + p.key))}, ${q(p.name)}, ${q(p.tagline)}, ${q(p.tagline)}, ${q(p.category)}, ${q(p.uni)}, ${q(STUDENTS.find((s) => s.email === p.owner).first)}, ${uid(p.owner)}, TRUE, ${q(p.stage)}, 'idea', 'tape', '-1.6deg', ${p.views}, ARRAY[${uid(p.owner)}::text], ${q(roles)}::jsonb);`);
 }
-// posts
-for (const p of POSTS) {
+// posts (clubs-only mode seeds just the org-authored ones)
+for (const p of POSTS.filter((p) => includeStudents || p.org)) {
   const images = JSON.stringify(p.imgs.map((s) => pic(s)));
   if (p.org) {
     const o = ORGS.find((x) => x.slug === p.org);
@@ -210,16 +214,16 @@ if (guardMode === 'replica') {
 } else {
   for (const t of GUARDED_TABLES) sql.push(`ALTER TABLE public.${t} ENABLE TRIGGER USER;`);
 }
-for (const [key, emails] of Object.entries(LIKES)) for (const e of emails)
+for (const [key, emails] of Object.entries(includeStudents ? LIKES : {})) for (const e of emails)
   sql.push(`INSERT INTO public.post_likes (post_id, user_id) VALUES (${q(uuid('post:' + key))}, ${uid(e)}) ON CONFLICT DO NOTHING;`);
-for (const [key, list] of Object.entries(COMMENTS)) list.forEach(([e, body], i) => {
+for (const [key, list] of Object.entries(includeStudents ? COMMENTS : {})) list.forEach(([e, body], i) => {
   const s = STUDENTS.find((x) => x.email === e);
   sql.push(`INSERT INTO public.post_comments (post_id, author_id, author_name, author_handle, author_avatar, body, created_at)
     VALUES (${q(uuid('post:' + key))}, ${uid(e)}, ${q(s.first + ' ' + s.last)}, ${q(s.username)}, ${q(avatar(s.img))}, ${q(body)}, now() - interval '${i * 7 + 1} minutes');`);
 });
-for (const [e, keys] of Object.entries(SAVES)) for (const k of keys)
+for (const [e, keys] of Object.entries(includeStudents ? SAVES : {})) for (const k of keys)
   sql.push(`INSERT INTO public.post_saves (user_id, post_id) VALUES (${uid(e)}, ${q(uuid('post:' + k))}) ON CONFLICT DO NOTHING;`);
-for (const [e, slugs] of Object.entries(FOLLOWS)) for (const slug of slugs)
+for (const [e, slugs] of Object.entries(includeStudents ? FOLLOWS : {})) for (const slug of slugs)
   sql.push(`INSERT INTO public.org_follows (user_id, org_id) VALUES (${uid(e)}, ${orgId(slug)}) ON CONFLICT DO NOTHING;`);
 
 // counters were bypassed (replica mode) — derive them from the rows

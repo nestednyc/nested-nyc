@@ -19,6 +19,7 @@ const REF = refIdx > -1 ? process.argv[refIdx + 1] : null;
 const PAT = process.env.SUPABASE_PAT;
 if (!REF || !/^[a-z]{20}$/.test(REF)) { console.error('Usage: SUPABASE_PAT=sbp_… node scripts/seed-staging-community.mjs --ref <project-ref>'); process.exit(2); }
 const yesProd = process.argv.includes('--yes-prod');
+const clubsOnly = process.argv.includes('--clubs-only');
 if (REF === PROD_REF && !yesProd) { console.error('REFUSING: that is the PRODUCTION project. Re-run with --yes-prod if Hamza explicitly asked for the shared-DB preview seed.'); process.exit(3); }
 if (!PAT || !PAT.startsWith('sbp_')) { console.error('Missing SUPABASE_PAT (sbp_…) in the environment.'); process.exit(2); }
 // On prod the demo accounts must NOT use the published Passw0rd! — require a
@@ -46,12 +47,12 @@ const sr = (Array.isArray(keys) ? keys : []).find((k) => k.name === 'service_rol
 if (!sr) { console.error('Could not fetch the service_role key: ' + JSON.stringify(keys).slice(0, 300)); process.exit(1); }
 const API = `https://${REF}.supabase.co`;
 
-console.log(`Seeding STAGING ${REF} (community-only cast) …`);
+console.log(`Seeding ${REF}${REF === PROD_REF ? ' (PRODUCTION)' : ''} — ${clubsOnly ? 'CLUBS-ONLY cast (no fake students)' : 'community-only cast'} …`);
 const pw = SEED_PW || PASSWORD;
-for (const s of STUDENTS) await ensureUser(API, sr.api_key, s.email, {}, pw);
+for (const s of clubsOnly ? [] : STUDENTS) await ensureUser(API, sr.api_key, s.email, {}, pw);
 for (const o of ORGS) await ensureUser(API, sr.api_key, o.email, { account_type: 'org_admin' }, pw);
 console.log('Applying data SQL …');
-runSql(buildSeedSql({ guardMode: 'disable-triggers', includeProjects: false }));
+runSql(buildSeedSql({ guardMode: 'disable-triggers', includeProjects: false, includeStudents: !clubsOnly }));
 
 const counts = runSql(`SELECT (SELECT count(*) FROM auth.users) AS users, (SELECT count(*) FROM public.organizations WHERE type='club') AS clubs,
   (SELECT count(*) FROM public.posts) AS posts, (SELECT count(*) FROM public.projects) AS projects, (SELECT count(*) FROM public.events) AS events`);
