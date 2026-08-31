@@ -17,6 +17,7 @@ import React from 'react'
     music: `<path d="M9.5 18V5.2L20 3v12.6"/><circle cx="6.7" cy="18" r="2.8"/><circle cx="17.2" cy="15.6" r="2.8"/>`,
     personal: `<path d="M12 21.5V10.5"/><path d="M12 11C12 6.5 8.8 4 4.5 4c0 4.5 3.2 7 7.5 7Z"/><path d="M12 14c0-4.5 3.2-7 7.5-7 0 4.5-3.2 7-7.5 7Z"/>`,
     grid: `<rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/>`,
+    board: `<path d="M5.5 7.6 18.1 6.2l1.5 12.4-12.6 1.4Z"/><circle cx="12" cy="4.3" r="1.6"/><path d="M9 11.6l6-.6M9.4 15.2l4.6-.5"/>`,
 
     // ui
     search: `<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>`,

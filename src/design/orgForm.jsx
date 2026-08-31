@@ -7,11 +7,12 @@
 import React from 'react'
 import Icon from './icons'
 import { ORG_TYPES, UNIVERSITIES, cleanProjectLinks } from './data'
-import { Stamp, UniLogo, OrgMini, LinkRows, linkRowsFrom } from './shared'
+import { Av, Stamp, UniLogo, OrgMini, LinkRows, linkRowsFrom, resizePhoto } from './shared'
+import { QuestionBuilder, questionIssues, normalizeQuestions } from './eventRsvp'
 
-  const { useState } = React;
+  const { useState, useRef } = React;
 
-  const STEP_COUNT = 3;
+  const STEP_COUNT = 4;
 
   const EMPTY_VALUES = {
     name: "",
@@ -20,6 +21,9 @@ import { Stamp, UniLogo, OrgMini, LinkRows, linkRowsFrom } from './shared'
     bio: "",
     location: "",
     links: [],
+    logo: "",
+    joinQuestions: [],
+    joinUrl: "",
   };
 
   // Step-3 preview / aside mirror — the shared org flyer rendered with the
@@ -46,9 +50,24 @@ import { Stamp, UniLogo, OrgMini, LinkRows, linkRowsFrom } from './shared'
     const [uni, setUni] = useState(init.uni || (profile && profile.uni) || "");
     const [bio, setBio] = useState(init.bio);
     const [location, setLocation] = useState(init.location);
+    // Logo: a public URL (edit mode) or a freshly picked photo held as a
+    // data: URL until the wrapper uploads it on save. "" = no logo.
+    const [logo, setLogo] = useState(init.logo || "");
+    const logoRef = useRef(null);
     // Links edit as raw strings (edit mode hands us {kind,url} rows); the
     // builder always shows ≥1 row and blanks drop on submit.
     const [links, setLinks] = useState(linkRowsFrom(init.links));
+    // Membership: the questions students answer when they tap Join, and an
+    // optional external sign-up link shown beside the button.
+    const [joinQuestions, setJoinQuestions] = useState(Array.isArray(init.joinQuestions) ? init.joinQuestions : []);
+    const [joinUrl, setJoinUrl] = useState(init.joinUrl || "");
+    const qIssues = questionIssues(joinQuestions);
+    const joinUrlOk = !joinUrl.trim() || /^https?:\/\/\S+$/i.test(joinUrl.trim());
+
+    async function pickLogo(file) {
+      if (!file || !file.type || file.type.indexOf("image/") !== 0) return;
+      try { setLogo(await resizePhoto(file, 400)); } catch { /* keep the old one */ }
+    }
 
     const editable = mode === "edit";
     const cta = ctaCopy || { primary: "Pin your org", icon: "check" };
@@ -61,9 +80,11 @@ import { Stamp, UniLogo, OrgMini, LinkRows, linkRowsFrom } from './shared'
     const needsUni = type === "club";
     const showUni = type && type !== "university";
 
+    const joinable = type !== "university";
     const stepGates = [
       !!name.trim() && !!type && (!needsUni || !!uni),
       !!bio.trim() && !!location.trim(),
+      !joinable || (qIssues.length === 0 && joinUrlOk),
       true,
     ];
     const canNext = stepGates[step];
@@ -80,10 +101,13 @@ import { Stamp, UniLogo, OrgMini, LinkRows, linkRowsFrom } from './shared'
         // Store only {kind, url} — label/icon re-derive on read. Both the
         // onboard and edit wrappers inherit the strip from this one place.
         links: cleanProjectLinks(links).map(({ kind, url }) => ({ kind, url })),
+        logo,
+        joinQuestions: joinable ? normalizeQuestions(joinQuestions) : [],
+        joinUrl: joinable && joinUrlOk ? joinUrl.trim() : "",
       });
     }
 
-    const currentValues = { name, type, uni: showUni ? uni : "", bio, location, links };
+    const currentValues = { name, type, uni: showUni ? uni : "", bio, location, links, logo };
 
     // ---------- step bodies ----------
     let body;
@@ -145,9 +169,23 @@ import { Stamp, UniLogo, OrgMini, LinkRows, linkRowsFrom } from './shared'
         React.createElement("div", { className: "fade-up", key: "o1" },
           React.createElement("span", { className: "onb-kicker" }, "Step 2 · The page"),
           React.createElement("h1", null, "Tell students who you are."),
-          React.createElement("p", { className: "desc" }, "A short bio and where to find you. This is the social hook on your org page."),
+          React.createElement("p", { className: "desc" }, "A logo, a short bio and where to find you. This is the social hook on your org page — and the face of every post you pin to the community board."),
 
           React.createElement("div", { className: "field" },
+            React.createElement("label", null, "Logo ", React.createElement("span", { style: { fontFamily: "var(--mono)", fontSize: 11, color: "var(--ink-faint)", fontWeight: 400 } }, "· optional, square works best")),
+            React.createElement("div", { className: "org-logo-pick" },
+              React.createElement(Av, { name: name || "?", img: logo || null, size: 56 }),
+              React.createElement("button", { className: "btn btn-ghost btn-sm", type: "button", onClick: () => logoRef.current && logoRef.current.click() },
+                React.createElement(Icon, { name: "camera", size: 15 }), logo ? "Change logo" : "Upload logo"),
+              logo && React.createElement("button", { className: "btn btn-ghost btn-sm", type: "button", onClick: () => setLogo("") }, "Remove"),
+              React.createElement("input", {
+                ref: logoRef, type: "file", accept: "image/*", style: { display: "none" },
+                onChange: (e) => { pickLogo(e.target.files && e.target.files[0]); e.target.value = ""; },
+              })
+            )
+          ),
+
+          React.createElement("div", { className: "field", style: { marginTop: 22 } },
             React.createElement("label", null, "Bio"),
             React.createElement("textarea", {
               className: "ta",
@@ -155,7 +193,6 @@ import { Stamp, UniLogo, OrgMini, LinkRows, linkRowsFrom } from './shared'
               value: bio,
               rows: 3,
               maxLength: 240,
-              autoFocus: true,
               onChange: (e) => setBio(e.target.value),
             }),
             React.createElement("div", { className: "hint" }, "// " + bio.length + " / 240")
@@ -183,10 +220,30 @@ import { Stamp, UniLogo, OrgMini, LinkRows, linkRowsFrom } from './shared'
           )
         )
       );
+    } else if (step === 2) {
+      body = (
+        React.createElement("div", { className: "fade-up", key: "o-join" },
+          React.createElement("span", { className: "onb-kicker" }, "Step 3 · Membership"),
+          React.createElement("h1", null, joinable ? "Who gets in?" : "Membership"),
+          joinable
+            ? [
+                React.createElement("p", { className: "desc", key: "d" }, "Students tap Join on your page and answer these; you accept or decline from your dashboard. Optional — with no questions they just apply."),
+                React.createElement(QuestionBuilder, { key: "qb", questions: joinQuestions, onChange: setJoinQuestions }),
+                qIssues.length > 0 && React.createElement("div", { key: "qi", className: "hint", style: { color: "var(--c-startup)", marginTop: 10 } }, "// " + qIssues[0]),
+                React.createElement("div", { key: "url", className: "field", style: { marginTop: 22 } },
+                  React.createElement("label", null, "Sign-up link ", React.createElement("span", { style: { fontFamily: "var(--mono)", fontSize: 11, color: "var(--ink-faint)", fontWeight: 400 } }, "· optional")),
+                  React.createElement("div", { className: "input-wrap" + (joinUrl.trim() && joinUrlOk ? " good" : "") },
+                    React.createElement(Icon, { name: "link", size: 17 }),
+                    React.createElement("input", { value: joinUrl, placeholder: "https://…  (Engage, a Google Form, your Discord)", maxLength: 500, onChange: (e) => setJoinUrl(e.target.value) })),
+                  React.createElement("div", { className: "hint" }, joinUrlOk ? "// if you also collect sign-ups somewhere else, we'll link it next to Join" : "// needs to start with https://")),
+              ]
+            : React.createElement("p", { className: "desc" }, "A university page doesn't take members — students belong to it through their .edu. Nothing to set here.")
+        )
+      );
     } else {
       body = (
         React.createElement("div", { className: "fade-up", key: "o2" },
-          React.createElement("span", { className: "onb-kicker" }, editable ? "Step 3 · Save it" : "Step 3 · Pin it"),
+          React.createElement("span", { className: "onb-kicker" }, editable ? "Step 4 · Save it" : "Step 4 · Pin it"),
           React.createElement("h1", null, editable ? "Ready to save?" : "Ready to go up?"),
           React.createElement("p", { className: "desc" }, editable
             ? "Here's your org page. Save your changes — you can keep editing later."

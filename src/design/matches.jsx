@@ -21,7 +21,7 @@ import { ProjectCard } from './discover'
     );
   }
 
-  function Matches({ projects = [], profile, saved, joined, requested, rejected = new Set(), onOpen, onSave, onStart, onBrowse, onEdit, loading = false, error = null, onRetry }) {
+  function Matches({ projects = [], profile, saved, joined, requested, rejected = new Set(), onOpen, onSave, onStart, onBrowse, onEdit, loading = false, error = null, onRetry, savedPosts = null, savedPostCount = 0 }) {
     const [tab, setTab] = useState("saved");
     const savedList = projects.filter((p) => saved.has(p.id));
     // "Requests" = only still-pending join requests. The moment one is approved
@@ -32,7 +32,7 @@ import { ProjectCard } from './discover'
     const mineList = projects.filter((p) => (profile && isProjectAdmin(p, profile)) || joined.has(p.id));
 
     const TABS = [
-      { id: "saved", label: "Saved", icon: "bookmark", n: savedList.length },
+      { id: "saved", label: "Saved", icon: "bookmark", n: savedList.length + savedPostCount },
       { id: "requests", label: "Requests", icon: "send", n: reqList.length },
       { id: "mine", label: "My projects", icon: "flag", n: mineList.length },
     ];
@@ -43,10 +43,18 @@ import { ProjectCard } from './discover'
     } else if (error) {
       body = React.createElement(EmptyState, { icon: "refresh", title: "Couldn't load your board", body: "Something went wrong reaching Nested — check your connection and try again.", cta: "Try again", onCta: onRetry });
     } else if (tab === "saved") {
-      body = savedList.length
+      // Saved projects first (the flyer board), then saved community posts
+      // when the page is given them. Only show the projects empty state when
+      // there's nothing saved of either kind.
+      const projectsBody = savedList.length
         ? React.createElement("div", { className: "board" },
             savedList.map((p) => React.createElement(ProjectCard, { key: p.id, p, saved: true, joined: joined.has(p.id), requested: requested.has(p.id), onOpen, onSave })))
-        : React.createElement(EmptyState, { icon: "bookmark", title: "Nothing saved yet", body: "Tap the bookmark on any project to pin it here for later.", cta: "Browse the board", onCta: onBrowse });
+        : (savedPostCount ? null : React.createElement(EmptyState, { icon: "bookmark", title: "Nothing saved yet", body: "Tap the bookmark on any project or post to pin it here for later.", cta: "Browse the board", onCta: onBrowse }));
+      body = React.createElement(React.Fragment, null,
+        projectsBody,
+        savedPosts && (savedList.length || savedPostCount) ? React.createElement("h2", { className: "match-section" }, "Saved posts") : null,
+        savedPosts && (savedList.length || savedPostCount) ? savedPosts : null
+      );
     } else if (tab === "requests") {
       body = reqList.length
         ? React.createElement("div", { className: "req-list" },

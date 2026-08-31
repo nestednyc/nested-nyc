@@ -198,6 +198,7 @@ export default function FullScreens({ screen, draft, editProject, api }) {
             location: draft.location || '',
             address: draft.address || '',
             max_attendees: draft.max_attendees ? String(draft.max_attendees) : '',
+            questions: Array.isArray(draft.questions) ? draft.questions : [],
           },
           onCancel: () => { setEventDraftId(null); setRoute("orgDashboard"); },
           onSubmit: (fields) => updateOrgEvent(draft.id, fields),

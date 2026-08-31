@@ -4,6 +4,7 @@
 import React from 'react'
 import Icon from './icons'
 import { UNI, CAT, FIELDS, SKILLS, LINK_ICON, fullNameOf, joinDots, personLabel } from './data'
+import { ClubsLine } from './people'
 import { ContactLinks } from './people'
 import { Polaroid, resizePhoto, LINK_KINDS } from './shared'
 
@@ -45,6 +46,7 @@ import { Polaroid, resizePhoto, LINK_KINDS } from './shared'
   function Profile({
     profile, pinnedProjects, projectCount, eventCount, connectionCount, joinedAt,
     onBack, onOpenProject, onSaveProfile, onSignOut, startInEdit, onAutoEditConsumed,
+    clubs = [], onOpenOrg,
   }) {
     const [editing, setEditing] = useState(false);
     const [draft, setDraft] = useState(null);
@@ -254,6 +256,7 @@ import { Polaroid, resizePhoto, LINK_KINDS } from './shared'
                 )
               : React.createElement("h1", null, displayName),
 
+            !editing && React.createElement(ClubsLine, { clubs, onOpenOrg }),
             // ── META ───────────────────────────────────────
             React.createElement("div", {
               className: "sc-meta",

@@ -18,6 +18,9 @@ import Discover, { ProjectCard } from '../discover'
 import Events from '../events'
 import Matches from '../matches'
 import People, { ContactLinks } from '../people'
+import Community, { CommunityPost, SavedPosts } from '../community'
+import { RsvpModal } from '../eventRsvp'
+import { ApplyModal } from '../clubJoin'
 import UserProfile from '../userProfile'
 import Notifications from '../notifications'
 import Messages from '../messages'
@@ -67,11 +70,43 @@ export default function StudentShell({ api }) {
     openProject, openEdit, toggleSave,
     updateProjectStatus, setCoLead, kickMember, approveRequest, rejectRequest,
     rsvped, toggleRsvp, orgEvents, orgAccount,
+    rsvpPrompt, rsvpSubmitting, rsvpError, requestRsvp, editRsvpAnswers, submitRsvp, cancelRsvpPrompt,
+    myAnswers, loadMyAnswers,
     eventViewId, setEventViewId, eventViewFrom,
     orgViewSlug, setOrgViewSlug, profileViewUsername, messageThreadHandle,
     setEventDraftId, openEventDetail, openOrgView, openPerson, openProfile,
+    feed, feedLoading, feedError, refreshFeed, savedPosts, savedLoading,
+    postLikes, postSaves, postComments, posting,
+    createCommunityPost, deleteCommunityPost, togglePostLike, togglePostSave,
+    loadPostComments, addCommunityComment, deleteCommunityComment,
+    follows, followsLoaded, followedOrgs, toggleFollowOrg,
+    feedHasMore, loadingMore, loadMoreFeed,
+    boardEvents, spotlight, reported, reportContent,
+    postViewId, openPost, postDetail, editCommunityPost,
+    composerPreset, openBoardComposer, clearComposerPreset, projectPosts,
+    activity, activityLoading, unreadActivity, markActivityRead,
+    memberships, myClubs, applyPrompt, applySubmitting, applyError, requestJoinClub, submitApplication, cancelApply, leaveOrg,
     toast,
   } = api;
+
+  // The bell counts the two actionable kinds + unread activity (likes,
+  // comments, mentions) — one number for the dot, the panel and the sheet.
+  const notifCount = incomingPending.length + projectRequests.length + (unreadActivity || 0);
+  // Where an activity row leads: the note it's about, else the person.
+  function openActivity(n) {
+    if (n.postId) return openPost(n.postId);
+    if (n.actor && n.actor.handle) return openPerson(n.actor.handle);
+  }
+
+  // "Request to join" — one entry point shared by the flyer page and the
+  // board's "I'm interested" CTA: guest → auth wall; already on / already
+  // asked → a toast; otherwise the join modal (note + role pick).
+  function requestJoin(p) {
+    if (!profile) { requireAuth("Sign in to request to join"); return; }
+    if (joined.has(p.id)) { toast("You're already on this team", "check"); }
+    else if (requested.has(p.id)) { toast("You've already requested to join", "check"); }
+    else { setModal({ type: "join", project: p }); }
+  }
 
     return (
       React.createElement("div", { className: rootClass + " corkbg", style: { ...rootStyle, minHeight: "100vh" } },
@@ -114,13 +149,17 @@ export default function StudentShell({ api }) {
                 title: "Notifications", "aria-haspopup": "menu", "aria-expanded": notifOpen ? "true" : "false",
               },
                 React.createElement(Icon, { name: "bell", size: 20 }),
-                (incomingPending.length + projectRequests.length) > 0 && React.createElement("span", { className: "dot" })
+                notifCount > 0 && React.createElement("span", { className: "dot" })
               ),
               React.createElement(NotifPanel, {
                 open: notifOpen,
-                count: incomingPending.length + projectRequests.length,
+                count: notifCount,
                 incoming: incomingPending,
                 projectRequests,
+                activity,
+                unreadCount: unreadActivity || 0,
+                onOpenActivity: openActivity,
+                onSeen: markActivityRead,
                 loading: projectsLoading,
                 onApprove: approveRequest,
                 onReject: rejectRequest,
@@ -179,7 +218,7 @@ export default function StudentShell({ api }) {
             ),
             profile && React.createElement("button", { className: "mob-avatar", onClick: () => setSheetOpen(true), title: "Account" },
               React.createElement(Av, { name: profile.username, img: firstPhotoUrl(profile.photos) }),
-              (incomingPending.length + projectRequests.length) > 0 && React.createElement("span", { className: "dot" })
+              notifCount > 0 && React.createElement("span", { className: "dot" })
             ),
             !profile && React.createElement("button", { className: "btn btn-primary", onClick: () => goAuth("signup"), title: "Create your account" }, "Sign up")
           )
@@ -210,9 +249,21 @@ export default function StudentShell({ api }) {
 
         route === "orgView" && orgViewSlug && React.createElement(OrgView, {
           slug: orgViewSlug,
+          profile,
+          follows,
+          followsLoaded,
+          // Org accounts browse other orgs' pages too — following is a student thing.
+          canFollow: !orgAccount,
+          onToggleFollow: toggleFollowOrg,
           onBack: () => { setOrgViewSlug(null); goNav("events"); },
           onOpenEvent: (id) => openEventDetail(id, "orgView"),
           onToast: toast,
+          // Join: students only (org accounts browse, they don't apply).
+          memberships,
+          canJoin: !orgAccount,
+          onJoin: profile && !orgAccount ? requestJoinClub : null,
+          onLeave: leaveOrg,
+          onOpenPerson: openPerson,
         }),
 
         // Student-side event detail. Drives back-navigation off eventViewFrom
@@ -226,15 +277,80 @@ export default function StudentShell({ api }) {
           onBack: () => {
             setEventViewId(null);
             if (eventViewFrom === "orgView" && orgViewSlug) setRoute("orgView");
+            else if (eventViewFrom === "community") setRoute("community");
             else goNav("events");
           },
           onRSVP: toggleRsvp,
+          onRequestRsvp: requestRsvp,
+          onEditAnswers: editRsvpAnswers,
+          myAnswers,
+          onLoadMyAnswers: loadMyAnswers,
           onOpenOrg: openOrgView,
           onEditEvent: (id) => { setEventDraftId(id); setEventViewId(null); setRoute("eventEdit"); window.scrollTo({ top: 0 }); },
           onSignIn: () => { setEventViewId(null); setRoute("onboarding"); },
           onOpenProfile: openProfile,
           onConnect,
           connected,
+        }),
+
+        route === "community" && React.createElement(Community, {
+          profile,
+          projects: projectsList,
+          people,
+          feed, feedLoading, feedError, onRetry: refreshFeed,
+          feedHasMore, loadingMore, onLoadMore: loadMoreFeed,
+          boardEvents, spotlight,
+          reported, onReport: reportContent,
+          joined, requested,
+          rsvped, onRsvp: requestRsvp,
+          onOpenEvent: (id) => openEventDetail(id, "community"),
+          onRequestJoin: requestJoin,
+          onMessage: (person) => openThread(person),
+          onOpenPost: openPost,
+          onEditPost: editCommunityPost,
+          toast,
+          postLikes, postSaves, postComments, posting,
+          onCreatePost: createCommunityPost,
+          onDeletePost: deleteCommunityPost,
+          onToggleLike: togglePostLike,
+          onToggleSave: togglePostSave,
+          onLoadComments: loadPostComments,
+          onAddComment: addCommunityComment,
+          onDeleteComment: deleteCommunityComment,
+          follows, memberships, onJoin: requestJoinClub,
+          onToggleFollow: toggleFollowOrg,
+          onOpenOrg: openOrgView,
+          connected, onConnect, onDisconnect,
+          onOpenPerson: openPerson,
+          onOpenProject: openProject,
+          onStart: () => { setRoute("create"); window.scrollTo({ top: 0 }); },
+          composerPreset, onPresetConsumed: clearComposerPreset,
+          followedOrgs, onPostAbout: openBoardComposer,
+        }),
+
+        route === "communityPost" && React.createElement(CommunityPost, {
+          profile,
+          projects: projectsList,
+          postId: postViewId,
+          detail: postDetail,
+          postLikes, postSaves, postComments, follows, joined, requested, reported, memberships, onJoin: requestJoinClub,
+          onBack: () => { setRoute("community"); window.scrollTo({ top: 0 }); },
+          onToggleLike: togglePostLike,
+          onToggleSave: togglePostSave,
+          onToggleFollow: toggleFollowOrg,
+          onLoadComments: loadPostComments,
+          onAddComment: addCommunityComment,
+          onDeleteComment: deleteCommunityComment,
+          onDeletePost: (id) => { deleteCommunityPost(id); setRoute("community"); window.scrollTo({ top: 0 }); },
+          onEditPost: editCommunityPost,
+          onReport: reportContent,
+          onRequestJoin: requestJoin,
+          onMessage: (person) => openThread(person),
+          onOpenProject: openProject,
+          onOpenOrg: openOrgView,
+          onOpenPerson: openPerson,
+          onOpenPost: openPost,
+          toast,
         }),
 
         route === "people" && React.createElement(People, {
@@ -253,6 +369,7 @@ export default function StudentShell({ api }) {
         // skeleton flash. Own handle never reaches here (applyParsed and
         // openProfile both upgrade it to the profile route).
         route === "userProfile" && profileViewUsername && React.createElement(UserProfile, {
+          onOpenOrg: openOrgView,
           username: profileViewUsername,
           initialPerson: people.find((pp) => pp.handle && pp.handle.toLowerCase() === profileViewUsername.toLowerCase()) || null,
           connected,
@@ -278,6 +395,9 @@ export default function StudentShell({ api }) {
           // Incoming connections are full toPerson objects — navigate straight
           // to their /u/:username page.
           onOpenProfile: (person) => openPerson(person.handle),
+          activity, activityLoading, unreadActivity,
+          onMarkAllRead: markActivityRead,
+          onOpenActivity: openActivity,
           loading: projectsLoading,
           error: loadErrors && loadErrors.notifications,
           onRetry: retrySurface,
@@ -338,6 +458,31 @@ export default function StudentShell({ api }) {
           loading: projectsLoading,
           error: loadErrors && loadErrors.saved,
           onRetry: retrySurface,
+          // Saved community posts ride along under the saved projects — the
+          // board's own cards, fed from useCommunity's cached saved list.
+          savedPostCount: (savedPosts || []).length,
+          savedPosts: profile ? React.createElement(SavedPosts, {
+            profile,
+            projects: projectsList,
+            posts: savedPosts, loading: savedLoading,
+            postLikes, postSaves, postComments, follows, joined, requested, reported, memberships, onJoin: requestJoinClub,
+            onToggleLike: togglePostLike,
+            onToggleSave: togglePostSave,
+            onToggleFollow: toggleFollowOrg,
+            onLoadComments: loadPostComments,
+            onAddComment: addCommunityComment,
+            onDeleteComment: deleteCommunityComment,
+            onDeletePost: deleteCommunityPost,
+            onEditPost: editCommunityPost,
+            onReport: reportContent,
+            onRequestJoin: requestJoin,
+            onMessage: (person) => openThread(person),
+            onOpenProject: openProject,
+            onOpenOrg: openOrgView,
+            onOpenPerson: openPerson,
+            onOpenPost: openPost,
+            toast,
+          }) : null,
         }),
 
         // Deep-linked detail: skeleton while the feed / by-id fetch resolves;
@@ -364,21 +509,21 @@ export default function StudentShell({ api }) {
           onReject: rejectRequest,
           onBack: () => setRoute("discover"),
           onSave: toggleSave,
-          onRequest: (p) => {
-            if (!profile) { requireAuth("Sign in to request to join"); return; }
-            if (joined.has(p.id)) { toast("You're already on this team", "check"); }
-            else if (requested.has(p.id)) { toast("You've already requested to join", "check"); }
-            else { setModal({ type: "join", project: p }); }
-          },
+          onRequest: requestJoin,
           onEdit: (p) => openEdit(p.id),
           onUpdateStatus: updateProjectStatus,
           onSetCoLead: setCoLead,
           onKickMember: kickMember,
           onOpenProfile: openProfile,
+          // The board, from the flyer: post about this project / read what's been said.
+          projectPosts: (projectPosts && projectPosts[detailProject.id]) || null,
+          onPostUpdate: (id) => { openBoardComposer(id); setRoute("community"); window.scrollTo({ top: 0 }); },
+          onOpenPost: openPost,
         }),
 
         route === "profile" && React.createElement(Profile, {
           profile,
+          clubs: myClubs, onOpenOrg: openOrgView,
           pinnedProjects: myProjects,
           projectCount: myProjects.length,
           eventCount: rsvped.size,
@@ -395,6 +540,20 @@ export default function StudentShell({ api }) {
         route === "soon" && React.createElement(SoonPane, { label: soonLabel, saved, joined, requested, projects: projectsList, onOpen: openProject, onSave: toggleSave, onBack: () => goNav("discover") }),
 
         modal && React.createElement(Modal, { modal, onClose: () => setModal(null), onSubmit: submitModal, profile }),
+        // The event's question sheet — opens from "I'm going" on the event page or a board card.
+        rsvpPrompt && React.createElement(RsvpModal, {
+          key: rsvpPrompt.event.id + (rsvpPrompt.editing ? ":edit" : ""),
+          event: rsvpPrompt.event, initial: rsvpPrompt.initial, editing: rsvpPrompt.editing,
+          submitting: rsvpSubmitting, error: rsvpError,
+          onCancel: cancelRsvpPrompt, onSubmit: submitRsvp,
+        }),
+        // A club's application sheet — opens from Join on the club page or a board card.
+        applyPrompt && React.createElement(ApplyModal, {
+          key: applyPrompt.org.id,
+          org: applyPrompt.org,
+          submitting: applySubmitting, error: applyError,
+          onCancel: cancelApply, onSubmit: (answers) => submitApplication(answers),
+        }),
         // Mobile account sheet (≤860px) — opened by the top-bar avatar; nests
         // Profile / Saved / Notifications / Sign out so the mobile bar stays minimal.
         sheetOpen && profile && React.createElement("div", { className: "sheet-scrim", onClick: () => setSheetOpen(false) },
@@ -412,7 +571,7 @@ export default function StudentShell({ api }) {
               React.createElement(Icon, { name: "bookmark", size: 19 }), "Saved"),
             React.createElement("button", { className: "acct-item", onClick: () => { setSheetOpen(false); setRoute("notifications"); window.scrollTo({ top: 0 }); } },
               React.createElement(Icon, { name: "bell", size: 19 }), "Notifications",
-              (incomingPending.length + projectRequests.length) > 0 && React.createElement("span", { className: "acct-badge" }, incomingPending.length + projectRequests.length)),
+              notifCount > 0 && React.createElement("span", { className: "acct-badge" }, notifCount)),
             React.createElement("button", { className: "acct-item", onClick: () => { setSheetOpen(false); setRoute("messages"); window.scrollTo({ top: 0 }); } },
               React.createElement(Icon, { name: "chat", size: 19 }), "Messages",
               unreadMessages > 0 && React.createElement("span", { className: "acct-badge" }, unreadMessages)),

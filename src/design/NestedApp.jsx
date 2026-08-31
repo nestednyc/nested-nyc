@@ -26,6 +26,9 @@ import { usePeople } from './hooks/usePeople'
 import { useMessaging } from './hooks/useMessaging'
 import { useProjects } from './hooks/useProjects'
 import { useEvents } from './hooks/useEvents'
+import { useCommunity } from './hooks/useCommunity'
+import { useClubs } from './hooks/useClubs'
+import { useNotifications } from './hooks/useNotifications'
 import { useOrg } from './hooks/useOrg'
 
   const { useState, useEffect, useRef } = React;
@@ -75,6 +78,9 @@ import { useOrg } from './hooks/useOrg'
     const [route, setRoute] = useState(boot && !boot.authCallback ? boot.route : "discover");
     const [detailId, setDetailId] = useState(bootParams.detailId || null);
     const [editId, setEditId] = useState(bootParams.editId || null);
+    // /community/:id — the note on the permalink page. Set by openPost (in-app)
+    // or the boot/popstate URL parse (deep link, the bell, a report email).
+    const [postViewId, setPostViewId] = useState(bootParams.postViewId || null);
     // /u/:username — the handle on the userProfile route. Set by openProfile
     // (in-app navigation) or the boot/popstate URL parse (deep link).
     const [profileViewUsername, setProfileViewUsername] = useState(bootParams.profileViewUsername || null);
@@ -215,10 +221,60 @@ import { useOrg } from './hooks/useOrg'
       profile, route, detailId, editId, projectsLoading,
       setDetailId, setEditId, setRoute, toast, requireAuth,
     });
-    const { rsvped, setRsvped, toggleRsvp, resetEvents } = useEvents({ profile, toast, requireAuth });
     const {
-      orgEvents, orgEventsLoading, createOrgEvent, updateOrgEvent, resetOrg,
+      rsvped, setRsvped, toggleRsvp, resetEvents,
+      rsvpPrompt, rsvpSubmitting, rsvpError, requestRsvp, editRsvpAnswers, submitRsvp, cancelRsvpPrompt,
+      myAnswers, loadMyAnswers,
+    } = useEvents({ profile, toast, requireAuth });
+    const {
+      feed, feedLoading, feedError, refreshFeed, savedPosts, savedLoading, ensureSavedPosts,
+      postLikes, postSaves, postComments, posting, ensureFeed,
+      createCommunityPost, deleteCommunityPost, togglePostLike, togglePostSave,
+      loadPostComments, addCommunityComment, deleteCommunityComment, resetCommunity,
+      follows, followsLoaded, followedOrgs, ensureFollows, toggleFollowOrg,
+      feedHasMore, loadingMore, loadMoreFeed,
+      boardEvents, spotlight, reported, reportContent,
+      postDetail, ensurePost, editCommunityPost,
+      composerPreset, openBoardComposer, clearComposerPreset, projectPosts, ensureProjectPosts,
+      orgFollowerCount, orgPostCount, ensureOrgStats, markFollowed,
+    } = useCommunity({ profile, orgAccount, toast, requireAuth });
+    // Club membership (Join → application → the owner's decision). After
+    // useCommunity: accepting auto-follows, mirrored through markFollowed.
+    const {
+      memberships, membershipsLoaded, ensureMemberships, myClubs,
+      applyPrompt, applySubmitting, applyError, requestJoin: requestJoinClub, submitApplication, cancelApply, leaveOrg,
+      applicants, loadApplicants, decideApplicant, pendingCount, orgMemberCount, resetClubs,
+    } = useClubs({ profile, orgAccount, toast, requireAuth, markFollowed });
+    // The persisted activity feed behind the bell (likes, comments, mentions,
+    // org follows). Keyed on whoever is signed in — a student, or the org owner.
+    const {
+      activity, activityLoading, unreadActivity, markActivityRead, resetNotifications,
+    } = useNotifications({ uid: profile ? profile.id : (orgAccount ? orgAccount.owner_user_id : null), toast });
+    const {
+      orgEvents, orgEventsLoading, createOrgEvent, updateOrgEvent, eventResponses, loadEventResponses, resetOrg,
     } = useOrg({ orgAccount, toast, setRoute, setEventDraftId });
+
+    // The community feed loads lazily on the first visit to the board —
+    // deliberately NOT part of the signed-in boot barrier.
+    useEffect(() => {
+      if (((route === "community" || route === "communityPost") && profile) || (route === "orgCommunity" && orgAccount)) ensureFeed();
+      // /saved lists saved posts too: the cached list, plus the board's marks
+      // (likes / saves / follows ride ensureFeed) so the cards read right even
+      // when the board itself was never opened this session.
+      if (route === "saved" && profile) { ensureFeed(); ensureSavedPosts(); }
+      if (route === "communityPost" && profile && postViewId) ensurePost(postViewId);
+      // The flyer page lists the notes tagged with the project (signed-in only).
+      if (route === "detail" && profile && detailId) ensureProjectPosts(detailId);
+      // /org/:slug shows a real Follow button — it needs my follows even when
+      // the board itself was never opened.
+      if (route === "orgView" && profile) ensureFollows();
+      // Join state rides every surface that shows an org: the club page, the
+      // board's org posts, and the profile's Clubs line.
+      if (profile && (route === "orgView" || route === "community" || route === "communityPost" || route === "saved" || route === "profile")) ensureMemberships();
+      if (orgAccount && (route === "orgDashboard" || route === "orgMembers")) loadApplicants();
+      if (orgAccount && (route === "orgDashboard" || route === "orgCommunity")) ensureOrgStats();
+      if (orgAccount && route === "eventResponses" && eventDraftId) loadEventResponses(eventDraftId);
+    }, [route, profile && profile.id, orgAccount && orgAccount.id, postViewId, eventDraftId, detailId]);
 
     // Dismiss whichever dropdown is open on outside-click / Escape.
     useEffect(() => {
@@ -280,7 +336,7 @@ import { useOrg } from './hooks/useOrg'
       // its #access_token hash) until hydrateSession routes us and clears this.
       if (authCallbackRef.current) return;
       const path = buildPath(route, {
-        detailId, editId, eventViewId, orgViewSlug, profileViewUsername,
+        detailId, editId, eventViewId, orgViewSlug, profileViewUsername, postViewId,
         eventDraftId, authMode, orgSlug: orgAccount && orgAccount.slug,
         messageThreadHandle,
       });
@@ -360,6 +416,7 @@ import { useOrg } from './hooks/useOrg'
           detailId: params.detailId, editId: params.editId, eventViewId: params.eventViewId,
           orgViewSlug: params.orgViewSlug, profileViewUsername: params.profileViewUsername,
           eventDraftId: params.eventDraftId, messageThreadHandle: params.messageThreadHandle,
+          postViewId: params.postViewId,
         }));
         toast("Sign in to see that page", "sparkle");
         setAuthMode("signup");
@@ -386,6 +443,7 @@ import { useOrg } from './hooks/useOrg'
       }
 
       if (target === "detail") setDetailId(params.detailId);
+      if (target === "communityPost") setPostViewId(params.postViewId);
       if (target === "edit") setEditId(params.editId);
       if (target === "eventDetail") setEventViewId(params.eventViewId);
       if (target === "orgView") setOrgViewSlug(params.orgViewSlug);
@@ -528,6 +586,9 @@ import { useOrg } from './hooks/useOrg'
       await signOutAuth();
       resetProjects();    // feed + the saved/joined/requested buckets
       resetEvents();      // RSVPs
+      resetCommunity();   // community board feed, marks, comment caches
+      resetClubs();       // club applications / memberships
+      resetNotifications(); // the bell's activity feed
       resetPeople();      // connection edges
       resetMessaging();   // inbox, open thread + peer, block set, failed-send stash
       resetOrg();         // org event list
@@ -547,11 +608,15 @@ import { useOrg } from './hooks/useOrg'
       // While the Events tab is parked, every nav to the feed lands on the
       // board — one central redirect instead of per-call-site guards.
       if (id === "events" && !SHOW_EVENTS) id = "discover";
-      // People & Saved need an account — nudge guests to sign in instead.
-      if (!profile && (id === "people" || id === "saved")) {
-        return requireAuth(id === "people" ? "Sign in to meet other students" : "Sign in to save projects");
+      // People, Saved & Community need an account — nudge guests to sign in instead.
+      if (!profile && (id === "people" || id === "saved" || id === "community")) {
+        return requireAuth(
+          id === "people" ? "Sign in to meet other students"
+          : id === "community" ? "Sign in to see the community board"
+          : "Sign in to save projects"
+        );
       }
-      if (id === "discover" || id === "events" || id === "people" || id === "saved") { setRoute(id); }
+      if (id === "discover" || id === "events" || id === "people" || id === "saved" || id === "community") { setRoute(id); }
       else { setSoonLabel(NAV.find((n) => n.id === id).label); setRoute("soon"); }
       window.scrollTo({ top: 0 });
     }
@@ -567,6 +632,14 @@ import { useOrg } from './hooks/useOrg'
       if (!slug) return;
       setOrgViewSlug(slug);
       setRoute("orgView");
+      window.scrollTo({ top: 0 });
+    }
+    // A note's permalink page (/community/:id) — from the bell, "Copy link",
+    // or a card's timestamp.
+    function openPost(id) {
+      if (!id) return;
+      setPostViewId(id);
+      setRoute("communityPost");
       window.scrollTo({ top: 0 });
     }
 
@@ -629,9 +702,10 @@ import { useOrg } from './hooks/useOrg'
     // skeleton instead — hydration then either fills the identity or
     // applyParsed corrects the position (replaceState, sub-second).
     const needsStudent = route === "profile" || route === "create" || route === "edit" ||
-      route === "userProfile" || route === "notifications" || route === "messages" || route === "messageThread";
-    const needsOrg = route === "orgDashboard" || route === "orgEditMe" ||
-      route === "eventCreate" || route === "eventEdit";
+      route === "userProfile" || route === "notifications" || route === "messages" || route === "messageThread" ||
+      route === "community" || route === "communityPost";
+    const needsOrg = route === "orgDashboard" || route === "orgEditMe" || route === "orgCommunity" ||
+      route === "eventCreate" || route === "eventEdit" || route === "eventResponses" || route === "orgMembers";
     if (sessionPending && ((needsStudent && !profile) || (needsOrg && !orgAccount))) {
       return (
         React.createElement("div", { className: rootClass + " corkbg", style: { ...rootStyle, minHeight: "100vh" } },
@@ -650,7 +724,7 @@ import { useOrg } from './hooks/useOrg'
       route, setRoute, goNav, goAuth, requireAuth, applyParsed,
       peekReturnTo, takeReturnTo,
       detailId, editId, setEditId,
-      eventViewId, setEventViewId, eventViewFrom,
+      eventViewId, setEventViewId, eventViewFrom, eventDraftId,
       orgViewSlug, setOrgViewSlug, profileViewUsername,
       messageThreadHandle, setEventDraftId,
       openEventDetail, openOrgView, openPerson, openProfile,
@@ -685,7 +759,26 @@ import { useOrg } from './hooks/useOrg'
       createProject, saveProjectEdits, deleteProjectById,
       // events + org
       rsvped, toggleRsvp, orgEvents, orgEventsLoading,
-      createOrgEvent, updateOrgEvent,
+      createOrgEvent, updateOrgEvent, eventResponses, loadEventResponses,
+      rsvpPrompt, rsvpSubmitting, rsvpError, requestRsvp, editRsvpAnswers, submitRsvp, cancelRsvpPrompt,
+      myAnswers, loadMyAnswers,
+      // community board
+      feed, feedLoading, feedError, refreshFeed, savedPosts, savedLoading,
+      postLikes, postSaves, postComments, posting,
+      createCommunityPost, deleteCommunityPost, togglePostLike, togglePostSave,
+      loadPostComments, addCommunityComment, deleteCommunityComment,
+      follows, followsLoaded, followedOrgs, ensureFollows, toggleFollowOrg,
+      feedHasMore, loadingMore, loadMoreFeed,
+      boardEvents, spotlight, reported, reportContent,
+      postViewId, openPost, postDetail, editCommunityPost,
+      composerPreset, openBoardComposer, clearComposerPreset, projectPosts,
+      orgFollowerCount, orgPostCount,
+      // the bell's activity feed
+      activity, activityLoading, unreadActivity, markActivityRead,
+      // club membership
+      memberships, membershipsLoaded, myClubs,
+      applyPrompt, applySubmitting, applyError, requestJoinClub, submitApplication, cancelApply, leaveOrg,
+      applicants, loadApplicants, decideApplicant, pendingCount, orgMemberCount,
       toast,
     };
 
@@ -773,7 +866,13 @@ import { useOrg } from './hooks/useOrg'
     }
 
     // ---------- ORG APP SHELL (dashboard + own public page) ----------
-    if (orgAccount && (route === "orgDashboard" || route === "eventDetail")) {
+    if (orgAccount && route === "orgCommunity" && !orgAccount.verified) {
+      // Unverified orgs can't post yet — same gate as events. Bounce home.
+      replaceNextRef.current = true;
+      setRoute("orgDashboard");
+      return null;
+    }
+    if (orgAccount && (route === "orgDashboard" || route === "orgCommunity" || route === "eventDetail" || route === "eventResponses" || route === "orgMembers")) {
       return React.createElement(OrgShell, { api });
     }
 

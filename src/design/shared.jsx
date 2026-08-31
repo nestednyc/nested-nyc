@@ -9,9 +9,11 @@ import { SHOW_EVENTS } from '../config/features'
   const { useState, useRef } = React;
 
   function Av({ name, color, size, img, label }) {
+    // A dead image URL falls back to the monogram (never the browser's "?").
+    const [broken, setBroken] = useState(false);
     const style = { background: color || avColor(name) };
     if (size) { style.width = size; style.height = size; style.fontSize = Math.round(size * 0.36); }
-    if (img) {
+    if (img && !broken) {
       // Absolute-fill, not height:100% — .av is display:grid, and a grid item's
       // percentage height resolves against the auto implicit row rather than the
       // fixed span, so portrait photos rendered at natural aspect (top band of
@@ -20,7 +22,7 @@ import { SHOW_EVENTS } from '../config/features'
       style.position = "relative";
       return React.createElement("span", { className: "av", style },
         React.createElement("img", {
-          src: img, alt: name, loading: "lazy",
+          src: img, alt: name, loading: "lazy", onError: () => setBroken(true),
           style: { position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", borderRadius: "inherit" },
         }));
     }
@@ -421,8 +423,9 @@ import { SHOW_EVENTS } from '../config/features'
   // Top-bar tabs — shared by NestedApp's goNav, the StudentShell topbar,
   // and SoonPane's icon lookup.
   export const NAV = [
-    { id: "discover", label: "Discover", icon: "grid" },
+    { id: "discover",  label: "Discover",  icon: "grid" },
     // Events tab parked behind SHOW_EVENTS until the first event is posted.
     ...(SHOW_EVENTS ? [{ id: "events", label: "Events", icon: "calendar" }] : []),
-    { id: "people",   label: "People",   icon: "users" },
+    { id: "community", label: "Community", icon: "board" },
+    { id: "people",    label: "People",    icon: "users" },
   ];

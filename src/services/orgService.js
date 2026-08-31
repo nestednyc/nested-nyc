@@ -136,6 +136,8 @@ export const orgService = {
       // columns, which new orgs leave NULL.
       links: input.links ?? [],
       location: input.location ?? null,
+      join_questions: Array.isArray(input.join_questions) ? input.join_questions : [],
+      join_url: input.join_url ?? null,
       owner_user_id: user.id
     }
 

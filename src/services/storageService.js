@@ -245,6 +245,48 @@ export const storageService = {
   },
 
   /**
+   * Upload a community post image to the public `post-images` bucket.
+   * Storage enforces the 5MB + image-mime caps at the bucket level too.
+   * @param {File} file - The image file to upload
+   * @param {number} slot - 0..3 — position within the post's image set
+   * @returns {Promise<{url: string|null, error: object|null}>}
+   */
+  async uploadPostImage(file, slot = 0) {
+    if (!isSupabaseConfigured() || !supabase) {
+      return { url: null, error: { message: 'Supabase not configured' } }
+    }
+    if (!file) return { url: null, error: { message: 'No file provided' } }
+
+    const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+    if (!validTypes.includes(file.type)) {
+      return { url: null, error: { message: 'Invalid file type. Please use JPG, PNG, GIF, or WebP.' } }
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      return { url: null, error: { message: 'File too large. Maximum size is 5MB.' } }
+    }
+
+    try {
+      const uid = await authUid()
+      if (!uid) return { url: null, error: { message: 'You must be signed in to upload.' } }
+      const fileExt = file.name.split('.').pop()
+      const fileName = `${uid}/post-${Date.now()}-${slot}.${fileExt}`
+
+      const { error: uploadError } = await supabase.storage
+        .from('post-images')
+        .upload(fileName, file, { cacheControl: '3600', upsert: false })
+
+      if (uploadError) return { url: null, error: uploadError }
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('post-images')
+        .getPublicUrl(fileName)
+      return { url: publicUrl, error: null }
+    } catch (err) {
+      return { url: null, error: err }
+    }
+  },
+
+  /**
    * Convert a file to base64 data URL (for localStorage fallback)
    * @param {File} file - The image file
    * @returns {Promise<string>}

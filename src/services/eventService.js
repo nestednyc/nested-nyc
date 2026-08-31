@@ -4,6 +4,7 @@
  */
 
 import { supabase, isSupabaseConfigured } from '../lib/supabase'
+import { personLabel, bareHandle } from '../design/data'
 
 export const eventService = {
   /**
@@ -27,18 +28,100 @@ export const eventService = {
    * Get upcoming events (not past)
    * @returns {Promise<{data: array|null, error: object|null}>}
    */
-  async getUpcomingEvents() {
+  async getUpcomingEvents({ from = null, limit = null, viewerId = null } = {}) {
     if (!isSupabaseConfigured() || !supabase) {
       return { data: null, error: { message: 'Supabase not configured' } }
     }
 
-    const { data, error } = await supabase
+    // `from` ('YYYY-MM-DD') bounds by the date itself — events.is_past is never
+    // maintained, so a caller that wants "upcoming" must say so; `limit` keeps
+    // the board's read bounded (the events page still lists everything).
+    // `viewerId` embeds the viewer's own registration row (my_reg) so a card
+    // knows whether `attendees` already counts them — exact, no client snapshot.
+    const embed = viewerId
+      ? '*, organization:organizations(id, slug, name, logo, verified, type, university_id), my_reg:event_registrations(user_id)'
+      : '*, organization:organizations(id, slug, name, logo, verified, type, university_id)'
+    let q = supabase
       .from('events')
-      .select('*, organization:organizations(id, slug, name, logo, verified)')
+      .select(embed)
       .eq('is_past', false)
       .order('date', { ascending: true })
+    if (viewerId) q = q.eq('my_reg.user_id', viewerId)
+    if (from) q = q.gte('date', from)
+    if (limit) q = q.limit(limit)
+    const { data, error } = await q
 
     return { data, error }
+  },
+
+  /**
+   * RSVP through the question sheet: one RPC registers AND stores the answers
+   * (migration 20260901000000). Required questions are enforced server-side
+   * (PT422 names them); PT409 = full; PT403 = you host this.
+   */
+  async rsvpWithAnswers(eventId, answers) {
+    if (!isSupabaseConfigured() || !supabase) {
+      return { data: null, error: { message: 'Supabase not configured' } }
+    }
+    const { data, error } = await supabase.rpc('rsvp_with_answers', { p_event: eventId, p_answers: answers || {} })
+    if (error && error.code === 'PT429') {
+      return { data: null, error: { ...error, message: "you're RSVPing too fast, take a short break and try again" } }
+    }
+    if (error && error.code === 'PT409') return { data: null, error: { ...error, message: 'This event is full.' } }
+    if (error && error.code === 'PT403') return { data: null, error: { ...error, message: 'You host this event.' } }
+    return { data, error }
+  },
+
+  /** My answers for one event (null when I haven't answered). */
+  async getMyRsvpAnswers(eventId) {
+    if (!isSupabaseConfigured() || !supabase) return { data: null, error: null }
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { data: null, error: null }
+    const { data, error } = await supabase
+      .from('event_rsvp_answers')
+      .select('answers')
+      .eq('event_id', eventId)
+      .eq('user_id', user.id)
+      .maybeSingle()
+    return { data: data ? data.answers : null, error }
+  },
+
+  /**
+   * Host view: every registration for an event, with the attendee's public
+   * identity and their answers (RLS lets the host org's owner read them).
+   * Rows: { userId, name, handle, avatar, registeredAt, submittedAt, answers }.
+   */
+  async getEventResponses(eventId) {
+    if (!isSupabaseConfigured() || !supabase) return { data: [], error: { message: 'Supabase not configured' } }
+    const [{ data: regs, error: rErr }, { data: ans, error: aErr }] = await Promise.all([
+      supabase.from('event_registrations').select('user_id, registered_at').eq('event_id', eventId).order('registered_at', { ascending: false }),
+      supabase.from('event_rsvp_answers').select('user_id, answers, submitted_at, updated_at').eq('event_id', eventId),
+    ])
+    if (rErr) return { data: [], error: rErr }
+    if (aErr) return { data: [], error: aErr }
+    const ids = (regs || []).map((r) => r.user_id)
+    let people = []
+    if (ids.length) {
+      const { data: rows } = await supabase.from('public_profiles').select('id, first_name, last_name, username, avatar').in('id', ids)
+      people = rows || []
+    }
+    const byId = new Map(people.map((p) => [p.id, p]))
+    const answersBy = new Map((ans || []).map((a) => [a.user_id, a]))
+    const data = (regs || []).map((r) => {
+      const p = byId.get(r.user_id) || {}
+      const a = answersBy.get(r.user_id)
+      const name = personLabel(p, 'Student')
+      return {
+        userId: r.user_id,
+        name,
+        handle: bareHandle(p.username),
+        avatar: p.avatar || null,
+        registeredAt: r.registered_at,
+        submittedAt: a ? (a.updated_at || a.submitted_at) : null,
+        answers: a ? a.answers || {} : {},
+      }
+    })
+    return { data, error: null }
   },
 
   /**
@@ -214,7 +297,7 @@ export const eventService = {
       .select('*')
       .eq('event_id', eventId)
       .eq('user_id', user.id)
-      .single()
+      .maybeSingle()
 
     if (existing) {
       return { data: existing, error: null } // Already registered

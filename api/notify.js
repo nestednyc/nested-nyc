@@ -30,6 +30,18 @@ const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET;
 const EMAIL_FROM = process.env.EMAIL_FROM || "Nested <hi@nested.social>";
 const APP_URL = process.env.APP_URL || "https://www.nested.social";
 const UNSUB_SECRET = process.env.UNSUBSCRIBE_SECRET || WEBHOOK_SECRET || "";
+// Community reports go to fixed founder addresses (comma-separated), not to
+// users — no opt-out lookup, no per-person unsubscribe.
+const REPORT_RECIPIENTS = (process.env.REPORT_RECIPIENTS || "")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
+// "New org waiting for review" goes to ADMIN_RECIPIENTS, falling back to the
+// same founder addresses reports use.
+const ADMIN_RECIPIENTS = (process.env.ADMIN_RECIPIENTS || process.env.REPORT_RECIPIENTS || "")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
 
 const admin =
   SUPABASE_URL && SERVICE_ROLE
@@ -185,6 +197,40 @@ async function planJoinApproved(tm, old) {
   };
 }
 
+// org_memberships INSERT (pending) or UPDATE rejected → pending (re-apply)
+async function planClubJoinRequest(m, old) {
+  if (!m || m.status !== "pending") return null;
+  if (old && old.status === "pending") return null;
+  const [{ data: org }, { data: applicant }] = await Promise.all([
+    admin.from("organizations").select("id,name,owner_user_id").eq("id", m.org_id).maybeSingle(),
+    admin.from("profiles").select("first_name,last_name,username,university").eq("id", m.user_id).maybeSingle(),
+  ]);
+  if (!org || !org.owner_user_id || String(org.owner_user_id) === String(m.user_id)) return null;
+  return {
+    recipientIds: [String(org.owner_user_id)],
+    make: (unsub) =>
+      emails.clubJoinRequest({
+        applicantName: applicant ? personLabel(applicant) : "A student",
+        school: uniLabel(applicant?.university),
+        clubName: org.name || "your org",
+        unsubUrl: unsub,
+      }),
+  };
+}
+
+// org_memberships UPDATE pending → accepted. Rejections are in-app only.
+async function planClubJoinAccepted(m, old) {
+  if (!m || m.status !== "accepted") return null;
+  if (!old || old.status !== "pending") return null;
+  if (!m.user_id) return null;
+  const { data: org } = await admin.from("organizations").select("id,slug,name").eq("id", m.org_id).maybeSingle();
+  if (!org) return null;
+  return {
+    recipientIds: [String(m.user_id)],
+    make: (unsub) => emails.clubJoinAccepted({ clubName: org.name || "the club", clubSlug: org.slug, unsubUrl: unsub }),
+  };
+}
+
 async function planNewConnection(c) {
   if (!c || !c.target_id || !c.user_id) return null;
 
@@ -331,6 +377,120 @@ async function planOrgVerified(org, old) {
   };
 }
 
+// What was reported, in one line + an excerpt, read with the service role
+// (reports are write-only for users; the founders see the content here).
+async function describeReportTarget(type, id) {
+  try {
+    if (type === "post") {
+      const { data } = await admin
+        .from("posts")
+        .select("body,author_name,author_handle,org_id,report_count")
+        .eq("id", id)
+        .maybeSingle();
+      if (!data) return { label: "a post (already deleted)", excerpt: "" };
+      const who = data.org_id
+        ? data.author_name || "an org"
+        : personLabel({ username: data.author_handle, first_name: data.author_name }, "a student");
+      return {
+        label: `a post by ${who}` + (data.report_count >= 3 ? " (auto-hidden)" : ""),
+        excerpt: data.body || "(photo only)",
+      };
+    }
+    if (type === "comment") {
+      const { data } = await admin
+        .from("post_comments")
+        .select("body,author_name,author_handle,report_count")
+        .eq("id", id)
+        .maybeSingle();
+      if (!data) return { label: "a comment (already deleted)", excerpt: "" };
+      const who = personLabel({ username: data.author_handle, first_name: data.author_name }, "a student");
+      return {
+        label: `a comment by ${who}` + (data.report_count >= 3 ? " (auto-hidden)" : ""),
+        excerpt: data.body || "",
+      };
+    }
+    if (type === "profile") {
+      const { data } = await admin
+        .from("profiles")
+        .select("first_name,last_name,username,university")
+        .eq("id", id)
+        .maybeSingle();
+      if (!data) return { label: "a profile (already deleted)", excerpt: "" };
+      const school = uniLabel(data.university);
+      return { label: `the profile of ${personLabel(data, "a student")}` + (school ? ` (${school})` : ""), excerpt: "" };
+    }
+  } catch (e) {
+    console.error("notify: describeReportTarget failed", e.message);
+  }
+  return { label: `a ${type}`, excerpt: "" };
+}
+
+// → the founders: a student flagged a post / comment / profile. Internal
+// alert to REPORT_RECIPIENTS — sent as plain addresses (recipientEmails), so
+// the per-user opt-out / unsubscribe machinery doesn't apply.
+async function planNewReport(r) {
+  if (!r || !r.reporter_id || !r.target_id || !REPORT_RECIPIENTS.length) return null;
+  const [{ data: reporter }, target] = await Promise.all([
+    admin
+      .from("profiles")
+      .select("first_name,last_name,username,university")
+      .eq("id", r.reporter_id)
+      .maybeSingle(),
+    describeReportTarget(r.target_type, r.target_id),
+  ]);
+  return {
+    recipientIds: [],
+    recipientEmails: REPORT_RECIPIENTS,
+    make: () =>
+      emails.newReport({
+        reporterName: personLabel(reporter || {}, "A student"),
+        reporterSchool: uniLabel(reporter?.university),
+        targetLabel: target.label,
+        excerpt: target.excerpt,
+        reason: r.reason || "",
+        targetType: r.target_type,
+        targetId: r.target_id,
+      }),
+  };
+}
+
+// → the founders: a new org signed up (organizations INSERT). Until someone
+// runs the verify UPDATE it's invisible — this is the nudge. Universities are
+// seeded by migration, never inserted at runtime, so this only fires for real
+// club / community signups. Internal alert → fixed addresses, no opt-out.
+async function planNewOrg(org) {
+  if (!org || !org.id || !ADMIN_RECIPIENTS.length) return null;
+  if (org.type === "university" || org.verified) return null;
+  let ownerEmail = "";
+  let school = "";
+  try {
+    const [{ data: u }, { data: parent }] = await Promise.all([
+      org.owner_user_id ? admin.auth.admin.getUserById(org.owner_user_id) : Promise.resolve({ data: null }),
+      org.university_id
+        ? admin.from("organizations").select("slug").eq("id", org.university_id).maybeSingle()
+        : Promise.resolve({ data: null }),
+    ]);
+    ownerEmail = u?.user?.email || "";
+    school = uniLabel(parent?.slug);
+  } catch (e) {
+    console.error("notify: planNewOrg lookup failed", e.message);
+  }
+  return {
+    recipientIds: [],
+    recipientEmails: ADMIN_RECIPIENTS,
+    make: () =>
+      emails.newOrg({
+        name: org.name || "An org",
+        type: org.type || "org",
+        slug: org.slug || "",
+        location: org.location || "",
+        bio: org.bio || "",
+        ownerEmail,
+        school,
+      }),
+  };
+}
+
 async function planFor({ type, table, record, old_record }) {
   if (table === "team_members") {
     if (type === "INSERT") return planJoinRequest(record);
@@ -338,8 +498,18 @@ async function planFor({ type, table, record, old_record }) {
     return null;
   }
   if (table === "connections" && type === "INSERT") return planNewConnection(record);
-  if (table === "organizations" && type === "UPDATE") return planOrgVerified(record, old_record);
+  if (table === "org_memberships") {
+    if (type === "INSERT") return planClubJoinRequest(record, null);
+    if (type === "UPDATE") return (await planClubJoinAccepted(record, old_record)) || planClubJoinRequest(record, old_record);
+    return null;
+  }
+  if (table === "organizations") {
+    if (type === "INSERT") return planNewOrg(record);
+    if (type === "UPDATE") return planOrgVerified(record, old_record);
+    return null;
+  }
   if (table === "messages" && type === "INSERT") return planNewMessage(record);
+  if (table === "reports" && type === "INSERT") return planNewReport(record);
   return null;
 }
 
@@ -370,13 +540,25 @@ export default async function handler(req, res) {
 
   try {
     const plan = await planFor(payload);
-    if (!plan || !plan.recipientIds.length) {
+    const directEmails = (plan && plan.recipientEmails) || [];
+    if (!plan || (!plan.recipientIds.length && !directEmails.length)) {
       return res.status(200).json({ skipped: true });
     }
 
     let sent = 0;
     let skipped = 0;
     let failed = 0;
+    // Fixed-address recipients (founder alerts): no opt-out, no per-person
+    // unsubscribe — the List-Unsubscribe header points at the generic page.
+    for (const to of directEmails) {
+      try {
+        await sendEmail(to, `${APP_URL}/profile`, plan.make(null));
+        sent++;
+      } catch (e) {
+        failed++;
+        console.error("notify: send failed for", to, e.message);
+      }
+    }
     for (const rid of plan.recipientIds) {
       const r = await getRecipient(rid);
       if (!r || r.optOut) {

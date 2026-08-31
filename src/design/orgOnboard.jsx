@@ -11,6 +11,8 @@ import OrgForm, { OrgPreview } from './orgForm'
 import { orgService } from '../services/orgService'
 import { resolveOrgUniSlug } from './data'
 import { useUniversitiesList } from './useUniversitiesList'
+import { dataUrlToFile } from './profileAdapter'
+import { storageService } from '../services/storageService'
 
   const { useState, useRef } = React;
 
@@ -61,13 +63,29 @@ import { useUniversitiesList } from './useUniversitiesList'
       setSubmitting(true);
       setSubmitError('');
 
+      let logo = values.logo || null;
+      if (logo && logo.startsWith('data:')) {
+        const file = await dataUrlToFile(logo, 'logo.jpg');
+        const { url, error: upErr } = await storageService.uploadOrgLogo('new', file);
+        if (upErr || !url) {
+          submitted.current = false;
+          setSubmitting(false);
+          setSubmitError((upErr && upErr.message) || "Couldn't upload the logo — try a smaller image.");
+          return;
+        }
+        logo = url;
+      }
+
       const { data: org, error } = await orgService.createOrg({
         name: values.name,
         type: values.type,
         university_id: uniRow ? uniRow.id : null,
+        logo,
         bio: values.bio,
         location: values.location,
         links: values.links,
+        join_questions: values.joinQuestions || [],
+        join_url: values.joinUrl ? values.joinUrl : null,
       });
 
       if (error) {

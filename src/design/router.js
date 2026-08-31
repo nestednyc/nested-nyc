@@ -31,6 +31,8 @@ const ROUTES = [
   { route: "detail",        path: "/projects/:id",              access: "public",  params: { id: "detailId" } },
   { route: "edit",          path: "/projects/:id/edit",         access: "student", params: { id: "editId" } },
   { route: "create",        path: "/create",                    access: "student" },
+  { route: "community",     path: "/community",                 access: "student" },
+  { route: "communityPost", path: "/community/:id",             access: "student", params: { id: "postViewId" } },
   { route: "people",        path: "/people",                    access: "student" },
   { route: "saved",         path: "/saved",                     access: "student" },
   { route: "notifications", path: "/notifications",             access: "student" },
@@ -46,8 +48,11 @@ const ROUTES = [
   { route: "orgView",       path: "/org/:slug",                 access: "public",  params: { slug: "orgViewSlug" } },
   { route: "orgDashboard",  path: "/dashboard",                 access: "org" },
   { route: "orgEditMe",     path: "/dashboard/edit",            access: "org" },
+  { route: "orgCommunity",  path: "/dashboard/community",       access: "org" },
   { route: "eventCreate",   path: "/dashboard/events/new",      access: "org" },
   { route: "eventEdit",     path: "/dashboard/events/:id/edit", access: "org",     params: { id: "eventDraftId" } },
+  { route: "eventResponses", path: "/dashboard/events/:id/rsvps", access: "org",    params: { id: "eventDraftId" } },
+  { route: "orgMembers",    path: "/dashboard/members",           access: "org" },
 ];
 for (const r of ROUTES) r.segs = r.path === "/" ? [] : r.path.slice(1).split("/");
 
@@ -112,6 +117,9 @@ const BUILD = {
   detail:        (s) => (s.detailId ? "/projects/" + enc(s.detailId) : null),
   edit:          (s) => (s.editId ? "/projects/" + enc(s.editId) + "/edit" : null),
   create:        () => "/create",
+  community:     () => "/community",
+  communityPost: (s) => (s.postViewId ? "/community/" + enc(s.postViewId) : null),
+  orgCommunity:  () => "/dashboard/community",
   people:        () => "/people",
   saved:         () => "/saved",
   notifications: () => "/notifications",
@@ -128,6 +136,8 @@ const BUILD = {
   orgEditMe:     () => "/dashboard/edit",
   eventCreate:   () => "/dashboard/events/new",
   eventEdit:     (s) => (s.eventDraftId ? "/dashboard/events/" + enc(s.eventDraftId) + "/edit" : null),
+  eventResponses: (s) => (s.eventDraftId ? "/dashboard/events/" + enc(s.eventDraftId) + "/rsvps" : null),
+  orgMembers:     () => "/dashboard/members",
   soon:          () => null,
 };
 
@@ -161,6 +171,9 @@ export function titleFor(route, ctx) {
     case "detail":        return c.detailTitle ? c.detailTitle + " · " + SITE : SITE;
     case "edit":          return "Edit flyer · " + SITE;
     case "create":        return "Pin a project · " + SITE;
+    case "community":     return "Community · " + SITE;
+    case "communityPost": return "Post · " + SITE;
+    case "orgCommunity":  return "Community · " + SITE;
     case "people":        return "People · " + SITE;
     case "saved":         return "Saved · " + SITE;
     case "notifications": return "Notifications · " + SITE;
@@ -177,6 +190,8 @@ export function titleFor(route, ctx) {
     case "orgEditMe":     return "Edit org page · " + SITE;
     case "eventCreate":   return "Pin an event · " + SITE;
     case "eventEdit":     return "Edit event · " + SITE;
+    case "eventResponses": return "RSVPs · " + SITE;
+    case "orgMembers":     return "Applications · " + SITE;
     default:              return SITE;
   }
 }

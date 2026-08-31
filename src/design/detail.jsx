@@ -201,7 +201,7 @@ import { LinkPill } from './people'
     });
   }
 
-  function ProjectDetail({ p, profile, saved, joined, requested, onBack, onSave, onRequest, onMessage, onEdit, onUpdateStatus, onSetCoLead, onKickMember, pendingRequests = [], onApprove, onReject, onOpenProfile }) {
+  function ProjectDetail({ p, profile, saved, joined, requested, onBack, onSave, onRequest, onMessage, onEdit, onUpdateStatus, onSetCoLead, onKickMember, pendingRequests = [], onApprove, onReject, onOpenProfile, projectPosts, onPostUpdate, onOpenPost }) {
     const cat = CAT[p.cat];
     const uni = UNI[p.uni];
     // teamNames = lead + joiners (for the "crew" facepile); extra counts faces
@@ -308,6 +308,9 @@ import { LinkPill } from './people'
             React.createElement(StatusBlock, { p, isAdmin, onUpdate: (patch) => onUpdateStatus && onUpdateStatus(p.id, patch) }),
 
             React.createElement("div", { className: "detail-cta" },
+              // Anyone on the team (lead, co-lead, crew) can post about the project.
+              (isAdmin || joined) && onPostUpdate && React.createElement("button", { className: "btn btn-ghost", onClick: () => onPostUpdate(p.id) },
+                React.createElement(Icon, { name: "board", size: 17 }), "Post to the board"),
               isOwner
                 ? React.createElement("button", { className: "btn btn-primary", onClick: () => onEdit(p) }, "Edit flyer")
                 : React.createElement("button", {
@@ -352,7 +355,19 @@ import { LinkPill } from './people'
                     p.tags.map((t, i) => React.createElement("span", { className: "tag2", key: i }, t))
                   )
                 ),
-                React.createElement(HitCounter, { count: p.views })
+                React.createElement(HitCounter, { count: p.views }),
+                // What the team has said about it on the community board.
+                profile && projectPosts && (projectPosts.posts.length > 0 || projectPosts.loading) && React.createElement("div", { className: "detail-posts" },
+                  React.createElement("div", { className: "sec-h" }, "On the board"),
+                  projectPosts.loading && !projectPosts.posts.length && React.createElement("div", { className: "ev-skel line", style: { width: "50%" } }),
+                  projectPosts.posts.map((note) => React.createElement("button", { key: note.id, className: "detail-post", type: "button", onClick: () => onOpenPost && onOpenPost(note.id) },
+                    React.createElement(Av, { name: note.author, img: note.authorAvatar || null }),
+                    React.createElement("span", { className: "dp-txt" },
+                      React.createElement("b", null, note.author, React.createElement("small", null, " · " + (note.kind === "win" ? "win" : note.kind === "ask" ? "looking for" : "update"))),
+                      React.createElement("span", null, note.body.length > 160 ? note.body.slice(0, 157) + "…" : (note.body || "(photo)"))),
+                    note.images.length > 0 && React.createElement("img", { src: note.images[0], alt: "", loading: "lazy" })
+                  ))
+                )
               ),
 
               // side rail

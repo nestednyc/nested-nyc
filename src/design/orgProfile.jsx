@@ -10,6 +10,8 @@ import Icon from './icons'
 import { ETYPE, UNI, ORG_TYPES, cleanProjectLinks } from './data'
 import { Av, Facepile, CatTag, Stamp, UniLogo } from './shared'
 import { LinkPill } from './people'
+import { postTimeAgo } from './postAdapter'
+import { JoinButton, MemberRoster } from './clubJoin'
 
   // Public links for an org row: the links column, falling back to the legacy
   // website/instagram pair for rows the backfill hasn't reached (old tabs,
@@ -110,7 +112,24 @@ import { LinkPill } from './people'
   // board. Visitor-only (the owner manages from the dashboard; there's no
   // owner variant of this page anymore). Campus identity (color + logo) comes
   // from UNI[org.uni] when the org's university resolves, else the accent.
-  function OrgProfile({ org, events = [], following, onBack, onOpenEvent, onFollow }) {
+  // The org's recent board posts — compact notes under the poster.
+  function OrgPosts({ posts }) {
+    return React.createElement("div", { className: "org-posts" },
+      posts.map((p) => React.createElement("div", { className: "org-post", key: p.id },
+        p.body && React.createElement("p", null, p.body),
+        p.images.length > 0 && React.createElement("div", { className: "org-post-imgs" },
+          p.images.slice(0, 4).map((src) => React.createElement("img", { key: src, src, alt: "", loading: "lazy" }))),
+        React.createElement("div", { className: "org-post-meta" },
+          React.createElement("span", null, postTimeAgo(p.at)),
+          p.likes > 0 && React.createElement("span", null, React.createElement(Icon, { name: "heart", size: 12 }), p.likes),
+          p.commentCount > 0 && React.createElement("span", null, React.createElement(Icon, { name: "chat", size: 12 }), p.commentCount)
+        )
+      ))
+    );
+  }
+
+  function OrgProfile({ org, events = [], posts = [], following, followerCount, canFollow = true, onBack, onOpenEvent, onFollow,
+                        membership, canJoin = false, onJoin, members = [], memberCount = null, onOpenPerson }) {
     if (!org) return null;
     const uniObj = org.uni && UNI[org.uni] ? UNI[org.uni] : null;
     const barColor = uniObj ? uniObj.color : "var(--accent)";
@@ -119,6 +138,9 @@ import { LinkPill } from './people'
     // "Visit site" stays a website affordance — a branded link (Instagram,
     // Linktree…) already says where it goes on its own pill.
     const siteLink = links.find((l) => l.kind === "site") || null;
+    // Universities aren't joinable; clubs and other orgs are.
+    const joinable = org.type !== "university";
+    const joinUrl = typeof org.join_url === "string" && /^https?:\/\//i.test(org.join_url) ? org.join_url : null;
 
     return (
       React.createElement("div", { className: "org-wrap" },
@@ -129,7 +151,6 @@ import { LinkPill } from './people'
 
         React.createElement("article", { className: "org-page org-poster grain fade-up" },
           React.createElement("div", { className: "cat-bar", style: { background: barColor } }),
-          org.verified && React.createElement(Stamp, { size: 96, label: "ORG", className: "detail-stamp" }),
 
           React.createElement("div", { className: "org-inner" },
             React.createElement("div", { className: "org-headline" },
@@ -149,12 +170,26 @@ import { LinkPill } from './people'
             ),
 
             React.createElement("div", { className: "org-cta" },
-              React.createElement("button", { className: "btn " + (following ? "btn-primary done" : "btn-primary"), onClick: () => onFollow && onFollow(org) },
+              joinable && canJoin && React.createElement(JoinButton, { membership, onClick: () => onJoin && onJoin(org) }),
+              canFollow && React.createElement("button", { className: "btn " + (following ? "btn-primary done" : (joinable && canJoin ? "btn-ghost" : "btn-primary")), onClick: () => onFollow && onFollow(org) },
                 following
                   ? [React.createElement(Icon, { name: "check", size: 17, stroke: "var(--paper)", key: "i" }), "Following"]
-                  : [React.createElement(Icon, { name: "plus", size: 17, stroke: "var(--paper)", key: "i" }), "Follow"]),
-              siteLink && React.createElement("a", { className: "btn btn-ghost", href: siteLink.url, target: "_blank", rel: "noreferrer" },
-                React.createElement(Icon, { name: "external", size: 16 }), "Visit site")
+                  : [React.createElement(Icon, { name: "plus", size: 17, stroke: joinable && canJoin ? "currentColor" : "var(--paper)", key: "i" }), "Follow"]),
+              joinable && joinUrl && React.createElement("a", { className: "btn btn-ghost", href: joinUrl, target: "_blank", rel: "noreferrer" },
+                React.createElement(Icon, { name: "external", size: 16 }), "Sign up on their site"),
+              siteLink && !joinUrl && React.createElement("a", { className: "btn btn-ghost", href: siteLink.url, target: "_blank", rel: "noreferrer" },
+                React.createElement(Icon, { name: "external", size: 16 }), "Visit site"),
+              (followerCount !== null && followerCount !== undefined || memberCount !== null) && React.createElement("span", { className: "org-followers" },
+                React.createElement(Icon, { name: "users", size: 14 }),
+                followerCount !== null && followerCount !== undefined && [React.createElement("b", { key: "f" }, followerCount), followerCount === 1 ? "follower" : "followers"],
+                joinable && memberCount !== null && [followerCount !== null && followerCount !== undefined ? " · " : null, React.createElement("b", { key: "m" }, memberCount), memberCount === 1 ? "member" : "members"])
+            ),
+
+            joinable && React.createElement(MemberRoster, { members, count: memberCount, onOpenPerson }),
+
+            posts.length > 0 && React.createElement("div", { className: "org-section" },
+              React.createElement("div", { className: "sec-h" }, "On the board"),
+              React.createElement(OrgPosts, { posts })
             ),
 
             React.createElement("div", { className: "org-section" },

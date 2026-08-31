@@ -71,3 +71,52 @@ test('titleFor messageThread shows the peer handle, falls back to Messages', () 
   assert.ok(withName.endsWith('Nested NYC'));
   assert.equal(titleFor('messageThread', {}), titleFor('messages'));
 });
+
+// ---------- community board routes ----------
+test('parse("/community") → the community route, no params', () => {
+  const r = parse('/community', '');
+  assert.equal(r.route, 'community');
+  assert.deepEqual(r.params, {});
+});
+
+test('build("community") → "/community"', () => {
+  assert.equal(build('community', {}), '/community');
+});
+
+test('community is student-gated; the org seat is org-gated', () => {
+  assert.equal(accessOf('community'), 'student');
+  assert.equal(accessOf('orgCommunity'), 'org');
+});
+
+test('parse("/dashboard/community") → orgCommunity and builds back', () => {
+  assert.equal(parse('/dashboard/community', '').route, 'orgCommunity');
+  assert.equal(build('orgCommunity', {}), '/dashboard/community');
+});
+
+test('titleFor community routes', () => {
+  assert.equal(titleFor('community'), 'Community · Nested NYC');
+  assert.equal(titleFor('orgCommunity'), 'Community · Nested NYC');
+});
+
+test('post permalink /community/:id round-trips and is student-gated', () => {
+  const r = parse('/community/abc-123', '');
+  assert.equal(r.route, 'communityPost');
+  assert.deepEqual(r.params, { postViewId: 'abc-123' });
+  assert.equal(build('communityPost', { postViewId: 'abc-123' }), '/community/abc-123');
+  assert.equal(build('communityPost', {}), null);
+  assert.equal(accessOf('communityPost'), 'student');
+  assert.equal(titleFor('communityPost'), 'Post · Nested NYC');
+});
+
+test('event RSVP responses route (org) round-trips', () => {
+  const r = parse('/dashboard/events/abc/rsvps', '');
+  assert.equal(r.route, 'eventResponses');
+  assert.deepEqual(r.params, { eventDraftId: 'abc' });
+  assert.equal(build('eventResponses', { eventDraftId: 'abc' }), '/dashboard/events/abc/rsvps');
+  assert.equal(accessOf('eventResponses'), 'org');
+  assert.equal(titleFor('eventResponses'), 'RSVPs · Nested NYC');
+  assert.equal(parse('/dashboard/members', '').route, 'orgMembers');
+  assert.equal(build('orgMembers', {}), '/dashboard/members');
+  assert.equal(accessOf('orgMembers'), 'org');
+  assert.equal(titleFor('orgMembers'), 'Applications · Nested NYC');
+});

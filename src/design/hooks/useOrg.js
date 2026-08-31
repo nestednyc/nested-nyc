@@ -24,6 +24,8 @@ export function useOrg({ orgAccount, toast, setRoute, setEventDraftId }) {
   // the one render between orgAccount landing and the loader effect firing.
   // Only read in org context, so the idle-true for students is inert.
   const [orgEventsLoading, setOrgEventsLoading] = useState(true);
+  // /dashboard/events/:id/rsvps — { id, rows, loading, error }.
+  const [eventResponses, setEventResponses] = useState({ id: null, rows: [], loading: false, error: null });
 
   // Load the org's events once when an orgAccount becomes active. Cheap
   // enough to do up front so the dashboard renders the list immediately;
@@ -69,10 +71,19 @@ export function useOrg({ orgAccount, toast, setRoute, setEventDraftId }) {
     toast("Event updated", "check");
   }
 
+  // Who's going + what they answered, for one of my events.
+  async function loadEventResponses(id) {
+    if (!id || !orgAccount) return;
+    setEventResponses({ id, rows: [], loading: true, error: null });
+    const { data, error } = await eventService.getEventResponses(id);
+    setEventResponses({ id, rows: data || [], loading: false, error: error || null });
+  }
+
   // signOut's wipe of this domain (orgAccount is useSession's to clear).
   function resetOrg() {
     setOrgEvents([]);
+    setEventResponses({ id: null, rows: [], loading: false, error: null });
   }
 
-  return { orgEvents, orgEventsLoading, createOrgEvent, updateOrgEvent, resetOrg };
+  return { orgEvents, orgEventsLoading, createOrgEvent, updateOrgEvent, eventResponses, loadEventResponses, resetOrg };
 }

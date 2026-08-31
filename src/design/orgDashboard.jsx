@@ -8,10 +8,12 @@
    ============================================================ */
 import React from 'react'
 import Icon from './icons'
-import { OrgMini, formatEventDate } from './shared'
+import { Av, OrgMini, formatEventDate } from './shared'
 import { EventRow } from './orgProfile'
+import { notificationText, groupActivity } from './notificationAdapter'
+import { postTimeAgo } from './postAdapter'
 
-  const { useState } = React;
+  const { useState, useEffect } = React;
 
   function OrgDashboard({
     org,
@@ -20,8 +22,28 @@ import { EventRow } from './orgProfile'
     onCreateEvent,
     onEditOrg,
     onEditEvent,
+    onOpenResponses,
+    onOpenCommunity,
+    followerCount,
+    postCount,
+    activity = [],
+    unreadActivity = 0,
+    onSeenActivity,
+    onOpenActivity,
     onSignOut,
+    pendingCount = 0,
+    memberCount,
+    onOpenMembers,
   }) {
+    // Seeing the dashboard = seeing the activity: clear the unread marks.
+    const [newIds, setNewIds] = useState(null);
+    useEffect(() => {
+      const fresh = activity.filter((a) => !a.read).map((a) => a.id);
+      if (!fresh.length) return;
+      setNewIds((prev) => new Set([...(prev || []), ...fresh]));
+      if (onSeenActivity) onSeenActivity();
+    }, [activity.length, unreadActivity]);
+    const recent = groupActivity(activity).slice(0, 6);
     const upcoming = events.filter((e) => !e.is_past);
     const past = events.filter((e) => e.is_past);
     const totalRsvps = events.reduce((acc, e) => acc + (e.attendees || 0), 0);
@@ -47,7 +69,7 @@ import { EventRow } from './orgProfile'
         React.createElement("div", { className: "disco-head" },
           React.createElement("div", { className: "head-txt" },
             React.createElement("h1", null, "Your ", React.createElement("em", null, "dashboard")),
-            React.createElement("p", { className: "sub" }, "Run your org, post events to the shared NYC calendar, edit your page.")
+            React.createElement("p", { className: "sub" }, "Run your org, post events to the shared NYC calendar, pin updates to the community board, edit your page.")
           ),
           React.createElement("div", { className: "board-actions" },
             canPost && React.createElement("button", { className: "start-btn", onClick: onCreateEvent },
@@ -83,14 +105,37 @@ import { EventRow } from './orgProfile'
                 React.createElement("span", { className: "arr" }, React.createElement(Icon, { name: "arrowRight", size: 16 }))),
               canPost && React.createElement("button", { className: "manage-row", onClick: onCreateEvent },
                 React.createElement(Icon, { name: "plus", size: 17 }), "Pin an event",
+                React.createElement("span", { className: "arr" }, React.createElement(Icon, { name: "arrowRight", size: 16 }))),
+              canPost && onOpenCommunity && React.createElement("button", { className: "manage-row", onClick: onOpenCommunity },
+                React.createElement(Icon, { name: "board", size: 17 }), "Post to the community",
+                React.createElement("span", { className: "arr" }, React.createElement(Icon, { name: "arrowRight", size: 16 }))),
+              canPost && org.type !== "university" && onOpenMembers && React.createElement("button", { className: "manage-row", onClick: onOpenMembers },
+                React.createElement(Icon, { name: "users", size: 17 }), "Applications",
+                pendingCount > 0 && React.createElement("span", { className: "manage-badge" }, pendingCount + " pending"),
                 React.createElement("span", { className: "arr" }, React.createElement(Icon, { name: "arrowRight", size: 16 })))
+            ),
+            recent.length > 0 && React.createElement("div", { className: "dash-panel" },
+              React.createElement("div", { className: "panel-h" }, "Recent activity"),
+              React.createElement("div", { className: "act-list" },
+                recent.map((n) => React.createElement("button", { key: n.id, type: "button", className: "act-row" + (newIds && n.ids.some((id) => newIds.has(id)) ? "" : " read"), onClick: () => onOpenActivity && onOpenActivity(n) },
+                  React.createElement("span", { className: "act-dot" }),
+                  React.createElement(Av, { name: n.actor.name, img: n.actor.avatar || null }),
+                  React.createElement("span", { className: "act-txt" },
+                    React.createElement("b", null, notificationText(n)),
+                    n.kind !== "org_follow" && n.snippet && React.createElement("small", null, n.snippet)),
+                  React.createElement("span", { className: "act-time" }, postTimeAgo(n.at))
+                ))
+              )
             ),
             React.createElement("div", { className: "dash-panel" },
               React.createElement("div", { className: "panel-h" }, "The numbers"),
               React.createElement("div", { className: "num-strip" },
                 React.createElement("span", null, React.createElement("b", null, upcoming.length), "upcoming"),
                 React.createElement("span", null, React.createElement("b", null, past.length), "past"),
-                React.createElement("span", null, React.createElement("b", null, totalRsvps), "RSVPs")
+                React.createElement("span", null, React.createElement("b", null, totalRsvps), "RSVPs"),
+                React.createElement("span", null, React.createElement("b", null, followerCount == null ? "–" : followerCount), "followers"),
+                org.type !== "university" && React.createElement("span", null, React.createElement("b", null, memberCount == null ? "–" : memberCount), "members"),
+                React.createElement("span", null, React.createElement("b", null, postCount == null ? "–" : postCount), "posts")
               )
             )
           )
@@ -116,7 +161,13 @@ import { EventRow } from './orgProfile'
                     key: e.id,
                     e: toRowShape(e),
                     onOpen: () => onEditEvent && onEditEvent(e.id),
-                    trailing: () => React.createElement("small", { className: "er-going" }, (e.attendees || 0) + " RSVPs"),
+                    // Nested inside the row's <button>, so a span with a role — not a second button.
+                    trailing: () => React.createElement("span", {
+                      className: "er-going er-going-link", role: "link", tabIndex: 0,
+                      title: "See who's going and their answers",
+                      onClick: (ev) => { ev.stopPropagation(); onOpenResponses && onOpenResponses(e.id); },
+                      onKeyDown: (ev) => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); ev.stopPropagation(); onOpenResponses && onOpenResponses(e.id); } },
+                    }, (e.attendees || 0) + " RSVPs →"),
                   })))
               : React.createElement("div", { className: "org-empty" },
                   React.createElement(Icon, { name: "calendar", size: 34, stroke: "var(--accent)" }),

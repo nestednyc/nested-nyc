@@ -224,6 +224,10 @@ import { eventService } from '../services/eventService'
     orgAccount,
     onBack,
     onRSVP,
+    onRequestRsvp,
+    onEditAnswers,
+    myAnswers,
+    onLoadMyAnswers,
     onOpenOrg,
     onEditEvent,
     onSignIn,
@@ -267,12 +271,21 @@ import { eventService } from '../services/eventService'
       return () => { cancelled = true; };
     }, [eventId]);
 
+    // Hooks stay above the early returns (React needs the same order every render).
+    const goingNow = !!(rsvped && rsvped.has(eventId));
+    const questions = raw && Array.isArray(raw.questions) ? raw.questions.filter((q) => q && q.id && q.prompt) : [];
+    useEffect(() => {
+      if (goingNow && questions.length && onLoadMyAnswers) onLoadMyAnswers(eventId);
+    }, [eventId, goingNow, questions.length]);
+
     if (loading) return React.createElement(EventDetailSkeleton, { onBack });
     if (missing || !raw) return React.createElement(EventDetailMissing, { onBack });
 
     const ev = normalize(raw, attendees);
     const ty = ETYPE[ev.type] || ETYPE.talk;
-    const goingNow = rsvped && rsvped.has(eventId);
+    // The host's sheet needs the event's questions + name; the card/toggle needs the id.
+    const rsvpEvent = { id: eventId, title: ev.title, orgName: ev.org && ev.org.name, questions };
+    const answers = (myAnswers && myAnswers[eventId]) || null;
     const isOwner = !!(orgAccount && ev.org && orgAccount.id === ev.org.id);
     const isAnon = !profile;
     const cap = ev.maxAttendees;
@@ -288,7 +301,10 @@ import { eventService } from '../services/eventService'
       if (isAnon) { onSignIn && onSignIn(); return; }
       if (isOwner) { onEditEvent && onEditEvent(eventId); return; }
       if (isFull && !goingNow) return;
-      onRSVP && onRSVP(eventId);
+      // Going → the plain toggle (un-RSVP); not yet → through the sheet when
+      // the host asks questions, else the toggle.
+      if (goingNow || !questions.length || !onRequestRsvp) { onRSVP && onRSVP(eventId); return; }
+      onRequestRsvp(rsvpEvent);
     }
 
     // ─── Right-rail RSVP / state slot ─────────────────────────────────────
@@ -319,15 +335,29 @@ import { eventService } from '../services/eventService'
         React.createElement("button", { className: "ev-rsvp-btn going", onClick: handleRsvpClick },
           React.createElement(Icon, { name: "check", size: 16, stroke: "var(--ink-soft)" }), "Going"),
         React.createElement("button", { className: "ev-see-ticket", onClick: scrollToTicket, style: { display: "block", margin: "9px auto 0" } },
-          "see your ticket ↓")
+          "see your ticket ↓"),
+        questions.length > 0 && React.createElement("div", { className: "ev-answers" },
+          React.createElement("div", { className: "ev-answers-h" }, "Your answers"),
+          answers
+            ? questions.map((q) => {
+                const v = answers[q.id];
+                const text = Array.isArray(v) ? v.join(", ") : (q.type === "yesno" ? (v === "yes" ? "Yes" : v === "no" ? "No" : v) : v);
+                return React.createElement("div", { className: "ev-answer", key: q.id },
+                  React.createElement("small", null, q.prompt),
+                  React.createElement("span", null, text || "—"));
+              })
+            : React.createElement("div", { className: "ev-answer" }, React.createElement("small", null, "Loading…")),
+          React.createElement("button", { className: "ghost-link", style: { fontSize: 13, marginTop: 6 }, onClick: () => onEditAnswers && onEditAnswers(rsvpEvent) },
+            React.createElement(Icon, { name: "pencil", size: 13 }), "Edit answers")
+        )
       );
     } else {
       rsvpSlot = React.createElement("div", null,
         React.createElement("button", { className: "ev-rsvp-btn", onClick: handleRsvpClick },
           React.createElement(Icon, { name: "plus", size: 16, stroke: "var(--paper)" }), "RSVP"),
-        cap
-          ? React.createElement("span", { className: "ev-rsvp-cap" }, "// " + (cap - ev.attendees) + " spots left")
-          : React.createElement("span", { className: "ev-rsvp-cap" }, "// no cap · drop in")
+        React.createElement("span", { className: "ev-rsvp-cap" },
+          (cap ? "// " + (cap - ev.attendees) + " spots left" : "// no cap · drop in")
+          + (questions.length ? " · " + questions.length + (questions.length === 1 ? " quick question" : " quick questions") : ""))
       );
     }
 

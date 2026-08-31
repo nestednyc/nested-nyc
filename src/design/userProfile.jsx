@@ -15,6 +15,7 @@ import { Skeleton } from './shared'
 import { PersonProfile } from './people'
 import { toPerson } from './peopleAdapter'
 import { profileService } from '../services/profileService'
+import { clubService } from '../services/clubService'
 import { isSupabaseConfigured } from '../lib/supabase'
 
   const { useState, useEffect } = React;
@@ -31,7 +32,7 @@ import { isSupabaseConfigured } from '../lib/supabase'
     );
   }
 
-  function UserProfile({ username, initialPerson, connected = [], incoming = [], blocked = new Set(), onConnect, onDisconnect, onMessage, onBlock, onUnblock, onBack, viewerId }) {
+  function UserProfile({ username, initialPerson, connected = [], incoming = [], blocked = new Set(), onConnect, onDisconnect, onMessage, onBlock, onUnblock, onBack, viewerId, onOpenOrg }) {
     const seeded = initialPerson && initialPerson.handle && username &&
       initialPerson.handle.toLowerCase() === String(username).toLowerCase();
     const [person, setPerson] = useState(seeded ? initialPerson : null);
@@ -56,6 +57,16 @@ import { isSupabaseConfigured } from '../lib/supabase'
       });
       return () => { cancelled = true; };
     }, [username]);
+
+    // The clubs they're in (accepted memberships are public).
+    const [clubs, setClubs] = useState([]);
+    useEffect(() => {
+      const id = person && person.id;
+      if (!id || !isSupabaseConfigured()) { setClubs([]); return; }
+      let cancelled = false;
+      clubService.getMembershipsOf(id).then(({ data }) => { if (!cancelled) setClubs(data || []); });
+      return () => { cancelled = true; };
+    }, [person && person.id]);
 
     if (loading) {
       return React.createElement(PageShell, { onBack }, React.createElement(Skeleton, { count: 2 }));
@@ -96,6 +107,7 @@ import { isSupabaseConfigured } from '../lib/supabase'
             isBlocked: !!(person && blocked && blocked.has(person.id)),
             onBlock,
             onUnblock,
+            clubs, onOpenOrg,
           })
         )
       )
