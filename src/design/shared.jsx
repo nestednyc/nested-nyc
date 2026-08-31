@@ -9,12 +9,14 @@ import { SHOW_EVENTS } from '../config/features'
   const { useState, useRef } = React;
 
   function Av({ name, color, size, img, label }) {
+    // A dead image URL falls back to the monogram (never the browser's "?").
+    const [broken, setBroken] = useState(false);
     const style = { background: color || avColor(name) };
     if (size) { style.width = size; style.height = size; style.fontSize = Math.round(size * 0.36); }
-    if (img) {
+    if (img && !broken) {
       return React.createElement("span", { className: "av", style },
         React.createElement("img", {
-          src: img, alt: name, loading: "lazy",
+          src: img, alt: name, loading: "lazy", onError: () => setBroken(true),
           style: { width: "100%", height: "100%", objectFit: "cover", borderRadius: "inherit", display: "block" },
         }));
     }

@@ -96,8 +96,29 @@ export const q = (v) => v === null || v === undefined ? 'NULL' : `'${String(v).r
 export const uuid = (key) => { const h = createHash('md5').update('nested-demo:' + key).digest('hex'); return `${h.slice(0,8)}-${h.slice(8,12)}-4${h.slice(13,16)}-a${h.slice(17,20)}-${h.slice(20,32)}`; };
 export const uid = (email) => `(SELECT id FROM auth.users WHERE email = ${q(email)})`;
 export const orgId = (slug) => `(SELECT id FROM public.organizations WHERE slug = ${q(slug)})`;
-export const pic = (seed, w = 900, h = 700) => `https://picsum.photos/seed/${seed}/${w}/${h}`;
-export const avatar = (n) => `https://i.pravatar.cc/400?img=${n}`;
+// Self-contained images: deterministic inline SVGs (no picsum/pravatar —
+// external placeholder hosts are flaky and rendered as broken "?" tiles).
+const PALETTE = [['#c96342','#f0eee5'],['#7d9b76','#f5efe0'],['#8a7ba8','#efe9dc'],
+  ['#b98a4e','#f4ede1'],['#5f7f99','#eee9df'],['#a85f5f','#f3ece2']];
+const hashN = (str) => [...String(str)].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7);
+const svgUri = (svg) => 'data:image/svg+xml,' + encodeURIComponent(svg.replace(/\s+/g, ' ').trim());
+export const pic = (seed, w = 900, h = 700) => {
+  const [bg, fg] = PALETTE[hashN(seed) % PALETTE.length];
+  const r = Math.min(w, h) / 3.2, cx = w * (0.3 + (hashN(seed + 'x') % 40) / 100), cy = h * (0.32 + (hashN(seed + 'y') % 36) / 100);
+  return svgUri(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}">
+    <rect width="${w}" height="${h}" fill="${bg}"/>
+    <circle cx="${cx}" cy="${cy}" r="${r}" fill="${fg}" opacity="0.85"/>
+    <rect x="0" y="${h * 0.72}" width="${w}" height="${h * 0.28}" fill="${fg}" opacity="0.35"/>
+  </svg>`);
+};
+export const avatar = (n) => {
+  const [bg, fg] = PALETTE[hashN('av' + n) % PALETTE.length];
+  return svgUri(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+    <rect width="200" height="200" fill="${bg}"/>
+    <circle cx="100" cy="78" r="36" fill="${fg}"/>
+    <ellipse cx="100" cy="172" rx="62" ry="46" fill="${fg}"/>
+  </svg>`);
+};
 export const arr = (xs) => `ARRAY[${xs.map(q).join(',')}]::text[]`;
 
 
