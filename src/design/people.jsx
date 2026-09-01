@@ -35,6 +35,22 @@ import { Av, UniLogo, Skeleton, Polaroid } from './shared'
     );
   }
 
+  // Does this person have any usable contact links? (either the legacy
+  // [{kind,label}] array or the JSONB object shape — mirrors ContactLinks)
+  function hasLinks(person) {
+    const raw = person.links || [];
+    return Array.isArray(raw) ? raw.length > 0 : Object.values(raw).some((v) => v);
+  }
+
+  // A section a student left empty keeps its header but says so in the mono
+  // voice the own-profile editor already uses, instead of rendering a bare
+  // rule that reads as a bug. Same treatment as profile.jsx's HintLine.
+  function EmptyHint({ text }) {
+    return React.createElement("div", {
+      style: { fontFamily: "var(--mono)", fontSize: 12, color: "var(--ink-faint)" },
+    }, text);
+  }
+
   function ContactLinks({ person }) {
     const raw = person.links || [];
     // Accept either the legacy [{kind, label}] array OR the JSONB object shape
@@ -115,7 +131,7 @@ import { Av, UniLogo, Skeleton, Polaroid } from './shared'
         ),
         React.createElement("div", { className: "sc-meta" }, joinDots(person.realName, UNI[person.uni].full, (person.major + " " + person.year).trim())),
         React.createElement(ClubsLine, { clubs, onOpenOrg }),
-        React.createElement("p", { className: "sc-bio", style: { fontSize: 16 } }, person.bio),
+        person.bio && React.createElement("p", { className: "sc-bio", style: { fontSize: 16 } }, person.bio),
         person.building && React.createElement("div", { className: "sc-looking" },
           React.createElement("div", { className: "t" },
             "Building ",
@@ -124,15 +140,21 @@ import { Av, UniLogo, Skeleton, Polaroid } from './shared'
         ),
         React.createElement("div", { className: "pm-section" },
           React.createElement("div", { className: "sec-h" }, "Skills"),
-          React.createElement("div", { className: "links" }, person.skills.map((s, i) => React.createElement("span", { className: "tag2", key: i }, s)))
+          person.skills.length
+            ? React.createElement("div", { className: "links" }, person.skills.map((s, i) => React.createElement("span", { className: "tag2", key: i }, s)))
+            : React.createElement(EmptyHint, { text: "// no skills pinned yet" })
         ),
         React.createElement("div", { className: "pm-section" },
           React.createElement("div", { className: "sec-h" }, "Into"),
-          React.createElement("div", { className: "links" }, person.interests.map((s, i) => React.createElement("span", { className: "tag2", key: i }, s)))
+          person.interests.length
+            ? React.createElement("div", { className: "links" }, person.interests.map((s, i) => React.createElement("span", { className: "tag2", key: i }, s)))
+            : React.createElement(EmptyHint, { text: "// no interests pinned yet" })
         ),
         React.createElement("div", { className: "pm-section" },
           React.createElement("div", { className: "sec-h" }, "Get in touch"),
-          React.createElement(ContactLinks, { person })
+          hasLinks(person)
+            ? React.createElement(ContactLinks, { person })
+            : React.createElement(EmptyHint, { text: "// no links yet — a message is your best bet" })
         ),
         showConnect && React.createElement("div", { className: "modal-actions", style: { marginTop: 22 } },
           React.createElement("button", { className: "btn " + (connected ? "btn-primary done" : "btn-primary"), style: { flex: 1, padding: 13 }, onClick: () => onConnect(person.id) },
