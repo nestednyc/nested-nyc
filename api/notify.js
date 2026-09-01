@@ -133,7 +133,7 @@ async function planJoinRequest(tm) {
       .maybeSingle(),
     admin
       .from("profiles")
-      .select("first_name,last_name,username,university")
+      .select("first_name,last_name,username,university,avatar")
       .eq("id", tm.user_id)
       .maybeSingle(),
   ]);
@@ -153,6 +153,7 @@ async function planJoinRequest(tm) {
       emails.joinRequest({
         requesterName: requester ? personLabel(requester) : (tm.name || "A student"),
         school: uniLabel(requester?.university || tm.school),
+        avatarUrl: requester?.avatar || "",
         role: tm.role || "",
         projectTitle: project.name || "your project",
         projectId: project.id,
@@ -175,13 +176,17 @@ async function planJoinApproved(tm, old) {
   if (!project) return null;
 
   let ownerName = "The project lead";
+  let ownerAvatar = "";
   if (project.owner_id) {
     const { data: owner } = await admin
       .from("profiles")
-      .select("first_name,last_name,username")
+      .select("first_name,last_name,username,avatar")
       .eq("id", project.owner_id)
       .maybeSingle();
-    if (owner) ownerName = personLabel(owner);
+    if (owner) {
+      ownerName = personLabel(owner);
+      ownerAvatar = owner.avatar || "";
+    }
   }
 
   return {
@@ -189,6 +194,7 @@ async function planJoinApproved(tm, old) {
     make: (unsub) =>
       emails.joinApproved({
         ownerName,
+        avatarUrl: ownerAvatar,
         role: tm.role || "",
         projectTitle: project.name || "the project",
         projectId: project.id,
@@ -203,7 +209,7 @@ async function planClubJoinRequest(m, old) {
   if (old && old.status === "pending") return null;
   const [{ data: org }, { data: applicant }] = await Promise.all([
     admin.from("organizations").select("id,name,owner_user_id").eq("id", m.org_id).maybeSingle(),
-    admin.from("profiles").select("first_name,last_name,username,university").eq("id", m.user_id).maybeSingle(),
+    admin.from("profiles").select("first_name,last_name,username,university,avatar").eq("id", m.user_id).maybeSingle(),
   ]);
   if (!org || !org.owner_user_id || String(org.owner_user_id) === String(m.user_id)) return null;
   return {
@@ -212,6 +218,7 @@ async function planClubJoinRequest(m, old) {
       emails.clubJoinRequest({
         applicantName: applicant ? personLabel(applicant) : "A student",
         school: uniLabel(applicant?.university),
+        avatarUrl: applicant?.avatar || "",
         clubName: org.name || "your org",
         unsubUrl: unsub,
       }),
@@ -251,7 +258,7 @@ async function planNewConnection(c) {
 
   const { data: source } = await admin
     .from("profiles")
-    .select("first_name,last_name,username,university")
+    .select("first_name,last_name,username,university,avatar")
     .eq("id", c.user_id)
     .maybeSingle();
 
@@ -262,6 +269,7 @@ async function planNewConnection(c) {
         sourceName: personLabel(source),
         school: uniLabel(source?.university),
         sourceUsername: bareHandle(source?.username),
+        avatarUrl: source?.avatar || "",
         unsubUrl: unsub,
       }),
     // Record the dedupe marker only once the email has actually gone out.
@@ -339,7 +347,7 @@ async function planNewMessage(m) {
 
   const { data: source } = await admin
     .from("profiles")
-    .select("first_name,last_name,username,university")
+    .select("first_name,last_name,username,university,avatar")
     .eq("id", m.sender_id)
     .maybeSingle();
 
@@ -350,6 +358,7 @@ async function planNewMessage(m) {
         senderName: personLabel(source),
         school: uniLabel(source?.university),
         senderUsername: bareHandle(source?.username),
+        avatarUrl: source?.avatar || "",
         unsubUrl: unsub,
       }),
     // Mark the pair notified only after a confirmed send; the UNIQUE unordered-pair
@@ -412,7 +421,7 @@ async function describeReportTarget(type, id) {
     if (type === "profile") {
       const { data } = await admin
         .from("profiles")
-        .select("first_name,last_name,username,university")
+        .select("first_name,last_name,username,university,avatar")
         .eq("id", id)
         .maybeSingle();
       if (!data) return { label: "a profile (already deleted)", excerpt: "" };
@@ -433,7 +442,7 @@ async function planNewReport(r) {
   const [{ data: reporter }, target] = await Promise.all([
     admin
       .from("profiles")
-      .select("first_name,last_name,username,university")
+      .select("first_name,last_name,username,university,avatar")
       .eq("id", r.reporter_id)
       .maybeSingle(),
     describeReportTarget(r.target_type, r.target_id),

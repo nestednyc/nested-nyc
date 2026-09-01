@@ -1,28 +1,54 @@
 /* ============================================================
-   NESTED NYC — transactional email template
+   NESTED NYC — transactional email template (Direction B, FINAL)
    ------------------------------------------------------------
-   ONE renderer, reused by every notification email. Email-safe:
-   table layout + inline styles + hex colors (clients ignore
-   oklch), web fonts with system fallbacks.
+   Drop-in replacement for MAIN's api/_email/template.js. Same
+   contract: renderEmail(o) + emails.* (all ten builders) with the
+   exact field names notify.js / digest.js pass today, plus a new
+   optional `avatarUrl` on the five person-actor builders
+   (joinRequest, joinApproved, clubJoinRequest, newConnection,
+   newMessage) — when absent, the shell builds an initials image
+   from the name, so callers may pass profiles.avatar straight
+   through, null and all. clubJoinAccepted, newReport, newOrg,
+   weeklyDigest, orgVerified render without an avatar.
 
-   Look: Anthropic-style warm ivory canvas, near-white card,
-   Nested's vermillion as the single accent. Clean, no skeuomorphism.
+   Look: the v1 "brand-forward vermillion" direction — red-orange
+   band with ivory mark + wordmark + mono eyebrow, white card with
+   red-ring avatar identity row, vermillion CTA, hatch-stripe
+   motif. Sections (digest lists) and multi-link footers keep
+   main's structure, restyled to this palette.
 
-   Lives under api/_email/ — the leading underscore keeps Vercel
-   from treating it as a serverless route; it's a shared lib that
-   api/notify.js imports.
+   Applied on top of the v1 look (and nothing else):
+   - band/card left edges aligned (band padding 20px 36px)
+   - ivory initials fallback (F0EEE6 bg / A6391F letters)
+   - styled alt text on images for image-off clients
+   - CTA padding on the <td> so Outlook keeps the button size
+   - color-scheme "light only" metas (invisible, protective)
+
+   Hosted asset (add to repo public/):
+   public/email/nested-mark-ivory.png — ivory block mark on
+   transparent, sits on the band. (nested-mark.png, the red-square
+   variant, ships alongside for future use; the template itself
+   references only the ivory one.) Previews override via
+   EMAIL_LOGO_URL; unset in production, so it's inert there.
+
+   Email-safe: table layout + inline styles + hex colors only.
    ============================================================ */
 
 const T = {
-  page:      "#F0EEE6", // Anthropic warm ivory — the canvas
-  card:      "#FCFBF8", // near-white warm card
-  border:    "#E7E3D7", // hairline card border
-  ink:       "#23211C", // warm near-black
-  inkSoft:   "#56514A", // body text
-  inkFaint:  "#8C8779", // captions / kickers
-  accent:    "#DB5338", // Nested vermillion (our color)
-  accentInk: "#A6391F", // darker accent for small text / links on light
-  noteBg:    "#F2F0E8", // subtle warm panel for the quoted note
+  page:      "#F0EEE6", // warm ivory canvas
+  band:      "#D63B1F", // brand red-orange — the header band
+  bandInk:   "#F5EFE1", // ivory type on the band
+  bandSoft:  "#F6C4B4", // softened ivory-red for the band eyebrow
+  card:      "#FFFFFF",
+  border:    "#EBDCD2",
+  ink:       "#23211C",
+  inkSoft:   "#56514A",
+  inkFaint:  "#8C8779",
+  accent:    "#D63B1F",
+  noteBg:    "#FBF3EE", // warm blush panel for the quoted note
+  hatch2:    "#E98A6F", // hatch motif, mid tint
+  hatch3:    "#F3BFAE", // hatch motif, light tint
+  avatarBg:  "#F3E9E2",
 };
 
 const FONT_BODY = "'Hanken Grotesk',-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif";
@@ -32,55 +58,87 @@ const FONT_MONO = "'Spline Sans Mono',ui-monospace,'SF Mono',Menlo,Consolas,mono
 const SITE = "https://www.nested.social";
 const FONT_LINK = "https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Hanken+Grotesk:wght@400;500;600;700;800&family=Spline+Sans+Mono:wght@400;500;600&display=swap";
 
+const LOGO = process.env.EMAIL_LOGO_URL || (SITE + "/email/nested-mark-ivory.png");
+
 // User-supplied strings (names, titles, messages) are untrusted — escape them.
 function esc(s) {
   return String(s == null ? "" : s)
     .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
+/* Person-actor emails carry the actor's photo. No upload -> ivory initials
+   disc (dark-vermillion letters) so the red ring still reads. */
+function avatarSrc(url, name) {
+  if (url && /^https?:\/\//i.test(String(url))) return String(url);
+  const n = String(name || "Nested").replace(/^@/, "");
+  return "https://ui-avatars.com/api/?name=" + encodeURIComponent(n) +
+         "&background=F0EEE6&color=A6391F&size=128&bold=true&format=png";
+}
+
 /**
- * The one reusable shell. Every notification just fills these slots.
- * @param {object} o
- * @param {string} o.preheader   inbox preview line (hidden in the body)
- * @param {string} o.eyebrow     mono kicker, rendered as "// EYEBROW"
- * @param {string} o.heading     display headline
- * @param {string} o.body        one paragraph of plain text
- * @param {string} [o.note]      optional quoted note (e.g. the join message)
- * @param {string} o.ctaLabel    button text
- * @param {string} o.ctaUrl      button link
- * @param {string} o.footerNote  why they're receiving this
- * @param {string} [o.unsubUrl]  manage-preferences / unsubscribe link
- * @param {Array}  [o.sections]  optional list blocks: [{ title, items: [{ label, sub, url }] }]
+ * The one reusable shell. Every notification fills these slots.
+ * @param {object}  o
+ * @param {string}  o.preheader   inbox preview line (hidden in the body)
+ * @param {string}  o.eyebrow     mono kicker in the band, rendered "// EYEBROW"
+ * @param {string}  o.heading     display headline
+ * @param {string}  o.body        one paragraph of plain text
+ * @param {object} [o.actor]      { name, avatarUrl, meta } — the person this
+ *                                email is about; renders the identity row
+ * @param {string} [o.note]       optional quoted note (e.g. the join message)
+ * @param {string}  o.ctaLabel    button text
+ * @param {string}  o.ctaUrl      button link
+ * @param {string}  o.footerNote  why they're receiving this
+ * @param {string} [o.unsubUrl]   manage-preferences link (null for internal mail)
+ * @param {Array}  [o.sections]   optional list blocks: [{ title, items: [{ label, sub, url }] }]
  * @param {Array}  [o.footerLinks] optional footer links [{ label, url }] (replaces the single preferences link)
  */
 export function renderEmail(o) {
-  const sections = (o.sections || [])
-    .filter((s) => s && Array.isArray(s.items) && s.items.length)
-    .map((s) => `<div style="margin:0 0 22px;">
-         <div style="font-family:${FONT_MONO};font-size:11px;letter-spacing:.06em;color:${T.inkFaint};text-transform:uppercase;margin-bottom:6px;">// ${esc(s.title)}</div>
-         ${s.items.map((it) => `<div style="padding:9px 0;border-top:1px dashed ${T.border};">
-           <a href="${it.url}" style="font-family:${FONT_BODY};font-weight:700;font-size:15px;color:${T.ink};text-decoration:none;">${esc(it.label)}</a>
-           ${it.sub ? `<div style="font-family:${FONT_BODY};font-size:13.5px;line-height:1.5;color:${T.inkSoft};margin-top:2px;">${esc(it.sub)}</div>` : ""}
-         </div>`).join("")}
-       </div>`)
-    .join("");
-  const footerLinks = (o.footerLinks && o.footerLinks.length
-    ? o.footerLinks
-    : [{ label: "Manage email preferences", url: o.unsubUrl || (SITE + "/profile") }])
-    .map((l) => `<a href="${l.url}" style="color:${T.inkFaint};text-decoration:underline;">${esc(l.label)}</a>`)
-    .join(" &nbsp;·&nbsp; ");
+  const actor = o.actor
+    ? `<table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:0 0 20px;">
+         <tr>
+           <td width="76" style="width:76px;" valign="middle">
+             <img src="${esc(avatarSrc(o.actor.avatarUrl, o.actor.name))}" width="76" height="76" alt="Profile photo of ${esc(o.actor.name)}" style="display:block;width:76px;height:76px;border-radius:50%;border:3px solid ${T.band};background:${T.avatarBg};color:${T.ink};font-family:${FONT_BODY};font-size:11px;" />
+           </td>
+           <td width="18" style="width:18px;font-size:0;line-height:0;">&nbsp;</td>
+           <td valign="middle">
+             <div style="font-family:${FONT_DISP};font-weight:800;font-size:19px;letter-spacing:-0.01em;color:${T.ink};">${esc(o.actor.name)}</div>
+             ${o.actor.meta ? `<div style="font-family:${FONT_MONO};font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:${T.inkFaint};margin-top:5px;">${esc(o.actor.meta)}</div>` : ""}
+           </td>
+         </tr>
+       </table>`
+    : "";
+
   const note = o.note && String(o.note).trim()
-    ? `<div style="border-left:3px solid ${T.accent};background:${T.noteBg};border-radius:0 8px 8px 0;padding:13px 16px;margin:0 0 26px;">
+    ? `<div style="border-left:3px solid ${T.accent};background:${T.noteBg};border-radius:0 10px 10px 0;padding:14px 17px;margin:0 0 26px;">
          <div style="font-family:${FONT_MONO};font-size:11px;letter-spacing:.04em;color:${T.inkFaint};text-transform:uppercase;margin-bottom:5px;">// their note</div>
          <div style="font-family:${FONT_BODY};font-size:15px;line-height:1.55;color:${T.ink};">${esc(o.note)}</div>
        </div>`
     : "";
+
+  const sections = (o.sections || [])
+    .filter((s) => s && Array.isArray(s.items) && s.items.length)
+    .map((s) => `<div style="margin:0 0 24px;">
+         <div style="font-family:${FONT_MONO};font-size:11px;letter-spacing:.06em;color:${T.accent};text-transform:uppercase;font-weight:600;margin-bottom:6px;">// ${esc(s.title)}</div>
+         ${s.items.map((it) => `<div style="padding:10px 0;border-top:1px dashed ${T.border};">
+           <a href="${esc(it.url)}" style="font-family:${FONT_BODY};font-weight:700;font-size:15px;color:${T.ink};text-decoration:none;">${esc(it.label)}</a>
+           ${it.sub ? `<div style="font-family:${FONT_BODY};font-size:13.5px;line-height:1.5;color:${T.inkSoft};margin-top:2px;">${esc(it.sub)}</div>` : ""}
+         </div>`).join("")}
+       </div>`)
+    .join("");
+
+  const footerLinks = (o.footerLinks && o.footerLinks.length
+    ? o.footerLinks
+    : [{ label: "Manage email preferences", url: o.unsubUrl || (SITE + "/profile") }])
+    .map((l) => `<a href="${esc(l.url)}" style="color:${T.inkFaint};text-decoration:underline;">${esc(l.label)}</a>`)
+    .join(" &nbsp;&middot;&nbsp; ");
 
   return `<!DOCTYPE html>
 <html lang="en"><head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="x-apple-disable-message-reformatting">
+<meta name="color-scheme" content="light only">
+<meta name="supported-color-schemes" content="light">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="${FONT_LINK}" rel="stylesheet">
@@ -89,22 +147,37 @@ export function renderEmail(o) {
 <body style="margin:0;padding:0;background:${T.page};">
 <div style="display:none;max-height:0;overflow:hidden;opacity:0;">${esc(o.preheader || o.heading)}</div>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${T.page};border-collapse:collapse;">
-  <tr><td align="center" style="padding:48px 18px;">
-    <table role="presentation" width="540" cellpadding="0" cellspacing="0" style="width:540px;max-width:540px;border-collapse:collapse;">
+  <tr><td align="center" style="padding:44px 18px;">
+    <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="width:560px;max-width:560px;border-collapse:collapse;">
 
-      <!-- wordmark -->
-      <tr><td style="padding:0 4px 22px;">
-        <span style="font-family:${FONT_DISP};font-weight:800;font-size:18px;color:${T.ink};letter-spacing:-0.02em;">nested<span style="color:${T.accent};">.</span>social</span>
+      <!-- band -->
+      <tr><td style="background:${T.band};border-radius:18px 18px 0 0;padding:20px 36px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+          <tr>
+            <td valign="middle">
+              <table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+                <tr>
+                  <td width="34" style="width:34px;" valign="middle"><img src="${esc(LOGO)}" width="34" height="34" alt="Nested" style="display:block;width:34px;height:34px;border-radius:9px;border:0;color:${T.bandInk};font-family:${FONT_BODY};font-size:11px;" /></td>
+                  <td width="11" style="width:11px;font-size:0;">&nbsp;</td>
+                  <td valign="middle"><span style="font-family:${FONT_DISP};font-weight:800;font-size:19px;color:${T.bandInk};letter-spacing:-0.02em;">nested</span></td>
+                </tr>
+              </table>
+            </td>
+            <td align="right" valign="middle">
+              <span style="font-family:${FONT_MONO};font-size:11px;letter-spacing:.07em;color:${T.bandSoft};text-transform:uppercase;font-weight:600;">// ${esc(o.eyebrow)}</span>
+            </td>
+          </tr>
+        </table>
       </td></tr>
 
       <!-- card -->
-      <tr><td style="background:${T.card};border:1px solid ${T.border};border-radius:14px;box-shadow:0 1px 2px rgba(35,33,28,.04);">
+      <tr><td style="background:${T.card};border:1px solid ${T.border};border-top:0;border-radius:0 0 18px 18px;">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
-          <tr><td style="padding:34px 36px 36px;">
+          <tr><td style="padding:32px 36px 34px;">
 
-            <div style="font-family:${FONT_MONO};font-size:12px;letter-spacing:.06em;color:${T.accentInk};text-transform:uppercase;font-weight:600;margin-bottom:16px;">// ${esc(o.eyebrow)}</div>
+            ${actor}
 
-            <h1 style="margin:0 0 14px;font-family:${FONT_DISP};font-weight:800;font-size:26px;line-height:1.18;letter-spacing:-0.02em;color:${T.ink};">${esc(o.heading)}</h1>
+            <h1 style="margin:0 0 14px;font-family:${FONT_DISP};font-weight:800;font-size:30px;line-height:1.12;letter-spacing:-0.02em;color:${T.ink};">${esc(o.heading)}</h1>
 
             <p style="margin:0 0 26px;font-family:${FONT_BODY};font-size:15.5px;line-height:1.62;color:${T.inkSoft};">${esc(o.body)}</p>
 
@@ -113,9 +186,20 @@ export function renderEmail(o) {
             ${sections}
 
             <table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
-              <tr><td style="border-radius:10px;background:${T.ink};">
-                <a href="${o.ctaUrl}" style="display:inline-block;padding:13px 26px;font-family:${FONT_BODY};font-weight:700;font-size:15px;color:${T.card};text-decoration:none;border-radius:10px;">${esc(o.ctaLabel)} &nbsp;&rarr;</a>
+              <tr><td style="border-radius:12px;background:${T.accent};padding:14px 28px;">
+                <a href="${esc(o.ctaUrl)}" style="display:block;font-family:${FONT_BODY};font-weight:700;font-size:15px;color:#FFFFFF;text-decoration:none;">${esc(o.ctaLabel)} &nbsp;&rarr;</a>
               </td></tr>
+            </table>
+
+            <!-- hatch motif — nod to the block mark -->
+            <table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-top:30px;">
+              <tr>
+                <td width="34" height="4" style="width:34px;height:4px;background:${T.accent};border-radius:2px;font-size:0;line-height:0;">&nbsp;</td>
+                <td width="6" style="width:6px;font-size:0;">&nbsp;</td>
+                <td width="22" height="4" style="width:22px;height:4px;background:${T.hatch2};border-radius:2px;font-size:0;line-height:0;">&nbsp;</td>
+                <td width="6" style="width:6px;font-size:0;">&nbsp;</td>
+                <td width="12" height="4" style="width:12px;height:4px;background:${T.hatch3};border-radius:2px;font-size:0;line-height:0;">&nbsp;</td>
+              </tr>
             </table>
 
           </td></tr>
@@ -138,20 +222,20 @@ export function renderEmail(o) {
 
 const url = (path) => SITE + path;
 
-/* The four Phase-1 notifications. Each is a thin filler over the one shell
-   above and returns { subject, html } — add the next trigger by adding a
-   function here, nothing else. The sender (api/notify.js) passes a
-   per-recipient `unsubUrl` so the footer link + List-Unsubscribe header point
-   at that person's own one-click opt-out. */
+/* The ten notifications. Each returns { subject, html }. The senders
+   (api/notify.js, api/digest.js) pass per-recipient unsub links; the five
+   person-actor builders also take an optional `avatarUrl` (profiles.avatar —
+   null is fine, the shell builds an initials fallback from the name). */
 export const emails = {
   // → project owner (+ co-leads): someone asked to join their project
-  joinRequest: ({ requesterName, school, role, projectTitle, projectId, message, unsubUrl }) => ({
+  joinRequest: ({ requesterName, school, role, projectTitle, projectId, message, avatarUrl, unsubUrl }) => ({
     subject: `${requesterName} wants to join ${projectTitle}`,
     html: renderEmail({
       preheader: `${requesterName} wants to join ${projectTitle}`,
-      eyebrow: "someone wants to build with you",
+      eyebrow: "join request",
       heading: `${requesterName} wants to join ${projectTitle}`,
       body: `${requesterName}${school ? ` from ${school}` : ""} asked to join${role ? ` as ${role}` : ""}. Take a look and bring them on board if it's a fit.`,
+      actor: { name: requesterName, avatarUrl, meta: [school, role].filter(Boolean).join(" · ") },
       note: message,
       ctaLabel: "Review the request",
       ctaUrl: url(`/projects/${projectId}`),
@@ -161,13 +245,14 @@ export const emails = {
   }),
 
   // → requester: their join request was approved
-  joinApproved: ({ ownerName, role, projectTitle, projectId, unsubUrl }) => ({
+  joinApproved: ({ ownerName, role, projectTitle, projectId, avatarUrl, unsubUrl }) => ({
     subject: `You're on the team for ${projectTitle}`,
     html: renderEmail({
       preheader: `You're on the team for ${projectTitle}`,
       eyebrow: "you're in",
       heading: `You're on the team for ${projectTitle}`,
       body: `${ownerName} approved your request to join${role ? ` as ${role}` : ""}. Time to start building.`,
+      actor: { name: ownerName, avatarUrl, meta: "project lead" },
       ctaLabel: "Open the project",
       ctaUrl: url(`/projects/${projectId}`),
       footerNote: "You're getting this because you asked to join a project on Nested.",
@@ -176,13 +261,14 @@ export const emails = {
   }),
 
   // → club owner: a student applied to join their club
-  clubJoinRequest: ({ applicantName, school, clubName, unsubUrl }) => ({
+  clubJoinRequest: ({ applicantName, school, clubName, avatarUrl, unsubUrl }) => ({
     subject: `${applicantName} wants to join ${clubName}`,
     html: renderEmail({
       preheader: `${applicantName} applied to join ${clubName}`,
       eyebrow: "someone wants in",
       heading: `${applicantName} wants to join ${clubName}`,
-      body: `${applicantName}${school ? ` from ${school}` : ""} tapped Join on your page${" and answered your questions"}. Take a look and bring them onto the roster if it's a fit.`,
+      body: `${applicantName}${school ? ` from ${school}` : ""} tapped Join on your page and answered your questions. Take a look and bring them onto the roster if it's a fit.`,
+      actor: { name: applicantName, avatarUrl, meta: school || "student" },
       ctaLabel: "Review applications",
       ctaUrl: url("/dashboard/members"),
       footerNote: "You're getting this because you run an org on Nested.",
@@ -206,13 +292,14 @@ export const emails = {
   }),
 
   // → target: another student connected with them
-  newConnection: ({ sourceName, school, sourceUsername, unsubUrl }) => ({
+  newConnection: ({ sourceName, school, sourceUsername, avatarUrl, unsubUrl }) => ({
     subject: `${sourceName} connected with you on Nested`,
     html: renderEmail({
       preheader: `${sourceName} connected with you on Nested`,
       eyebrow: "new connection",
       heading: `${sourceName} connected with you`,
       body: `${sourceName}${school ? ` from ${school}` : ""} just connected with you on Nested. Check out their profile and connect back if you'd like to build together.`,
+      actor: { name: sourceName, avatarUrl, meta: school || "student" },
       ctaLabel: "View their profile",
       ctaUrl: url(sourceUsername ? `/u/${sourceUsername}` : `/people`),
       footerNote: "You're getting this because someone connected with you on Nested.",
@@ -221,13 +308,14 @@ export const emails = {
   }),
 
   // → recipient: another student sent them their FIRST direct message (once per pair)
-  newMessage: ({ senderName, school, senderUsername, unsubUrl }) => ({
+  newMessage: ({ senderName, school, senderUsername, avatarUrl, unsubUrl }) => ({
     subject: `${senderName} messaged you on Nested`,
     html: renderEmail({
       preheader: `${senderName} messaged you on Nested`,
       eyebrow: "new message",
       heading: `${senderName} sent you a message`,
       body: `${senderName}${school ? ` from ${school}` : ""} just messaged you on Nested. Open the conversation to read it and reply.`,
+      actor: { name: senderName, avatarUrl, meta: school || "student" },
       ctaLabel: "Open conversation",
       ctaUrl: url(senderUsername ? `/messages/${senderUsername}` : `/messages`),
       footerNote: "You're getting this because someone messaged you for the first time on Nested.",
