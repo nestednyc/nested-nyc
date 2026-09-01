@@ -1,50 +1,45 @@
 /* ============================================================
-   NESTED NYC — transactional email template (Direction B, FINAL)
+   NESTED NYC — transactional email template
    ------------------------------------------------------------
-   Drop-in replacement for MAIN's api/_email/template.js. Same
-   contract: renderEmail(o) + emails.* (all ten builders) with the
-   exact field names notify.js / digest.js pass today, plus a new
-   optional `avatarUrl` on the five person-actor builders
-   (joinRequest, joinApproved, clubJoinRequest, newConnection,
-   newMessage) — when absent, the shell builds an initials image
-   from the name, so callers may pass profiles.avatar straight
-   through, null and all. clubJoinAccepted, newReport, newOrg,
-   weeklyDigest, orgVerified render without an avatar.
+   ONE renderer, reused by every notification email and the weekly
+   digest. renderEmail(o) + emails.* (ten builders). The five
+   person-actor builders (joinRequest, joinApproved,
+   clubJoinRequest, newConnection, newMessage) take an optional
+   `avatarUrl` (profiles.avatar — null is fine): a Supabase-storage
+   public URL renders as the photo, anything else falls back to a
+   self-contained initials disc (no image request). clubJoinAccepted,
+   newReport, newOrg, weeklyDigest, orgVerified render without one.
 
-   Look: the v1 "brand-forward vermillion" direction — red-orange
-   band with ivory mark + wordmark + mono eyebrow, white card with
-   red-ring avatar identity row, vermillion CTA, hatch-stripe
-   motif. Sections (digest lists) and multi-link footers keep
-   main's structure, restyled to this palette.
+   Look: brand red-orange band (ivory block mark + wordmark + mono
+   eyebrow) over a white card with a red-ring avatar identity row,
+   vermillion CTA, hatch-stripe motif.
 
-   Applied on top of the v1 look (and nothing else):
-   - band/card left edges aligned (band padding 20px 36px)
-   - ivory initials fallback (F0EEE6 bg / A6391F letters)
-   - styled alt text on images for image-off clients
-   - CTA padding on the <td> so Outlook keeps the button size
-   - color-scheme "light only" metas (invisible, protective)
+   Assets/env: the band logo is /email/nested-mark-ivory.png in
+   public/ (must exist there — the SPA rewrite answers any missing
+   path with index.html, i.e. a silently broken image).
+   EMAIL_LOGO_URL overrides it for local previews; leave it unset
+   in production (documented in EMAIL_NOTIFICATIONS.md).
 
-   Hosted asset (add to repo public/):
-   public/email/nested-mark-ivory.png — ivory block mark on
-   transparent, sits on the band. (nested-mark.png, the red-square
-   variant, ships alongside for future use; the template itself
-   references only the ivory one.) Previews override via
-   EMAIL_LOGO_URL; unset in production, so it's inert there.
+   The color-scheme "light only" metas keep Apple Mail from
+   recoloring; Gmail's forced dark mode ignores them, so dark-mode
+   changes still deserve a Gmail-app render check.
 
-   Email-safe: table layout + inline styles + hex colors only.
+   Email-safe: table layout + inline styles + hex colors (clients
+   ignore oklch). Lives under api/_email/ — the underscore keeps
+   Vercel from routing it; api/notify.js + api/digest.js import it.
    ============================================================ */
 
 const T = {
   page:      "#F0EEE6", // warm ivory canvas
   band:      "#D63B1F", // brand red-orange — the header band
   bandInk:   "#F5EFE1", // ivory type on the band
-  bandSoft:  "#F6C4B4", // softened ivory-red for the band eyebrow
   card:      "#FFFFFF",
   border:    "#EBDCD2",
   ink:       "#23211C",
   inkSoft:   "#56514A",
   inkFaint:  "#8C8779",
   accent:    "#D63B1F",
+  accentDark:"#A6391F", // darker accent — initials-disc letters, small text on light
   noteBg:    "#FBF3EE", // warm blush panel for the quoted note
   hatch2:    "#E98A6F", // hatch motif, mid tint
   hatch3:    "#F3BFAE", // hatch motif, light tint
@@ -66,13 +61,18 @@ function esc(s) {
     .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
-/* Person-actor emails carry the actor's photo. No upload -> ivory initials
-   disc (dark-vermillion letters) so the red ring still reads. */
-function avatarSrc(url, name) {
-  if (url && /^https?:\/\//i.test(String(url))) return String(url);
-  const n = String(name || "Nested").replace(/^@/, "");
-  return "https://ui-avatars.com/api/?name=" + encodeURIComponent(n) +
-         "&background=F0EEE6&color=A6391F&size=128&bold=true&format=png";
+/* Person-actor emails carry the actor's photo. Only our own storage's
+   public URLs are trusted into an <img> the recipient's client will fetch
+   (profiles.avatar is user-writable); anything else renders the inline
+   initials disc below — no network request, nothing leaves the email. */
+const AVATAR_URL_MARKER = "/storage/v1/object/public/";
+function safeAvatarUrl(url) {
+  const s = String(url || "");
+  return /^https:\/\//i.test(s) && s.includes(AVATAR_URL_MARKER) ? s : null;
+}
+function initialsOf(name) {
+  const parts = String(name || "").replace(/^@/, "").trim().split(/[\s._-]+/).filter(Boolean);
+  return ((parts[0]?.[0] || "N") + (parts[1]?.[0] || "")).toUpperCase();
 }
 
 /**
@@ -93,11 +93,17 @@ function avatarSrc(url, name) {
  * @param {Array}  [o.footerLinks] optional footer links [{ label, url }] (replaces the single preferences link)
  */
 export function renderEmail(o) {
+  const actorPhoto = o.actor ? safeAvatarUrl(o.actor.avatarUrl) : null;
+  const actorDisc = o.actor
+    ? (actorPhoto
+      ? `<img src="${esc(actorPhoto)}" width="76" height="76" alt="Profile photo of ${esc(o.actor.name)}" style="display:block;width:76px;height:76px;border-radius:50%;border:3px solid ${T.band};background:${T.avatarBg};object-fit:cover;color:${T.ink};font-family:${FONT_BODY};font-size:11px;" />`
+      : `<div style="width:70px;height:70px;line-height:70px;text-align:center;border-radius:50%;background:${T.page};border:3px solid ${T.band};font-family:${FONT_DISP};font-weight:800;font-size:26px;letter-spacing:.01em;color:${T.accentDark};">${esc(initialsOf(o.actor.name))}</div>`)
+    : "";
   const actor = o.actor
     ? `<table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:0 0 20px;">
          <tr>
            <td width="76" style="width:76px;" valign="middle">
-             <img src="${esc(avatarSrc(o.actor.avatarUrl, o.actor.name))}" width="76" height="76" alt="Profile photo of ${esc(o.actor.name)}" style="display:block;width:76px;height:76px;border-radius:50%;border:3px solid ${T.band};background:${T.avatarBg};color:${T.ink};font-family:${FONT_BODY};font-size:11px;" />
+             ${actorDisc}
            </td>
            <td width="18" style="width:18px;font-size:0;line-height:0;">&nbsp;</td>
            <td valign="middle">
@@ -164,7 +170,7 @@ export function renderEmail(o) {
               </table>
             </td>
             <td align="right" valign="middle">
-              <span style="font-family:${FONT_MONO};font-size:11px;letter-spacing:.07em;color:${T.bandSoft};text-transform:uppercase;font-weight:600;">// ${esc(o.eyebrow)}</span>
+              <span style="font-family:${FONT_MONO};font-size:11px;letter-spacing:.07em;color:${T.bandInk};text-transform:uppercase;font-weight:600;">// ${esc(o.eyebrow)}</span>
             </td>
           </tr>
         </table>
@@ -186,8 +192,8 @@ export function renderEmail(o) {
             ${sections}
 
             <table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
-              <tr><td style="border-radius:12px;background:${T.accent};padding:14px 28px;">
-                <a href="${esc(o.ctaUrl)}" style="display:block;font-family:${FONT_BODY};font-weight:700;font-size:15px;color:#FFFFFF;text-decoration:none;">${esc(o.ctaLabel)} &nbsp;&rarr;</a>
+              <tr><td style="border-radius:12px;background:${T.accent};mso-padding-alt:14px 28px;">
+                <a href="${esc(o.ctaUrl)}" style="display:inline-block;padding:14px 28px;font-family:${FONT_BODY};font-weight:700;font-size:15px;color:#FFFFFF;text-decoration:none;border-radius:12px;">${esc(o.ctaLabel)} &nbsp;&rarr;</a>
               </td></tr>
             </table>
 
@@ -252,7 +258,12 @@ export const emails = {
       eyebrow: "you're in",
       heading: `You're on the team for ${projectTitle}`,
       body: `${ownerName} approved your request to join${role ? ` as ${role}` : ""}. Time to start building.`,
-      actor: { name: ownerName, avatarUrl, meta: "project lead" },
+      // Only render the identity row for a real person — the planner falls back
+      // to "The project lead" when the owner profile couldn't be read, and a
+      // generic label around an initials disc reads broken, not personal.
+      actor: ownerName && ownerName !== "The project lead"
+        ? { name: ownerName, avatarUrl, meta: "project lead" }
+        : undefined,
       ctaLabel: "Open the project",
       ctaUrl: url(`/projects/${projectId}`),
       footerNote: "You're getting this because you asked to join a project on Nested.",
@@ -363,7 +374,7 @@ export const emails = {
     subject: `This week on the board${school ? ` at ${school}` : ""}`,
     html: renderEmail({
       preheader: `${posts.length} notes, ${events.length} events and ${flyers.length} new flyers this week`,
-      eyebrow: "this week on the board",
+      eyebrow: "this week",
       heading: `${firstName ? firstName + ", here's" : "Here's"} what happened on Nested this week`,
       body: `${school ? `What students at ${school} and across NYC pinned` : "What NYC students pinned"} in the last seven days — wins, asks, and what's coming up.`,
       sections: [

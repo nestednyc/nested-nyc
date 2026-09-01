@@ -48,6 +48,7 @@ reach the browser.
 | `REPORT_RECIPIENTS` | Comma-separated founder addresses that receive community reports |
 | `ADMIN_RECIPIENTS` | Optional; addresses for "new org waiting for review" (defaults to `REPORT_RECIPIENTS`) |
 | `CRON_SECRET` | Vercel sets `Authorization: Bearer <CRON_SECRET>` on cron invocations of `/api/digest`; set it so nobody else can trigger a send |
+| `EMAIL_LOGO_URL` | Local previews only — overrides the band logo (normally `https://www.nested.social/email/nested-mark-ivory.png`). **Leave unset in production**: a forgotten override silently breaks the logo in every email |
 
 ## 1. Resend
 

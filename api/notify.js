@@ -248,12 +248,13 @@ async function planNewConnection(c) {
   // can't permanently suppress the first email; a later reconnect still delivers
   // it. (One webhook per pair per connect + the connections PK ⇒ no concurrent-
   // send race here.)
-  const { data: already } = await admin
+  const { data: already, error: dedupeErr } = await admin
     .from("connection_notify_log")
     .select("user_id")
     .eq("user_id", c.user_id)
     .eq("target_id", c.target_id)
     .maybeSingle();
+  if (dedupeErr) return null; // fail CLOSED, like planNewMessage — a missed email beats a duplicate
   if (already) return null; // already emailed this pair
 
   const { data: source } = await admin
@@ -421,7 +422,7 @@ async function describeReportTarget(type, id) {
     if (type === "profile") {
       const { data } = await admin
         .from("profiles")
-        .select("first_name,last_name,username,university,avatar")
+        .select("first_name,last_name,username,university")
         .eq("id", id)
         .maybeSingle();
       if (!data) return { label: "a profile (already deleted)", excerpt: "" };
@@ -442,7 +443,7 @@ async function planNewReport(r) {
   const [{ data: reporter }, target] = await Promise.all([
     admin
       .from("profiles")
-      .select("first_name,last_name,username,university,avatar")
+      .select("first_name,last_name,username,university")
       .eq("id", r.reporter_id)
       .maybeSingle(),
     describeReportTarget(r.target_type, r.target_id),
