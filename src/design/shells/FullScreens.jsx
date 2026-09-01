@@ -48,7 +48,7 @@ export default function FullScreens({ screen, draft, editProject, api }) {
         React.createElement(Onboarding, {
           initialMode: authMode,
           returnTo: peekReturnTo(),
-          resumeProfile: pendingStudent, // mid-onboarding session → wizard resumes at enrichment
+          resumeProfile: pendingStudent, // mid-onboarding session → wizard resumes (missing username → core steps, else enrichment)
           onComplete: (p) => {
             adoptProfile(p); // ref + state together — applyParsed below role-gates on it
             const ret = takeReturnTo();

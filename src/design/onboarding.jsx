@@ -121,6 +121,11 @@ import { toDbProfile, fromDbProfile, dataUrlToFile } from './profileAdapter'
     const [enrichStep, setEnrichStep] = useState(0);
     const [enrichUserId, setEnrichUserId] = useState(null);
     const [baseProfile, setBaseProfile] = useState(null);
+    // Core recovery: a signed-in student whose row never got its core signup
+    // save (no username) re-walks signup steps 2-4 before enrichment — see
+    // enterCoreRecovery.
+    const [coreRecover, setCoreRecover] = useState(false);
+    const [recoverUserId, setRecoverUserId] = useState(null);
     const [firstName, setFirstName] = useState("");
     const [lastName, setLastName] = useState("");
     const [photoUrl, setPhotoUrl] = useState(null);         // uploaded storage URL
@@ -156,13 +161,17 @@ import { toDbProfile, fromDbProfile, dataUrlToFile } from './profileAdapter'
     }, []);
 
     // Mid-onboarding resume: the account exists and is signed in, but the row
-    // never completed (photo requirement) — skip the signup steps entirely and
-    // land on the enrichment wizard where they left off.
+    // never completed — land the wizard where they actually left off. A row
+    // still missing its username means the CORE signup save never landed (the
+    // email was confirmed on another device/tab, so the original tab's
+    // in-memory username/uni/major were lost): re-walk the core steps first.
+    // Otherwise it's just the photo requirement — straight to enrichment.
     useEffect(() => {
-      if (!resumeProfile || !resumeProfile.id || resumeProfile.onboardingCompleted || enrich) return;
+      if (!resumeProfile || !resumeProfile.id || resumeProfile.onboardingCompleted || enrich || coreRecover) return;
       setMode("signup");
       if (resumeProfile.email) setEmail(resumeProfile.email);
-      enterEnrichment(resumeProfile.id, resumeProfile);
+      if (!resumeProfile.username) enterCoreRecovery(resumeProfile.id, resumeProfile);
+      else enterEnrichment(resumeProfile.id, resumeProfile);
     }, [resumeProfile]);
 
     const totalSteps = mode === "signup" ? SIGNUP_STEPS : SIGNIN_STEPS;
@@ -194,7 +203,7 @@ import { toDbProfile, fromDbProfile, dataUrlToFile } from './profileAdapter'
       setEmailTouched(false);
       setSubmitError("");
     }
-    function back() { setStep((s) => Math.max(s - 1, 0)); setSubmitError(""); }
+    function back() { setStep((s) => Math.max(s - 1, coreRecover ? 2 : 0)); setSubmitError(""); }
 
     // when arriving at uni step (signup step 3), preselect detected
     useEffect(() => {
@@ -440,10 +449,12 @@ import { toDbProfile, fromDbProfile, dataUrlToFile } from './profileAdapter'
       // app.
       if (await blockOrgAccount(row)) return;
 
-      // A student whose row never completed (photo requirement) resumes the
-      // enrichment wizard instead of entering the app faceless.
+      // A student whose row never completed resumes the wizard instead of
+      // entering the app half-made: no username → the core save never landed,
+      // re-walk the core steps; otherwise it's just the photo requirement.
       if (!row.onboarding_completed) {
-        enterEnrichment(row.id, fromDbProfile(row, email.trim()));
+        if (!row.username) enterCoreRecovery(row.id, fromDbProfile(row, email.trim()));
+        else enterEnrichment(row.id, fromDbProfile(row, email.trim()));
         return;
       }
 
@@ -462,10 +473,63 @@ import { toDbProfile, fromDbProfile, dataUrlToFile } from './profileAdapter'
       setBaseProfile(base);
       if (base && base.firstName) setFirstName(base.firstName);
       if (base && base.lastName) setLastName(base.lastName);
+      // Anything already on the row surfaces in the inputs, so a resumed
+      // finishEnrichment re-writes it instead of blanking it.
+      if (base && base.bio) setBio(base.bio);
+      if (base && base.skills && base.skills.length) setSkills(base.skills);
+      if (base && base.year) setGradYear(base.year);
+      if (base && base.building) setBuilding(base.building);
+      if (base && base.links) setLinks((l) => ({ ...l, ...base.links }));
       setAwaitingCode(false);
       setEnrichStep(0);
       setEnrich(true);
       window.scrollTo({ top: 0 });
+    }
+
+    // Core recovery: the signed-in row has no username, so the core signup
+    // save never landed — the profile row exists only from handle_new_user
+    // (typically the signup email was confirmed on a different device or tab
+    // and the original tab's in-memory wizard state was lost). Re-enter the
+    // signup wizard AT the username step — email/password never re-ask, the
+    // account already exists and is signed in — and let steps 2-4 run exactly
+    // as in a fresh signup; finishCoreRecovery stands in for finishSignup.
+    function enterCoreRecovery(uid, base) {
+      setSubmitting(false);
+      setMode("signup");
+      if (base && base.email) setEmail(base.email);
+      setBaseProfile(base);
+      setRecoverUserId(uid);
+      setAwaitingCode(false);
+      setCoreRecover(true);
+      setStep(2);
+      window.scrollTo({ top: 0 });
+    }
+
+    // The core save for a recovered session: same payload as the wizard's
+    // core save, but merged over the existing row so anything already there
+    // (photos, name, enrichment fields) is kept. Holds
+    // onboarding_completed:false — completion still belongs to
+    // finishEnrichment's required photo.
+    async function finishCoreRecovery() {
+      if (submitting) return;
+      setSubmitting(true);
+      setSubmitError("");
+      const merged = {
+        ...baseProfile,
+        username: username.trim(),
+        uni: uni || (detected && detected.id) || "nyu",
+        major: major || "Undeclared",
+        fields: interests,
+        email: email.trim(),
+      };
+      const { data: row, error } = await profileService.upsertProfile(recoverUserId, toDbProfile(merged, recoverUserId, { onboardingCompleted: false }));
+      if (error) {
+        setSubmitError(getErrorMessage(error));
+        setSubmitting(false);
+        return;
+      }
+      setCoreRecover(false);
+      enterEnrichment(recoverUserId, fromDbProfile(row, email.trim()));
     }
 
     async function pickEnrichPhoto(file) {
@@ -1092,7 +1156,7 @@ import { toDbProfile, fromDbProfile, dataUrlToFile } from './profileAdapter'
         if (onLastStep) return finishSignin();
         return next();
       }
-      if (onLastStep) return finishSignup();
+      if (onLastStep) return coreRecover ? finishCoreRecovery() : finishSignup();
       if (step === 0) return attemptNext();
       return next();
     }
@@ -1148,7 +1212,7 @@ import { toDbProfile, fromDbProfile, dataUrlToFile } from './profileAdapter'
             ),
             body,
             React.createElement("div", { className: "onb-actions" },
-              step > 0 && React.createElement("button", { className: "ghost-link", onClick: back, disabled: submitting }, "← Back"),
+              step > (coreRecover ? 2 : 0) && React.createElement("button", { className: "ghost-link", onClick: back, disabled: submitting }, "← Back"),
               React.createElement("span", { className: "spacer" }),
               React.createElement("button", {
                 className: "btn btn-primary",
