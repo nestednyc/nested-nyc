@@ -30,7 +30,7 @@ import { storageService } from '../services/storageService'
           React.createElement("h2", null, "Tune your", React.createElement("br"), "org page."),
           React.createElement("p", null, "Polish the bio, swap the campus, update your links — students see changes the moment you save."),
           React.createElement("div", { className: "onb-mini-board" },
-            React.createElement(OrgPreview, { name: v.name, type: v.type, uni: v.uni, bio: v.bio })
+            React.createElement(OrgPreview, { name: v.name, type: v.type, uni: v.uni, bio: v.bio, logo: v.logo })
           )
         )
       )

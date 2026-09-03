@@ -33,7 +33,7 @@ import { useUniversitiesList } from './useUniversitiesList'
           React.createElement("h2", null, "Start your club.", React.createElement("br"), "It's on the board", React.createElement("br"), "the moment you pin it."),
           React.createElement("p", null, "No waiting on a review — a student-run club goes live right away. Students can follow it, join it and RSVP to what you host; you run it from club mode."),
           React.createElement("div", { className: "onb-mini-board" },
-            React.createElement(OrgPreview, { name: v.name, type: "club", uni: v.uni, bio: v.bio, studentRun: true })
+            React.createElement(OrgPreview, { name: v.name, type: "club", uni: v.uni, bio: v.bio, logo: v.logo, studentRun: true })
           )
         )
       )

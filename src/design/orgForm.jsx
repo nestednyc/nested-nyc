@@ -28,8 +28,8 @@ import { QuestionBuilder, questionIssues, normalizeQuestions } from './eventRsvp
 
   // Step-3 preview / aside mirror — the shared org flyer rendered with the
   // in-progress draft (a student-founded club previews with its student-run label).
-  function OrgPreview({ name, type, uni, bio, studentRun }) {
-    return React.createElement(OrgMini, { name, type, uni, bio, studentRun: !!studentRun });
+  function OrgPreview({ name, type, uni, bio, logo, studentRun }) {
+    return React.createElement(OrgMini, { name, type, uni, bio, logo, studentRun: !!studentRun });
   }
 
   // variant: "org" (the org-email onboarding + edit) | "student" (a student
@@ -260,7 +260,7 @@ import { QuestionBuilder, questionIssues, normalizeQuestions } from './eventRsvp
               : "Here's your org page. It goes live the moment you pin it — students can follow it, join it and RSVP to what you host right away."),
 
           React.createElement("div", { className: "create-preview-wrap" },
-            React.createElement(OrgPreview, { name, type, uni, bio, studentRun: student })
+            React.createElement(OrgPreview, { name, type, uni, bio, logo, studentRun: student })
           )
         )
       );

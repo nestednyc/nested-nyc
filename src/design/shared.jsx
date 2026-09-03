@@ -183,7 +183,9 @@ import { SHOW_EVENTS } from '../config/features'
   // state (verified wins when both flags are set).
   // Foot: the "Student-run" tag for a student-founded club, else nothing —
   // every org is live from creation (verification retired 2026-09-03).
-  function OrgMini({ name, type, uni, bio, studentRun }) {
+  // Glyph: the org's OWN logo (initials when none) — the campus seal only when
+  // the org IS a university; a club never wears its campus's mark.
+  function OrgMini({ name, type, uni, bio, logo, studentRun }) {
     const uniObj = uni && UNI[uni] ? UNI[uni] : null;
     const typeLabel = type ? ((ORG_TYPES.find((t) => t.id === type) || {}).label || "Organization") : "Organization";
     const sub = [typeLabel, uniObj && uniObj.name].filter(Boolean).join(" · ");
@@ -191,9 +193,9 @@ import { SHOW_EVENTS } from '../config/features'
     return (
       React.createElement("article", { className: "org-mini grain", style: { "--rot": "0deg" } },
         React.createElement("div", { className: "org-mini-head" },
-          uniObj
+          type === "university" && uniObj
             ? React.createElement(UniLogo, { uni: uniObj, size: 46, radius: "26%" })
-            : React.createElement(Av, { name: display, size: 46 }),
+            : React.createElement(Av, { name: display, img: logo || null, size: 46 }),
           React.createElement("div", { className: "org-mini-id" },
             React.createElement("b", null, display),
             React.createElement("small", null, sub)

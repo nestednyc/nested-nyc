@@ -31,7 +31,7 @@ import { storageService } from '../services/storageService'
           React.createElement("h2", null, "Put your org", React.createElement("br"), "on the board."),
           React.createElement("p", null, "Three quick steps. Your org gets a page students can follow — and you can start pinning events to the NYC campus calendar."),
           React.createElement("div", { className: "onb-mini-board" },
-            React.createElement(OrgPreview, { name: v.name, type: v.type, uni: v.uni, bio: v.bio })
+            React.createElement(OrgPreview, { name: v.name, type: v.type, uni: v.uni, bio: v.bio, logo: v.logo })
           )
         )
       )

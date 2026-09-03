@@ -83,7 +83,7 @@ import { postTimeAgo } from './postAdapter'
           // (verification retired 2026-09-03), so there is no pending state.
           React.createElement("div", { className: "dash-panel" },
             React.createElement("div", { className: "panel-h" }, "Your public flyer"),
-            React.createElement(OrgMini, { name: org.name, type: org.type, uni: org.uni, bio: org.bio, studentRun: !!org.student_run }),
+            React.createElement(OrgMini, { name: org.name, type: org.type, uni: org.uni, bio: org.bio, logo: org.logo, studentRun: !!org.student_run }),
             React.createElement("p", { className: "echo-note" }, org.student_run ? "↳ live as a student-run club · this is what students see" : "↳ this is what students see")
           ),
 

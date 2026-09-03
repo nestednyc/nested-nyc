@@ -35,7 +35,7 @@ import { JoinButton, MemberRoster } from './clubJoin'
   function OrgCard({ org, onOpen, kicker }) {
     return (
       React.createElement("button", { className: "org-card", onClick: () => onOpen && onOpen(org.id), type: "button" },
-        React.createElement(Av, { name: org.name, size: 44 }),
+        React.createElement(Av, { name: org.name, img: org.logo || null, size: 44 }),
         React.createElement("span", { className: "oc-id" },
           kicker && React.createElement("span", { className: "oc-kicker" }, kicker),
           React.createElement("b", null, org.name,
@@ -162,9 +162,11 @@ import { JoinButton, MemberRoster } from './clubJoin'
 
           React.createElement("div", { className: "org-inner" },
             React.createElement("div", { className: "org-headline" },
-              uniObj
+              // The org's own logo (initials when none); the campus seal only
+              // when the page IS a university — a club never wears its campus's mark.
+              org.type === "university" && uniObj
                 ? React.createElement(UniLogo, { uni: uniObj, size: 60, radius: "24%" })
-                : React.createElement(Av, { name: org.name, size: 60 }),
+                : React.createElement(Av, { name: org.name, img: org.logo || null, size: 60 }),
               React.createElement("div", { className: "org-id", style: { minWidth: 0 } },
                 React.createElement("h1", null, org.name),
                 studentRun && React.createElement(StudentTag, null),
