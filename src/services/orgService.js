@@ -141,11 +141,25 @@ export const orgService = {
       owner_user_id: user.id
     }
 
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('organizations')
       .insert(payload)
       .select()
       .single()
+
+    // The slug probe above reads under RLS, which hides OTHER people's
+    // unverified orgs — so a slug can look free and still collide (23505).
+    // One retry on the next free-looking suffix covers the common case.
+    if (error && error.code === '23505') {
+      const retrySlug = await this._findAvailableSlug(slug + '-' + (Date.now() % 1000))
+      if (retrySlug) {
+        ;({ data, error } = await supabase
+          .from('organizations')
+          .insert({ ...payload, slug: retrySlug })
+          .select()
+          .single())
+      }
+    }
 
     return { data, error }
   },
@@ -159,9 +173,10 @@ export const orgService = {
       const formatError = validateSlug(updates.slug)
       if (formatError) return { data: null, error: { message: formatError } }
     }
-    // verified + ownership are server-controlled (RLS + the org_lock_verified
-    // trigger). Never send them from the client, even by accident.
-    const { verified, owner_user_id, id, ...safe } = updates || {}
+    // verified / student_run / spotlight + ownership are server-controlled
+    // (RLS + the org_lock_verified trigger). Never send them from the client,
+    // even by accident.
+    const { verified, student_run, spotlight_until, owner_user_id, id, ...safe } = updates || {}
     const { data, error } = await supabase
       .from('organizations')
       .update(safe)
@@ -233,6 +248,20 @@ export const orgService = {
       unis = data || []
     }
     return { ...org, uni: resolveOrgUniSlug(org, unis) }
+  },
+
+  /**
+   * Same, for every org a user owns — one campus fetch for the whole list
+   * (a student may run several clubs).
+   */
+  async withUniSlugs(orgs) {
+    const list = orgs || []
+    let unis = []
+    if (list.some((o) => o && o.university_id)) {
+      const { data } = await orgService.listUniversities()
+      unis = data || []
+    }
+    return list.map((o) => ({ ...o, uni: resolveOrgUniSlug(o, unis) }))
   },
 
   /**

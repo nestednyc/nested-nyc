@@ -45,6 +45,24 @@ const LS = storageKeys.identityCache;
 function loadState() {
   try { return JSON.parse(localStorage.getItem(LS)) || {}; } catch (e) { return {}; }
 }
+// Which of a student's clubs is the active one in club mode — an id only,
+// never the row (rows are re-fetched every hydration). A stale or foreign id
+// falls back to the oldest club (pickActive), so nothing can wedge on it.
+const ACTIVE_LS = storageKeys.activeOrg;
+function loadActiveOrgId() {
+  try { return localStorage.getItem(ACTIVE_LS) || null; } catch (e) { return null; }
+}
+function persistActiveOrgId(id) {
+  try {
+    if (id) localStorage.setItem(ACTIVE_LS, id);
+    else localStorage.removeItem(ACTIVE_LS);
+  } catch (e) {}
+}
+// A ?club=<slug> on a dashboard deep link (the transactional emails name the
+// club they're about) beats the persisted choice.
+function pickActive(list, id, slug) {
+  return (slug && list.find((o) => o.slug === slug)) || list.find((o) => o.id === id) || list[0] || null;
+}
 
 // A lost/stale auth context surfaces as an RLS/JWT error: the request reached
 // Supabase as `anon`, so auth.uid() was null and a WITH CHECK (… = auth.uid())
@@ -74,11 +92,16 @@ export function useSession({
   // True until the first hydrateSession resolves — lets deep-linked gated
   // screens hold a skeleton instead of crashing on a null profile/org.
   const [sessionPending, setSessionPending] = useState(() => isSupabaseConfigured());
-  // Org-account state. Populated by session hydration via orgService.getMyOrgs.
-  // When orgAccount is non-null the user is signed in AS an organization,
-  // not a student, and we render the OrgAppShell subtree instead of the
-  // student app.
+  // Org state. `ownedOrgs` = every organizations row this uid owns (an
+  // org-email account owns one; a student who runs clubs owns one or more;
+  // most students none). `orgAccount` = the ACTIVE one — the club the
+  // dashboard subtree manages. Both are mode-independent: NestedApp derives
+  // "club mode" from the route and exposes profile/orgAccount as an either/or
+  // pair to the rest of the app, so a student in club mode renders exactly
+  // like an org-email account. Populated by hydrateSession via
+  // orgService.getMyOrgs; never cached (the LS blob can't identify owners).
   const [orgAccount, setOrgAccount] = useState(null);
+  const [ownedOrgs, setOwnedOrgs] = useState([]);
 
   // persist — a light identity cache only: {profile, joinedAt}. Position
   // (route/ids) now lives in the URL; reopening bare nested.social lands on
@@ -120,6 +143,10 @@ export function useSession({
     if (!session) {
       // No live session — guest mode. Wipe any stale cached profile.
       setPendingStudent(null);
+      setOwnedOrgs([]);
+      setOrgAccount(null);
+      orgAccountRef.current = null;
+      persistActiveOrgId(null);
       if (persisted.current.profile) {
         setProfile(null);
         profileRef.current = null;
@@ -139,21 +166,52 @@ export function useSession({
       return finish();
     }
 
-    // Branch on account_type: an authed user is either a student (has
-    // profiles.onboarding_completed=true) or an org owner (owns a row in
-    // organizations). We check org-ownership first because it's the
-    // stronger signal: profile rows exist for all auth users, but only
-    // org admins own an org.
-    const myOrgs = await orgService.getMyOrgs();
+    // Load BOTH identities: the student profile (profiles.onboarding_completed)
+    // and every org this uid owns. A student who runs clubs has both; an
+    // org-email account has only orgs (its profile row never completes
+    // onboarding — profile_block_org_student_writes); a fresh signup has
+    // neither yet. Nothing here picks a mode: NestedApp derives club mode from
+    // the route, so this only installs what exists — each ref paired with its
+    // state so applyParsed below sees them NOW.
+    const [myOrgs, prof] = await Promise.all([orgService.getMyOrgs(), profileService.getCurrentProfile()]);
     if (aborted()) return;
-    let ownedOrg = (myOrgs.data && myOrgs.data[0]) || null;
-    if (ownedOrg) {
+    let owned = (myOrgs && myOrgs.data) || [];
+    if (owned.length) {
       // Campus → UNI slug for the dashboard flyer echo (color + logo);
-      // resolution lives in orgService.withUniSlug.
-      ownedOrg = await orgService.withUniSlug(ownedOrg);
+      // resolution lives in orgService.withUniSlugs (one campus fetch).
+      owned = await orgService.withUniSlugs(owned);
       if (aborted()) return;
-      setOrgAccount(ownedOrg);
-      orgAccountRef.current = ownedOrg; // applyParsed below must see it NOW
+    }
+    const row = prof && prof.data;
+    const error = prof && prof.error;
+    const sessUser = session.user || {};
+    let student = !error && row && row.onboarding_completed ? fromDbProfile(row, sessUser.email) : null;
+    // A transient profile-read failure must not demote a student into an
+    // org-email account (dashboard-only, no way back) or bounce them into the
+    // wizard: keep the cached identity for this session and say so.
+    if (!student && error && persisted.current.profile) {
+      student = persisted.current.profile;
+      toast("Couldn't refresh your profile — showing the cached one", "x");
+    }
+
+    // ?club=<slug> (dashboard links in the club emails) picks that club; the
+    // URL mirror rewrites the bar to the canonical path right after.
+    let wantSlug = null;
+    try { wantSlug = new URLSearchParams(window.location.search).get("club"); } catch (e) {}
+    const active = owned.length ? pickActive(owned, loadActiveOrgId(), wantSlug) : null;
+    setOwnedOrgs(owned);
+    setOrgAccount(active);
+    orgAccountRef.current = active;
+    // An errored org read (owned = []) keeps the persisted choice for next time.
+    if (!(myOrgs && myOrgs.error)) persistActiveOrgId(active ? active.id : null);
+    if (student) {
+      setPendingStudent(null);
+      setProfile(student);
+      profileRef.current = student;
+    }
+
+    if (active && !student) {
+      // Org-email account: the dashboard subtree is their whole app.
       if (cb) {
         const target = cb.next ? parseLocation(cb.next, "") : null;
         authCallbackRef.current = null;
@@ -164,10 +222,7 @@ export function useSession({
       return finish();
     }
 
-    const { data: row, error } = await profileService.getCurrentProfile();
-    if (aborted()) return;
-
-    if (error || !row || !row.onboarding_completed) {
+    if (!student) {
       // Signed-in user with no profile AND no org → either a fresh org
       // signup that hasn't created its org row yet (send to orgOnboarding)
       // or a student mid-onboarding. We can't distinguish reliably from
@@ -194,11 +249,6 @@ export function useSession({
       return finish();
     }
 
-    const sessUser = session.user || {};
-    const hydrated = fromDbProfile(row, sessUser.email);
-    setPendingStudent(null);
-    setProfile(hydrated);
-    profileRef.current = hydrated; // applyParsed below must see it NOW
     if (cb) {
       // Fresh session out of an email link: validated ?next= wins, then any
       // same-tab returnTo stash, then home.
@@ -209,10 +259,11 @@ export function useSession({
       return finish();
     }
     // Student: the URL wins (own /u/<handle> upgrades to /profile inside
-    // applyParsed; anon/org URLs bounce home there too — which also covers a
+    // applyParsed; anon URLs bounce home there too — which also covers a
     // student who signed in via the org door: applyParsed sees access==="anon"
     // for /org/signup and redirects to discover, so they never land in org
-    // onboarding).
+    // onboarding). A /dashboard/* URL passes through when they run clubs —
+    // NestedApp renders it in club mode — and bounces home when they don't.
     applyParsed(here, { replace: true });
     return finish();
   }
@@ -229,9 +280,32 @@ export function useSession({
     setProfile(p);
     profileRef.current = p;
   }
+  // Install (or refresh) an owned org and make it the active one: org
+  // onboarding, org edit-save, and a student founding a club all land here.
+  // Upserts into ownedOrgs so the switcher's name/logo stay current.
   function adoptOrgAccount(org) {
+    setOwnedOrgs((list) => (list.some((o) => o.id === org.id)
+      ? list.map((o) => (o.id === org.id ? org : o))
+      : [...list, org]));
     setOrgAccount(org);
     orgAccountRef.current = org;
+    persistActiveOrgId(org.id);
+  }
+  // The student ↔ club switch is a navigation, not a stored mode: NestedApp
+  // derives club mode from the route (/dashboard/* = club mode). Entering
+  // activates the chosen club (paired write, then the route flips the shell
+  // in the same render); leaving is just going home.
+  function enterClubMode(orgId, target) {
+    const org = ownedOrgs.find((o) => o.id === orgId) ||
+      (orgAccountRef.current && orgAccountRef.current.id === orgId ? orgAccountRef.current : null);
+    if (!org) return;
+    adoptOrgAccount(org);
+    setRoute(target && accessOf(target) === "org" ? target : "orgDashboard");
+    window.scrollTo({ top: 0 });
+  }
+  function leaveClubMode() {
+    setRoute("discover");
+    window.scrollTo({ top: 0 });
   }
 
   useEffect(() => {
@@ -251,6 +325,9 @@ export function useSession({
       if (event === "SIGNED_OUT") {
         setProfile(null);
         setPendingStudent(null);
+        setOrgAccount(null);
+        setOwnedOrgs([]);
+        persistActiveOrgId(null);
         try { localStorage.removeItem(LS); } catch (e) {}
         onSignedOut();
       }
@@ -366,14 +443,17 @@ export function useSession({
     }
     setProfile(null);
     setOrgAccount(null);
+    setOwnedOrgs([]);
     setPendingStudent(null);
+    persistActiveOrgId(null);
     try { localStorage.removeItem(LS); } catch (e) {}
   }
 
   return {
-    profile, orgAccount, sessionPending, pendingStudent,
+    profile, orgAccount, ownedOrgs, sessionPending, pendingStudent,
     joinedAt: persisted.current.joinedAt,
     adoptProfile, adoptOrgAccount, // raw setters stay internal — see above
+    enterClubMode, leaveClubMode,
     hydrateSession, saveProfileToSupabase, signOutAuth,
   };
 }

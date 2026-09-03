@@ -66,6 +66,7 @@ import { eventService } from '../services/eventService'
     const orgSlug = (org && org.slug) || null;
     const orgLogo = (org && org.logo) || null;
     const orgVerified = !!(org && org.verified);
+    const orgStudentRun = !!(org && org.student_run);
     const orgId = (org && org.id) || null;
     const d = formatEventDate(raw.date);
 
@@ -89,7 +90,7 @@ import { eventService } from '../services/eventService'
       attendeeNames: attendees && attendees.length
         ? attendees.map((a) => personLabel(a, '?'))
         : [],
-      org: { id: orgId, slug: orgSlug, name: orgName, logo: orgLogo, verified: orgVerified },
+      org: { id: orgId, slug: orgSlug, name: orgName, logo: orgLogo, verified: orgVerified, studentRun: orgStudentRun, ownerId: (org && org.owner_user_id) || null },
     };
   }
 
@@ -222,6 +223,10 @@ import { eventService } from '../services/eventService'
     profile,
     rsvped,
     orgAccount,
+    // Student mode: the ids of the clubs I run — my own club's event shows
+    // "You're hosting" (the server refuses a host's RSVP) + a way into club mode.
+    ownedOrgIds,
+    onManageClub,
     onBack,
     onRSVP,
     onRequestRsvp,
@@ -287,6 +292,7 @@ import { eventService } from '../services/eventService'
     const rsvpEvent = { id: eventId, title: ev.title, orgName: ev.org && ev.org.name, questions };
     const answers = (myAnswers && myAnswers[eventId]) || null;
     const isOwner = !!(orgAccount && ev.org && orgAccount.id === ev.org.id);
+    const hosting = !isOwner && !!(ev.org && ownedOrgIds && ownedOrgIds.has(ev.org.id));
     const isAnon = !profile;
     const cap = ev.maxAttendees;
     const isFull = !!cap && ev.attendees >= cap && !goingNow;
@@ -300,6 +306,7 @@ import { eventService } from '../services/eventService'
       if (ev.isPast) return;
       if (isAnon) { onSignIn && onSignIn(); return; }
       if (isOwner) { onEditEvent && onEditEvent(eventId); return; }
+      if (hosting) { onManageClub && onManageClub(ev.org.id); return; }
       if (isFull && !goingNow) return;
       // Going → the plain toggle (un-RSVP); not yet → through the sheet when
       // the host asks questions, else the toggle.
@@ -318,6 +325,13 @@ import { eventService } from '../services/eventService'
       rsvpSlot = React.createElement("div", null,
         React.createElement("button", { className: "ev-rsvp-btn", onClick: handleRsvpClick }, "Edit event"),
         React.createElement("span", { className: "ev-rsvp-cap" }, "// you host this event")
+      );
+    } else if (hosting) {
+      rsvpSlot = React.createElement("div", null,
+        React.createElement("button", { className: "ev-rsvp-btn", disabled: true }, "You're hosting"),
+        React.createElement("span", { className: "ev-rsvp-cap" }, "// your club's event — run it from club mode"),
+        onManageClub && React.createElement("button", { className: "ev-see-ticket", onClick: handleRsvpClick, style: { display: "block", margin: "9px auto 0" } },
+          "switch to club mode →")
       );
     } else if (isAnon) {
       rsvpSlot = React.createElement("div", null,

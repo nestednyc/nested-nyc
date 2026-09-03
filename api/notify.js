@@ -208,7 +208,7 @@ async function planClubJoinRequest(m, old) {
   if (!m || m.status !== "pending") return null;
   if (old && old.status === "pending") return null;
   const [{ data: org }, { data: applicant }] = await Promise.all([
-    admin.from("organizations").select("id,name,owner_user_id").eq("id", m.org_id).maybeSingle(),
+    admin.from("organizations").select("id,name,slug,owner_user_id").eq("id", m.org_id).maybeSingle(),
     admin.from("profiles").select("first_name,last_name,username,university,avatar").eq("id", m.user_id).maybeSingle(),
   ]);
   if (!org || !org.owner_user_id || String(org.owner_user_id) === String(m.user_id)) return null;
@@ -220,6 +220,7 @@ async function planClubJoinRequest(m, old) {
         school: uniLabel(applicant?.university),
         avatarUrl: applicant?.avatar || "",
         clubName: org.name || "your org",
+        clubSlug: org.slug || "",
         unsubUrl: unsub,
       }),
   };
@@ -382,6 +383,7 @@ async function planOrgVerified(org, old) {
     make: (unsub) =>
       emails.orgVerified({
         orgName: org.name || "Your organization",
+        orgSlug: org.slug || "",
         unsubUrl: unsub,
       }),
   };
@@ -464,24 +466,45 @@ async function planNewReport(r) {
   };
 }
 
-// → the founders: a new org signed up (organizations INSERT). Until someone
-// runs the verify UPDATE it's invisible — this is the nudge. Universities are
-// seeded by migration, never inserted at runtime, so this only fires for real
-// club / community signups. Internal alert → fixed addresses, no opt-out.
+// → the founders: a new org signed up (organizations INSERT). An org-email
+// signup is invisible until someone runs the verify UPDATE — this is the
+// nudge. A student-founded club (record.student_run, migration
+// 20260903000000) is ALREADY live and labeled student-run, so the same alert
+// says so, shows the founder, and inlines the optional tick / takedown SQL
+// instead. Universities are seeded by migration, never inserted at runtime,
+// so this only fires for real club / community signups. Internal alert →
+// fixed addresses, no opt-out.
 async function planNewOrg(org) {
   if (!org || !org.id || !ADMIN_RECIPIENTS.length) return null;
   if (org.type === "university" || org.verified) return null;
+  const studentRun = org.student_run === true;
   let ownerEmail = "";
   let school = "";
+  let founder = null;
   try {
-    const [{ data: u }, { data: parent }] = await Promise.all([
+    const [{ data: u }, { data: parent }, { data: fp }] = await Promise.all([
       org.owner_user_id ? admin.auth.admin.getUserById(org.owner_user_id) : Promise.resolve({ data: null }),
       org.university_id
         ? admin.from("organizations").select("slug").eq("id", org.university_id).maybeSingle()
         : Promise.resolve({ data: null }),
+      studentRun && org.owner_user_id
+        ? admin
+            .from("profiles")
+            .select("first_name,last_name,username,university,avatar")
+            .eq("id", org.owner_user_id)
+            .maybeSingle()
+        : Promise.resolve({ data: null }),
     ]);
     ownerEmail = u?.user?.email || "";
     school = uniLabel(parent?.slug);
+    if (studentRun) {
+      founder = {
+        name: personLabel(fp || {}, "A student"),
+        handle: bareHandle(fp?.username),
+        school: uniLabel(fp?.university),
+        avatarUrl: fp?.avatar || "",
+      };
+    }
   } catch (e) {
     console.error("notify: planNewOrg lookup failed", e.message);
   }
@@ -497,6 +520,8 @@ async function planNewOrg(org) {
         bio: org.bio || "",
         ownerEmail,
         school,
+        studentRun,
+        founder,
       }),
   };
 }

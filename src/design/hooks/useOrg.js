@@ -33,6 +33,7 @@ export function useOrg({ orgAccount, toast, setRoute, setEventDraftId }) {
   useEffect(() => {
     if (!orgAccount) return;
     let cancelled = false;
+    setOrgEvents([]); // a student switching clubs must never see the previous club's list
     setOrgEventsLoading(true);
     orgService.getOrgEvents(orgAccount.id).then(({ data }) => {
       if (cancelled) return;

@@ -7,8 +7,9 @@
    static <a href> link graph (navigation is state-driven).
 
    Reads with the ANON key, so RLS yields exactly the rows the
-   app exposes anonymously: published projects, verified orgs,
-   and anon-visible events. Gated routes are never emitted.
+   app exposes anonymously: published projects, live orgs
+   (verified or student-run), and anon-visible events. Gated
+   routes are never emitted.
    ============================================================ */
 import { createClient } from "@supabase/supabase-js";
 import { limit, clientIp } from "./_rate-limit.js";
@@ -56,7 +57,7 @@ export default async function handler(req, res) {
     const [projects, events, orgs] = await Promise.all([
       supa.from("projects").select("id, updated_at, created_at").eq("publish_to_discover", true).order("updated_at", { ascending: false }).limit(5000),
       supa.from("events").select("id, created_at").order("created_at", { ascending: false }).limit(5000),
-      supa.from("organizations").select("slug, created_at").eq("verified", true).order("created_at", { ascending: false }).limit(5000),
+      supa.from("organizations").select("slug, created_at").or("verified.eq.true,student_run.eq.true").order("created_at", { ascending: false }).limit(5000),
     ]);
     for (const p of projects.data || []) urls.push(url(SITE + "/projects/" + p.id, day(p.updated_at || p.created_at)));
     for (const e of events.data || []) urls.push(url(SITE + "/events/" + e.id, day(e.created_at)));

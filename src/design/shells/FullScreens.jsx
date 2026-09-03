@@ -12,6 +12,7 @@ import Onboarding from '../onboarding'
 import ForgotPassword from '../forgot'
 import OrgSignup from '../orgSignup'
 import OrgOnboard from '../orgOnboard'
+import ClubFound from '../clubFound'
 import OrgEdit from '../orgEdit'
 import EventForm from '../eventForm'
 import Create from '../create'
@@ -141,6 +142,25 @@ export default function FullScreens({ screen, draft, editProject, api }) {
             setRoute("orgDashboard");
             window.scrollTo({ top: 0 });
             toast("Your org is on the board");
+          },
+        })
+      );
+  }
+
+  // A student founding a club (/clubs/new). Same install path as org
+  // onboarding — adoptOrgAccount activates the club and /dashboard is an
+  // org-class route, so club mode flips in the same render. Cancel goes
+  // back to the board (a student is never signed out of their own app).
+  if (screen === "clubFound") {
+      return frame(
+        React.createElement(ClubFound, {
+          profile,
+          onCancel: () => { setRoute("community"); window.scrollTo({ top: 0 }); },
+          onCreated: (org) => {
+            adoptOrgAccount(org);
+            setRoute("orgDashboard");
+            window.scrollTo({ top: 0 });
+            toast(org.name + " is live — you're in club mode", "sparkle");
           },
         })
       );

@@ -18,7 +18,7 @@ export const eventService = {
 
     const { data, error } = await supabase
       .from('events')
-      .select('*, organization:organizations(id, slug, name, logo, verified)')
+      .select('*, organization:organizations(id, slug, name, logo, verified, student_run, owner_user_id)')
       .order('date', { ascending: true })
 
     return { data, error }
@@ -39,8 +39,8 @@ export const eventService = {
     // `viewerId` embeds the viewer's own registration row (my_reg) so a card
     // knows whether `attendees` already counts them — exact, no client snapshot.
     const embed = viewerId
-      ? '*, organization:organizations(id, slug, name, logo, verified, type, university_id), my_reg:event_registrations(user_id)'
-      : '*, organization:organizations(id, slug, name, logo, verified, type, university_id)'
+      ? '*, organization:organizations(id, slug, name, logo, verified, student_run, owner_user_id, type, university_id), my_reg:event_registrations(user_id)'
+      : '*, organization:organizations(id, slug, name, logo, verified, student_run, owner_user_id, type, university_id)'
     let q = supabase
       .from('events')
       .select(embed)
@@ -135,7 +135,7 @@ export const eventService = {
 
     const { data, error } = await supabase
       .from('events')
-      .select('*, organization:organizations(id, slug, name, logo, verified)')
+      .select('*, organization:organizations(id, slug, name, logo, verified, student_run, owner_user_id)')
       .eq('is_past', true)
       .order('date', { ascending: false })
 
@@ -154,7 +154,7 @@ export const eventService = {
 
     const { data, error } = await supabase
       .from('events')
-      .select('*, organization:organizations(id, slug, name, logo, verified)')
+      .select('*, organization:organizations(id, slug, name, logo, verified, student_run, owner_user_id)')
       .eq('id', eventId)
       .single()
 
@@ -173,7 +173,7 @@ export const eventService = {
 
     const { data: event, error: eventError } = await supabase
       .from('events')
-      .select('*, organization:organizations(id, slug, name, logo, verified)')
+      .select('*, organization:organizations(id, slug, name, logo, verified, student_run, owner_user_id)')
       .eq('id', eventId)
       .single()
 
@@ -391,7 +391,7 @@ export const eventService = {
 
     const { data, error } = await supabase
       .from('event_registrations')
-      .select('event_id, events(*, organization:organizations(id, slug, name, logo, verified))')
+      .select('event_id, events(*, organization:organizations(id, slug, name, logo, verified, student_run, owner_user_id))')
       .eq('user_id', user.id)
 
     if (error) {
@@ -419,7 +419,7 @@ export const eventService = {
 
     const { data, error } = await supabase
       .from('events')
-      .select('*, organization:organizations(id, slug, name, logo, verified)')
+      .select('*, organization:organizations(id, slug, name, logo, verified, student_run, owner_user_id)')
       .eq('organizer_id', user.id)
       .order('date', { ascending: true })
 
@@ -467,7 +467,7 @@ export const eventService = {
 
     const { data, error } = await supabase
       .from('events')
-      .select('*, organization:organizations(id, slug, name, logo, verified)')
+      .select('*, organization:organizations(id, slug, name, logo, verified, student_run, owner_user_id)')
       .or(`title.ilike.%${query}%,description.ilike.%${query}%,location.ilike.%${query}%`)
       .order('date', { ascending: true })
 

@@ -25,8 +25,8 @@ export function communityErrorMessage(error, fallback) {
   return (error && error.message) || fallback
 }
 
-const POST_SELECT = '*, project:projects(id, name, category), org:organizations(id, slug, name, verified)'
-const SPOTLIGHT_SELECT = 'id, slug, name, logo, bio, location, verified, type, university_id, spotlight_until'
+const POST_SELECT = '*, project:projects(id, name, category), org:organizations(id, slug, name, verified, student_run, owner_user_id)'
+const SPOTLIGHT_SELECT = 'id, slug, name, logo, bio, location, verified, student_run, owner_user_id, type, university_id, spotlight_until'
 
 export const communityService = {
   /**
@@ -56,7 +56,7 @@ export const communityService = {
     const { data: orgs, error } = await supabase
       .from('organizations')
       .select(SPOTLIGHT_SELECT)
-      .eq('verified', true)
+      .or('verified.eq.true,student_run.eq.true') // any live org an admin chose to pin
       .gt('spotlight_until', new Date().toISOString())
       .order('spotlight_until', { ascending: true })
       .limit(1)

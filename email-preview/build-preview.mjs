@@ -55,6 +55,11 @@ const samples = {
     name: "Chess Club", type: "club", slug: "chess-club", location: "NYC",
     bio: "We play chess.", ownerEmail: "owner@nyu.edu", school: "NYU",
   }),
+  "09b-new-student-org": emails.newOrg({
+    name: "Sunset Sketch Club", type: "club", slug: "sunset-sketch-club", location: "Brooklyn",
+    bio: "We draw the skyline from the Manhattan Bridge every Friday.", ownerEmail: "maya@nyu.edu", school: "NYU",
+    studentRun: true, founder: { name: "@maya", handle: "maya", school: "NYU", avatarUrl: AVATAR },
+  }),
   "10-weekly-digest": emails.weeklyDigest({
     firstName: "Hamza", school: "NYU",
     posts: [

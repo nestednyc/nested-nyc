@@ -123,8 +123,14 @@ export function useCommunity({ profile, orgAccount, toast, requireAuth }) {
   // First visit to the Community screen loads the feed + my marks; later
   // visits reuse state (posting/liking keeps it fresh enough for v1).
   async function ensureFeed() {
-    if (loadedRef.current || !me || !isSupabaseConfigured()) return;
-    loadedRef.current = true;
+    // Keyed on who's looking: a student who runs clubs loads the board as
+    // themselves in student mode and as the club in club mode, and the
+    // viewer-specific bits differ (my RSVPs on events, my follows) — so
+    // crossing the mode boundary reloads instead of reusing the other
+    // mode's cache. Falsy = not loaded (error / refresh / reset).
+    const asKey = profile ? "student" : "org";
+    if (loadedRef.current === asKey || !me || !isSupabaseConfigured()) return;
+    loadedRef.current = asKey;
     setFeedLoading(true);
     setFeedError(null);
     const today = localDateISO();
@@ -153,7 +159,7 @@ export function useCommunity({ profile, orgAccount, toast, requireAuth }) {
         .filter(Boolean)
     );
     setSpotlight(spot
-      ? { org: { ...spot.org, uni: resolveOrgUniSlug(spot.org, unis || []) }, post: spot.post ? fromDbPost(spot.post) : null }
+      ? { org: { ...spot.org, studentRun: !!spot.org.student_run, uni: resolveOrgUniSlug(spot.org, unis || []) }, post: spot.post ? fromDbPost(spot.post) : null }
       : null);
   }
 

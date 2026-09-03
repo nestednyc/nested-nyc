@@ -11,7 +11,7 @@
    ============================================================ */
 import React from 'react'
 import Icon from '../icons'
-import { NestedData, CAT } from '../data'
+import { NestedData, CAT, MAX_STUDENT_CLUBS } from '../data'
 import { Av, Toasts, Stamp, Skeleton, ConfirmModal, NAV } from '../shared'
 import { StyleTweaks } from '../tweaks-panel'
 import Discover, { ProjectCard } from '../discover'
@@ -70,6 +70,8 @@ export default function StudentShell({ api }) {
     openProject, openEdit, toggleSave,
     updateProjectStatus, setCoLead, kickMember, approveRequest, rejectRequest,
     rsvped, toggleRsvp, orgEvents, orgAccount,
+    // the clubs this student runs (club mode is a navigation — enterClubMode)
+    ownedOrgs, ownedOrgIds, enterClubMode,
     rsvpPrompt, rsvpSubmitting, rsvpError, requestRsvp, editRsvpAnswers, submitRsvp, cancelRsvpPrompt,
     myAnswers, loadMyAnswers,
     eventViewId, setEventViewId, eventViewFrom,
@@ -92,11 +94,17 @@ export default function StudentShell({ api }) {
   // The bell counts the two actionable kinds + unread activity (likes,
   // comments, mentions) — one number for the dot, the panel and the sheet.
   const notifCount = incomingPending.length + projectRequests.length + (unreadActivity || 0);
-  // Where an activity row leads: the note it's about, else the person.
+  // Where an activity row leads: a join request for a club I run → its
+  // applicants page (club mode); else the note it's about, else the person.
   function openActivity(n) {
+    if (n.kind === "org_join_request" && n.orgId && ownedOrgIds && ownedOrgIds.has(n.orgId)) return enterClubMode(n.orgId, "orgMembers");
     if (n.postId) return openPost(n.postId);
     if (n.actor && n.actor.handle) return openPerson(n.actor.handle);
   }
+  // Start a club (/clubs/new) — the founding screen; a guest gets the wall.
+  const startClub = () => { if (!profile) return requireAuth("Sign in to start a club"); setRoute("clubFound"); window.scrollTo({ top: 0 }); };
+  // The public page of a club I run: "Manage club" instead of Join / Follow.
+  const ownOrgView = orgViewSlug ? (ownedOrgs || []).find((o) => o.slug === orgViewSlug) : null;
 
   // "Request to join" — one entry point shared by the flyer page and the
   // board's "I'm interested" CTA: guest → auth wall; already on / already
@@ -191,9 +199,12 @@ export default function StudentShell({ api }) {
                 profile,
                 photoUrl: firstPhotoUrl(profile.photos),
                 uniName: (NestedData.UNI[profile.uni] || {}).name,
+                ownedOrgs,
                 onViewProfile: () => { setRoute("profile"); window.scrollTo({ top: 0 }); },
                 onEditProfile: () => { setProfileEditOnArrive(true); setRoute("profile"); window.scrollTo({ top: 0 }); },
                 onViewSaved: () => goNav("saved"),
+                onManageClub: (id) => enterClubMode(id),
+                onStartClub: startClub,
                 onSignOut: requestSignOut,
                 onClose: () => setAcctOpen(false),
               })
@@ -252,16 +263,19 @@ export default function StudentShell({ api }) {
           profile,
           follows,
           followsLoaded,
-          // Org accounts browse other orgs' pages too — following is a student thing.
-          canFollow: !orgAccount,
+          // Org accounts browse other orgs' pages too — following is a student
+          // thing; and nobody follows or joins a club they run (the server
+          // refuses both) — they get "Manage club" instead.
+          canFollow: !orgAccount && !ownOrgView,
           onToggleFollow: toggleFollowOrg,
           onBack: () => { setOrgViewSlug(null); goNav("events"); },
           onOpenEvent: (id) => openEventDetail(id, "orgView"),
           onToast: toast,
           // Join: students only (org accounts browse, they don't apply).
           memberships,
-          canJoin: !orgAccount,
-          onJoin: profile && !orgAccount ? requestJoinClub : null,
+          canJoin: !orgAccount && !ownOrgView,
+          onJoin: profile && !orgAccount && !ownOrgView ? requestJoinClub : null,
+          onManage: ownOrgView ? () => enterClubMode(ownOrgView.id) : null,
           onLeave: leaveOrg,
           onOpenPerson: openPerson,
         }),
@@ -274,6 +288,9 @@ export default function StudentShell({ api }) {
           profile,
           rsvped,
           orgAccount,
+          // my own club's event, seen from student mode: "You're hosting", no RSVP
+          ownedOrgIds,
+          onManageClub: (id) => enterClubMode(id),
           onBack: () => {
             setEventViewId(null);
             if (eventViewFrom === "orgView" && orgViewSlug) setRoute("orgView");
@@ -326,6 +343,10 @@ export default function StudentShell({ api }) {
           onStart: () => { setRoute("create"); window.scrollTo({ top: 0 }); },
           composerPreset, onPresetConsumed: clearComposerPreset,
           followedOrgs, onPostAbout: openBoardComposer,
+          // Your corner: the clubs I run + "Start a club"
+          ownedOrgs, ownedOrgIds,
+          onManageClub: (id) => enterClubMode(id),
+          onStartClub: startClub,
         }),
 
         route === "communityPost" && React.createElement(CommunityPost, {
@@ -575,6 +596,11 @@ export default function StudentShell({ api }) {
             React.createElement("button", { className: "acct-item", onClick: () => { setSheetOpen(false); setRoute("messages"); window.scrollTo({ top: 0 }); } },
               React.createElement(Icon, { name: "chat", size: 19 }), "Messages",
               unreadMessages > 0 && React.createElement("span", { className: "acct-badge" }, unreadMessages)),
+            // The clubs I run → club mode; "Start a club" → the founding screen.
+            (ownedOrgs || []).map((o) => React.createElement("button", { key: o.id, className: "acct-item", onClick: () => { setSheetOpen(false); enterClubMode(o.id); } },
+              React.createElement(Icon, { name: "flag", size: 19 }), "Manage " + o.name)),
+            (ownedOrgs || []).length < MAX_STUDENT_CLUBS && React.createElement("button", { className: "acct-item", onClick: () => { setSheetOpen(false); startClub(); } },
+              React.createElement(Icon, { name: "plus", size: 19 }), (ownedOrgs || []).length ? "Start another club" : "Start a club"),
             React.createElement("button", { className: "acct-item danger", onClick: requestSignOut },
               React.createElement(Icon, { name: "external", size: 19 }), "Sign out")
           )

@@ -9,7 +9,7 @@
    ============================================================ */
 import React from 'react'
 import Icon from './icons'
-import { UNI, joinDots } from './data'
+import { UNI, joinDots, MAX_STUDENT_CLUBS } from './data'
 import { Av } from './shared'
 import { notificationText, groupActivity } from './notificationAdapter'
 import { postTimeAgo } from './postAdapter'
@@ -150,8 +150,10 @@ import { postTimeAgo } from './postAdapter'
 
   // Account menu behind the topbar chip. View / edit profile + sign out;
   // settings + appearance rows slot in where marked once that system lands.
+  // The clubs the student runs (ownedOrgs) get a "Manage" row each, plus
+  // "Start a club" — both navigations (club mode is route-derived).
   // onSignOut opens NestedApp's confirm modal — it does not sign out directly.
-  function AccountPanel({ open, profile, photoUrl, uniName, onViewProfile, onEditProfile, onViewSaved, onSignOut, onClose }) {
+  function AccountPanel({ open, profile, photoUrl, uniName, ownedOrgs = [], onViewProfile, onEditProfile, onViewSaved, onManageClub, onStartClub, onSignOut, onClose }) {
     if (!open || !profile) return null;
     const choose = (fn) => () => { onClose && onClose(); if (fn) fn(); };
 
@@ -172,9 +174,46 @@ import { postTimeAgo } from './postAdapter'
         React.createElement(Icon, { name: "bookmark", size: 18 }), "Saved"),
       // Settings / appearance / notification-pref rows slot in here.
       React.createElement("div", { className: "menu-div" }),
+      ownedOrgs.map((o) => React.createElement("button", {
+        key: o.id, className: "menu-item", role: "menuitem", onClick: choose(() => onManageClub && onManageClub(o.id)),
+      }, React.createElement(Icon, { name: "flag", size: 18 }), "Manage " + o.name)),
+      ownedOrgs.length < MAX_STUDENT_CLUBS && React.createElement("button", { className: "menu-item", role: "menuitem", onClick: choose(onStartClub) },
+        React.createElement(Icon, { name: "plus", size: 18 }), ownedOrgs.length ? "Start another club" : "Start a club"),
+      React.createElement("div", { className: "menu-div" }),
       React.createElement("button", { className: "menu-item danger", role: "menuitem", onClick: choose(onSignOut) },
         React.createElement(Icon, { name: "external", size: 18 }), "Sign out")
     );
   }
 
-  export { NotifPanel, AccountPanel };
+  // Club-mode chip menu (OrgShell) for a STUDENT who runs clubs — org-email
+  // accounts keep the bare sign-out chip. Switch between the clubs they own,
+  // start another, or go back to the student board. Same popover chrome as
+  // AccountPanel; NestedApp's outside-click / Escape effect closes it.
+  function ClubPanel({ open, org, others = [], onSwitch, onStartClub, onLeave, onSignOut, onClose }) {
+    if (!open || !org) return null;
+    const choose = (fn) => () => { onClose && onClose(); if (fn) fn(); };
+
+    return React.createElement("div", { className: "hdr-menu acct-menu", role: "menu" },
+      React.createElement("div", { className: "menu-id" },
+        React.createElement(Av, { name: org.name, img: org.logo || null }),
+        React.createElement("div", { className: "menu-id-txt" },
+          React.createElement("b", null, org.name),
+          React.createElement("small", null, org.verified ? "verified org · you run this" : "student-run · you run this")
+        )
+      ),
+      React.createElement("div", { className: "menu-div" }),
+      others.map((o) => React.createElement("button", {
+        key: o.id, className: "menu-item", role: "menuitem", onClick: choose(() => onSwitch && onSwitch(o.id)),
+      }, React.createElement(Icon, { name: "flag", size: 18 }), "Switch to " + o.name)),
+      others.length + 1 < MAX_STUDENT_CLUBS && React.createElement("button", { className: "menu-item", role: "menuitem", onClick: choose(onStartClub) },
+        React.createElement(Icon, { name: "plus", size: 18 }), "Start another club"),
+      React.createElement("div", { className: "menu-div" }),
+      React.createElement("button", { className: "menu-item", role: "menuitem", onClick: choose(onLeave) },
+        React.createElement(Icon, { name: "arrowLeft", size: 18 }), "Back to student mode"),
+      React.createElement("div", { className: "menu-div" }),
+      React.createElement("button", { className: "menu-item danger", role: "menuitem", onClick: choose(onSignOut) },
+        React.createElement(Icon, { name: "external", size: 18 }), "Sign out")
+    );
+  }
+
+  export { NotifPanel, AccountPanel, ClubPanel };

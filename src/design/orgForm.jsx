@@ -27,13 +27,19 @@ import { QuestionBuilder, questionIssues, normalizeQuestions } from './eventRsvp
   };
 
   // Step-3 preview / aside mirror — the shared org flyer rendered with the
-  // in-progress draft (always "pending", since this only shows pre-creation).
-  function OrgPreview({ name, type, uni, bio }) {
-    return React.createElement(OrgMini, { name, type, uni, bio, verified: false });
+  // in-progress draft (never verified, since this only shows pre-creation;
+  // a student-founded club previews with its student-run label).
+  function OrgPreview({ name, type, uni, bio, studentRun }) {
+    return React.createElement(OrgMini, { name, type, uni, bio, verified: false, studentRun: !!studentRun });
   }
 
+  // variant: "org" (the org-email onboarding + edit) | "student" (a student
+  // founding a club from inside the student app — type locked to "club",
+  // the type chips hidden, campus prefilled from their profile, and the
+  // copy says "live right away" because the DB stamps student_run).
   function OrgForm({
     mode = "create",
+    variant = "org",
     initialValues,
     profile,
     aside,
@@ -42,7 +48,8 @@ import { QuestionBuilder, questionIssues, normalizeQuestions } from './eventRsvp
     onCancel,
     extraFooter,
   }) {
-    const init = { ...EMPTY_VALUES, ...(initialValues || {}) };
+    const student = variant === "student";
+    const init = { ...EMPTY_VALUES, ...(initialValues || {}), ...(student ? { type: "club" } : {}) };
 
     const [step, setStep] = useState(0);
     const [name, setName] = useState(init.name);
@@ -115,15 +122,17 @@ import { QuestionBuilder, questionIssues, normalizeQuestions } from './eventRsvp
       body = (
         React.createElement("div", { className: "fade-up", key: "o0" },
           React.createElement("span", { className: "onb-kicker" }, "Step 1 · Identity"),
-          React.createElement("h1", null, "Name your org."),
-          React.createElement("p", { className: "desc" }, "What students will see at the top of your page — and the kind of org you are."),
+          React.createElement("h1", null, student ? "Name your club." : "Name your org."),
+          React.createElement("p", { className: "desc" }, student
+            ? "What students will see at the top of your club's page — and which campus it calls home."
+            : "What students will see at the top of your page — and the kind of org you are."),
 
           React.createElement("div", { className: "field" },
-            React.createElement("label", null, "Organization name"),
+            React.createElement("label", null, student ? "Club name" : "Organization name"),
             React.createElement("div", { className: "input-wrap" + (name && name.trim() ? " good" : "") },
               React.createElement(Icon, { name: "flag", size: 17 }),
               React.createElement("input", {
-                placeholder: "NYU AI Collective",
+                placeholder: student ? "Tandon Robotics Club" : "NYU AI Collective",
                 value: name,
                 maxLength: 50,
                 autoFocus: true,
@@ -132,7 +141,7 @@ import { QuestionBuilder, questionIssues, normalizeQuestions } from './eventRsvp
             )
           ),
 
-          React.createElement("div", { className: "field", style: { marginTop: 22 } },
+          !student && React.createElement("div", { className: "field", style: { marginTop: 22 } },
             React.createElement("label", null, "What kind of org?"),
             React.createElement("div", { className: "chips-grid" },
               ORG_TYPES.map((t) => {
@@ -243,21 +252,25 @@ import { QuestionBuilder, questionIssues, normalizeQuestions } from './eventRsvp
     } else {
       body = (
         React.createElement("div", { className: "fade-up", key: "o2" },
-          React.createElement("span", { className: "onb-kicker" }, editable ? "Step 4 · Save it" : "Step 4 · Pin it"),
-          React.createElement("h1", null, editable ? "Ready to save?" : "Ready to go up?"),
+          React.createElement("span", { className: "onb-kicker" }, editable ? "Step 4 · Save it" : student ? "Step 4 · Start it" : "Step 4 · Pin it"),
+          React.createElement("h1", null, editable ? "Ready to save?" : student ? "Ready to open the doors?" : "Ready to go up?"),
           React.createElement("p", { className: "desc" }, editable
             ? "Here's your org page. Save your changes — you can keep editing later."
-            : "Here's your org page. It goes up right away; the .edu stamp lands once we verify you (usually within a day)."),
+            : student
+              ? "Here's your club's page. It goes live the moment you pin it, labeled student-run — students can follow, join and RSVP right away."
+              : "Here's your org page. It goes up right away; the .edu stamp lands once we verify you (usually within a day)."),
 
           React.createElement("div", { className: "create-preview-wrap" },
-            React.createElement(OrgPreview, { name, type, uni, bio })
+            React.createElement(OrgPreview, { name, type, uni, bio, studentRun: student })
           ),
 
           React.createElement("div", { className: "verify-note" },
             React.createElement(Stamp, { size: 52, label: "ORG" }),
             React.createElement("div", null,
               React.createElement("b", null, "About the .edu stamp"),
-              React.createElement("p", null, "Verified orgs get the rubber stamp on their page and rank higher in Events. New orgs are live immediately and reviewed shortly after.")
+              React.createElement("p", null, student
+                ? "Official orgs with an org email carry the .edu stamp; a student-run club can apply for it later. Either way your page is on the board today."
+                : "Verified orgs get the rubber stamp on their page and rank higher in Events. New orgs are live immediately and reviewed shortly after.")
             )
           )
         )

@@ -366,3 +366,7 @@
     ownerToken, isProjectAdmin, isProjectOwner, projectAdminSet, coLeadsOf,
     STATUSES, STATUS, statusMeta, DEFAULT_STATUS,
   };
+
+// How many student-run clubs one student may found (mirrors the
+// org_student_run_guard trigger cap in migration 20260903000000).
+export const MAX_STUDENT_CLUBS = 5;

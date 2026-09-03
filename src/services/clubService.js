@@ -84,13 +84,14 @@ export const clubService = {
 
   /**
    * Clubs a student belongs to (accepted only), with the org for the
-   * profile's "Clubs" line: [{ id, slug, name, logo }]. Public read.
+   * profile's "Clubs" line: [{ id, slug, name, logo, verified, student_run,
+   * owner_user_id }] (the flags drive the tick / "student-run" mark). Public read.
    */
   async getMembershipsOf(userId) {
     if (!isSupabaseConfigured()) return { data: [], error: notConfigured }
     const { data, error } = await supabase
       .from('org_memberships')
-      .select('org:organizations(id, slug, name, logo)')
+      .select('org:organizations(id, slug, name, logo, verified, student_run, owner_user_id)')
       .eq('user_id', userId)
       .eq('status', 'accepted')
     const orgs = (data || []).map((r) => r.org).filter((o) => o && o.id)

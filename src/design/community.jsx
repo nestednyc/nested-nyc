@@ -14,7 +14,7 @@
    ============================================================ */
 import React from 'react'
 import Icon from './icons'
-import { CAT, UNI, ETYPE, isProjectAdmin } from './data'
+import { CAT, UNI, ETYPE, isProjectAdmin, MAX_STUDENT_CLUBS } from './data'
 import { Av, Skeleton, ConfirmModal, formatEventDate } from './shared'
 import { POST_BODY_MAX, POST_IMAGES_MAX } from '../services/communityService'
 import { postTimeAgo } from './postAdapter'
@@ -344,7 +344,8 @@ import { JoinPill } from './clubJoin'
               ? React.createElement("span", { className: "nm" },
                   React.createElement("button", { className: "com-namebtn", onClick: openOrg, type: "button" }, org.name),
                   org.verified && React.createElement("span", { className: "com-org-tick", role: "img", "aria-label": "Verified org", title: "Verified .edu org" },
-                    React.createElement(Icon, { name: "check", size: 10, stroke: "var(--paper)", width: 3 })))
+                    React.createElement(Icon, { name: "check", size: 10, stroke: "var(--paper)", width: 3 })),
+                  !org.verified && org.studentRun && React.createElement("span", { className: "com-student-chip", title: "Student-run club" }, "student-run"))
               : React.createElement("span", { className: "nm" },
                   React.createElement("button", { className: "com-namebtn", onClick: () => p.authorHandle && onOpenPerson && onOpenPerson(p.authorHandle), type: "button" }, p.author),
                   p.isFirst && React.createElement("span", { className: "com-new-chip", title: "Their first post on the board" },
@@ -446,7 +447,9 @@ import { JoinPill } from './clubJoin'
   // The going-count = the server's count, minus me if it already had me
   // (e.iWasGoing, from the query), plus me if I'm going now — exact whatever
   // order the RSVP set hydrates in.
-  function EventCard({ e, going, viewerIsStudent, followed, onRsvp, onOpenEvent, onOpenOrg, onToggleFollow }) {
+  // `hosting`: the viewer runs the club that pinned it — no Follow / RSVP
+  // pills (the server refuses a host's RSVP), just "you're hosting".
+  function EventCard({ e, going, viewerIsStudent, followed, hosting, onRsvp, onOpenEvent, onOpenOrg, onToggleFollow }) {
     const { mon, day, weekday } = formatEventDate(e.date);
     const ty = ETYPE[e.type] || ETYPE.talk;
     const org = e.org;
@@ -468,11 +471,12 @@ import { JoinPill } from './clubJoin'
                 ? React.createElement("button", { className: "com-namebtn", onClick: openOrg, type: "button" }, org.name)
                 : React.createElement("b", null, e.orgName),
               org && org.verified && React.createElement("span", { className: "com-org-tick", role: "img", "aria-label": "Verified org", title: "Verified .edu org" },
-                React.createElement(Icon, { name: "check", size: 10, stroke: "var(--paper)", width: 3 }))),
+                React.createElement(Icon, { name: "check", size: 10, stroke: "var(--paper)", width: 3 })),
+              org && !org.verified && org.studentRun && React.createElement("span", { className: "com-student-chip", title: "Student-run club" }, "student-run")),
             React.createElement("span", { className: "com-meta" },
               (e.uni && UNI[e.uni] ? UNI[e.uni].name + " · " : "") + "pinned an event " + postTimeAgo(e.at))
           ),
-          org && viewerIsStudent && React.createElement(FollowPill, { on: followed, onClick: () => onToggleFollow(org.id) })
+          org && viewerIsStudent && !hosting && React.createElement(FollowPill, { on: followed, onClick: () => onToggleFollow(org.id) })
         ),
         React.createElement("div", { className: "com-ev" },
           React.createElement("button", { className: "com-ev-date", onClick: () => onOpenEvent(e.id), type: "button", "aria-label": "Open event" },
@@ -493,7 +497,8 @@ import { JoinPill } from './clubJoin'
         ),
         React.createElement("footer", { className: "com-actions com-ev-foot" },
           React.createElement("span", { className: "com-meta" }, (shown === 1 ? "1 going" : shown + " going") + (asks && !going ? " · " + asks + (asks === 1 ? " question" : " questions") : "")),
-          viewerIsStudent && React.createElement("button", {
+          viewerIsStudent && hosting && React.createElement("span", { className: "com-meta" }, "you're hosting"),
+          viewerIsStudent && !hosting && React.createElement("button", {
             className: "rsvp com-rsvp" + (going ? " on" : ""),
             onClick: () => onRsvp(e), type: "button",
           }, going
@@ -528,10 +533,26 @@ import { JoinPill } from './clubJoin'
   // The viewer's own footholds on the board: projects they can post about
   // (one click → the composer pre-tagged), events they're going to, orgs they
   // follow. Nothing here duplicates the top nav or filters the feed.
-  function YourCorner({ myProjects, going, followedOrgs, onPostAbout, onOpenProject, onOpenEvent, onOpenOrg, onStart }) {
+  function YourCorner({ myProjects, going, followedOrgs, ownedOrgs = [], onPostAbout, onOpenProject, onOpenEvent, onOpenOrg, onStart, onManageClub, onStartClub }) {
     const nothing = !myProjects.length && !going.length && !followedOrgs.length;
     return (
       React.createElement("aside", { className: "com-left", "aria-label": "Your corner" },
+        // The clubs this student runs — one tap into club mode — and the door
+        // to found one. Always rendered: it IS the entry point.
+        React.createElement("div", { className: "com-rail-card" },
+          React.createElement("h4", null, "Your clubs"),
+          ownedOrgs.length === 0
+            ? React.createElement("p", null, "Run a club? Put it on the board — it's live the moment you pin it.")
+            : ownedOrgs.slice(0, MAX_STUDENT_CLUBS).map((o) => React.createElement("button", { key: o.id, className: "yc-org", type: "button", title: "Manage " + o.name, onClick: () => onManageClub && onManageClub(o.id) },
+                React.createElement(Av, { name: o.name, img: o.logo || null }),
+                React.createElement("span", { className: "who" },
+                  React.createElement("b", null, o.name),
+                  React.createElement("small", null, (o.verified ? "verified" : "student-run") + " · manage →")))),
+          ownedOrgs.length < MAX_STUDENT_CLUBS
+            ? React.createElement("button", { className: "btn btn-ghost btn-sm", style: { marginTop: 8 }, onClick: onStartClub },
+                React.createElement(Icon, { name: "flag", size: 14 }), ownedOrgs.length ? "Start another club" : "Start a club")
+            : React.createElement("p", { className: "yc-hint", style: { marginTop: 8 } }, "// " + MAX_STUDENT_CLUBS + " clubs is the limit")
+        ),
         React.createElement("div", { className: "com-rail-card" },
           React.createElement("h4", null, "Your projects"),
           myProjects.length === 0
@@ -572,7 +593,7 @@ import { JoinPill } from './clubJoin'
   }
 
   // ── The club in the spotlight — pinned above the feed ─────────────
-  function SpotlightCard({ spot, followed, membership, viewerIsStudent, onToggleFollow, onJoin, onOpenOrg }) {
+  function SpotlightCard({ spot, followed, membership, viewerIsStudent, hosting, onToggleFollow, onJoin, onOpenOrg }) {
     const org = spot.org;
     const post = spot.post;
     const uniObj = org.uni && UNI[org.uni] ? UNI[org.uni] : null;
@@ -587,10 +608,12 @@ import { JoinPill } from './clubJoin'
             React.createElement("span", { className: "nm" },
               React.createElement("button", { className: "com-namebtn com-spot-name", onClick: openOrg, type: "button" }, org.name),
               org.verified && React.createElement("span", { className: "com-org-tick", role: "img", "aria-label": "Verified org", title: "Verified .edu org" },
-                React.createElement(Icon, { name: "check", size: 10, stroke: "var(--paper)", width: 3 }))),
+                React.createElement(Icon, { name: "check", size: 10, stroke: "var(--paper)", width: 3 })),
+              !org.verified && org.studentRun && React.createElement("span", { className: "com-student-chip", title: "Student-run club" }, "student-run")),
             React.createElement("span", { className: "com-meta" }, [uniObj && uniObj.name, org.location].filter(Boolean).join(" · ") || "NYC")
           ),
-          viewerIsStudent && React.createElement("span", { className: "com-pills" },
+          viewerIsStudent && hosting && React.createElement("span", { className: "com-meta" }, "your club"),
+          viewerIsStudent && !hosting && React.createElement("span", { className: "com-pills" },
             React.createElement(FollowPill, { on: followed, onClick: () => onToggleFollow(org.id) }),
             onJoin && org.type !== "university" && React.createElement(JoinPill, { membership, onClick: () => onJoin(org) }))
         ),
@@ -674,7 +697,11 @@ import { JoinPill } from './clubJoin'
     onRequestJoin, onMessage,
     onOpenProject, onOpenOrg, onOpenPerson, onOpenPost, onStart, toast,
     composerPreset, onPresetConsumed,
+    // the clubs the viewer runs: Your corner rows + "Start a club", and
+    // no Follow / Join / RSVP pills on their own club's cards
+    ownedOrgs = [], ownedOrgIds, onManageClub, onStartClub,
   }) {
+    const ownsOrg = (id) => !!(id && ownedOrgIds && ownedOrgIds.has(id));
     const [confirmId, setConfirmId] = useState(null);
     const [reportTarget, setReportTarget] = useState(null); // { type, id }
     const meId = profile ? profile.id : (asOrg ? asOrg.owner_user_id : null);
@@ -824,9 +851,10 @@ import { JoinPill } from './clubJoin'
           viewerIsStudent && React.createElement(YourCorner, {
             myProjects,
             going: boardEvents.filter((e) => rsvpSet.has(e.id)).sort((a, b) => (a.date || "").localeCompare(b.date || "")),
-            followedOrgs,
+            followedOrgs, ownedOrgs,
             onPostAbout: (id) => onPostAbout && onPostAbout(id),
             onOpenProject, onOpenEvent, onOpenOrg, onStart,
+            onManageClub, onStartClub,
           }),
           React.createElement("div", { className: "com-main" },
             React.createElement(Composer, { identity, myProjects, posting, onCreatePost, asOrg: !!asOrg, onCreateEvent, preset: composerPreset, onPresetConsumed, onStart }),
@@ -836,6 +864,7 @@ import { JoinPill } from './clubJoin'
               membership: memberships ? memberships[spotOrgId] : undefined,
               onJoin,
               viewerIsStudent,
+              hosting: ownsOrg(spotOrgId),
               onToggleFollow, onOpenOrg,
             }),
             listLoading && React.createElement(Skeleton, { count: 3 }),
@@ -858,6 +887,7 @@ import { JoinPill } from './clubJoin'
                   going: rsvpSet.has(it.event.id),
                   viewerIsStudent,
                   followed: !!(it.event.org && followSet.has(it.event.org.id)),
+                  hosting: !!(it.event.org && ownsOrg(it.event.org.id)),
                   onRsvp, onOpenEvent, onOpenOrg, onToggleFollow,
                 })
               : React.createElement(PostCard, {
@@ -931,9 +961,11 @@ import { JoinPill } from './clubJoin'
                     React.createElement("button", { className: "com-namebtn", type: "button", onClick: () => o.slug && onOpenOrg && onOpenOrg(o.slug) }, o.name),
                     React.createElement("small", null, o.uni ? o.uni.name : "NYC")
                   ),
-                  React.createElement("span", { className: "com-pills" },
-                    React.createElement(FollowPill, { on: followSet.has(o.id), onClick: () => onToggleFollow(o.id), small: true }),
-                    onJoin && React.createElement(JoinPill, { membership: memberships ? memberships[o.id] : undefined, onClick: () => onJoin(o), small: true }))
+                  ownsOrg(o.id)
+                    ? React.createElement("span", { className: "com-meta" }, "yours")
+                    : React.createElement("span", { className: "com-pills" },
+                        React.createElement(FollowPill, { on: followSet.has(o.id), onClick: () => onToggleFollow(o.id), small: true }),
+                        onJoin && React.createElement(JoinPill, { membership: memberships ? memberships[o.id] : undefined, onClick: () => onJoin(o), small: true }))
                 )
               ))
             ),

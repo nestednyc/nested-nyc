@@ -7,8 +7,9 @@
    clubJoinRequest, newConnection, newMessage) take an optional
    `avatarUrl` (profiles.avatar — null is fine): a Supabase-storage
    public URL renders as the photo, anything else falls back to a
-   self-contained initials disc (no image request). clubJoinAccepted,
-   newReport, newOrg, weeklyDigest, orgVerified render without one.
+   self-contained initials disc (no image request). newOrg renders the
+   founder row (with one) only for a student-run club; clubJoinAccepted,
+   newReport, weeklyDigest, orgVerified render without one.
 
    Look: brand red-orange band (ivory block mark + wordmark + mono
    eyebrow) over a white card with a red-ring avatar identity row,
@@ -272,7 +273,9 @@ export const emails = {
   }),
 
   // → club owner: a student applied to join their club
-  clubJoinRequest: ({ applicantName, school, clubName, avatarUrl, unsubUrl }) => ({
+  // ?club=<slug> makes the dashboard open THIS club for a student who runs
+  // several (useSession reads it at hydration); harmless for org accounts.
+  clubJoinRequest: ({ applicantName, school, clubName, clubSlug, avatarUrl, unsubUrl }) => ({
     subject: `${applicantName} wants to join ${clubName}`,
     html: renderEmail({
       preheader: `${applicantName} applied to join ${clubName}`,
@@ -281,7 +284,7 @@ export const emails = {
       body: `${applicantName}${school ? ` from ${school}` : ""} tapped Join on your page and answered your questions. Take a look and bring them onto the roster if it's a fit.`,
       actor: { name: applicantName, avatarUrl, meta: school || "student" },
       ctaLabel: "Review applications",
-      ctaUrl: url("/dashboard/members"),
+      ctaUrl: url("/dashboard/members" + (clubSlug ? `?club=${encodeURIComponent(clubSlug)}` : "")),
       footerNote: "You're getting this because you run an org on Nested.",
       unsubUrl,
     }),
@@ -353,21 +356,51 @@ export const emails = {
     };
   },
 
-  // → the founders (ADMIN_RECIPIENTS): a new org signed up and is waiting for verification
-  newOrg: ({ name, type, slug, location, bio, ownerEmail, school }) => ({
-    subject: `New org waiting for review: ${name}`,
-    html: renderEmail({
-      preheader: `${name} signed up on Nested`,
-      eyebrow: "new org",
-      heading: `${name} signed up`,
-      body: `A new ${type || "org"}${school ? ` at ${school}` : ""}${location ? ` (${location})` : ""} just created its page${ownerEmail ? ` — owner ${ownerEmail}` : ""}. It stays invisible until verified. To approve it, run as service role: update public.organizations set verified = true where slug = '${slug}';`,
-      note: bio,
-      ctaLabel: "Open its page",
-      ctaUrl: url(`/org/${encodeURIComponent(slug || "")}`),
-      footerNote: "Internal alert — this address is on ADMIN_RECIPIENTS for Nested. The page 404s for everyone but the owner until the org is verified.",
-      unsubUrl: null,
-    }),
-  }),
+  // → the founders (ADMIN_RECIPIENTS): a new org signed up. An org-email signup
+  // waits for verification; a student-run club (studentRun + founder, migration
+  // 20260903000000) is already live and labeled student-run — same alert, other
+  // branch: it shows the founder and the optional tick / takedown SQL.
+  newOrg: ({ name, type, slug, location, bio, ownerEmail, school, studentRun, founder }) => {
+    const where = `${school ? ` at ${school}` : ""}${location ? ` (${location})` : ""}`;
+    if (studentRun) {
+      const f = founder || {};
+      // personLabel already yields "@handle" when there is one — only add the
+      // handle when the name is the real name.
+      const parts = [f.handle && f.name !== "@" + f.handle ? "@" + f.handle : "", f.school].filter(Boolean);
+      const who = (f.name || "a student") + (parts.length ? ` (${parts.join(", ")})` : "");
+      return {
+        subject: `New student-run club is live: ${name}`,
+        html: renderEmail({
+          preheader: `${name} — a student-run club — is live on Nested`,
+          eyebrow: "student-run club",
+          heading: `${name} is live`,
+          body: `A new student-run club${where} just created its page. It is already public and labeled student-run (no verified tick). Founded by ${who}${ownerEmail ? ` — account ${ownerEmail}` : ""}. To give it the tick, run as service role: update public.organizations set verified = true where slug = '${slug}'; To take it down: delete from public.organizations where slug = '${slug}';`,
+          actor: f.name
+            ? { name: f.name, avatarUrl: f.avatarUrl, meta: ["student founder", f.school].filter(Boolean).join(" · ") }
+            : undefined,
+          note: bio,
+          ctaLabel: "Open its page",
+          ctaUrl: url(`/org/${encodeURIComponent(slug || "")}`),
+          footerNote: "Internal alert — this address is on ADMIN_RECIPIENTS for Nested. Student-run clubs go live without review; verifying one only adds the tick.",
+          unsubUrl: null,
+        }),
+      };
+    }
+    return {
+      subject: `New org waiting for review: ${name}`,
+      html: renderEmail({
+        preheader: `${name} signed up on Nested`,
+        eyebrow: "new org",
+        heading: `${name} signed up`,
+        body: `A new ${type || "org"}${where} just created its page${ownerEmail ? ` — owner ${ownerEmail}` : ""}. It stays invisible until verified. To approve it, run as service role: update public.organizations set verified = true where slug = '${slug}';`,
+        note: bio,
+        ctaLabel: "Open its page",
+        ctaUrl: url(`/org/${encodeURIComponent(slug || "")}`),
+        footerNote: "Internal alert — this address is on ADMIN_RECIPIENTS for Nested. The page 404s for everyone but the owner until the org is verified.",
+        unsubUrl: null,
+      }),
+    };
+  },
 
   // → every student who hasn't opted out: the week on the board, school first
   weeklyDigest: ({ firstName, school, posts, events, flyers, unsubUrl, digestUnsubUrl }) => ({
@@ -393,15 +426,15 @@ export const emails = {
   }),
 
   // → org owner: their organization was verified
-  orgVerified: ({ orgName, unsubUrl }) => ({
+  orgVerified: ({ orgName, orgSlug, unsubUrl }) => ({
     subject: `${orgName} is verified on Nested`,
     html: renderEmail({
       preheader: `${orgName} is verified on Nested`,
       eyebrow: "you're verified",
       heading: `${orgName} is verified on Nested`,
-      body: `Your organization is verified. You can now post events to the Nested board and reach students across NYC.`,
+      body: `Your organization now carries the verified tick on Nested. Post events to the board and reach students across NYC.`,
       ctaLabel: "Post your first event",
-      ctaUrl: url(`/dashboard/events/new`),
+      ctaUrl: url("/dashboard/events/new" + (orgSlug ? `?club=${encodeURIComponent(orgSlug)}` : "")),
       footerNote: "You're getting this because you manage an org on Nested.",
       unsubUrl,
     }),

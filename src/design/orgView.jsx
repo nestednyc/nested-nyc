@@ -13,6 +13,8 @@ import { communityService } from '../services/communityService'
 import { fromDbPost } from './postAdapter'
 import { formatEventDate, ConfirmModal } from './shared'
 import { clubService } from '../services/clubService'
+import { profileService } from '../services/profileService'
+import { bareHandle, fullNameOf } from './data'
 import { SHOW_EVENTS } from '../config/features'
 
   const { useState, useEffect, useRef } = React;
@@ -32,9 +34,13 @@ import { SHOW_EVENTS } from '../config/features'
     };
   }
 
+  // `onManage`: passed for the founder's own student-run club — the page
+  // swaps Join / Follow for a single "Manage club" CTA.
   function OrgView({ slug, profile, follows, followsLoaded, canFollow = true, onToggleFollow, onBack, onOpenEvent, onToast,
-                     memberships, canJoin = false, onJoin, onLeave, onOpenPerson }) {
+                     memberships, canJoin = false, onJoin, onLeave, onOpenPerson, onManage }) {
     const [org, setOrg] = useState(null);
+    // Who founded a student-run club ({ handle, name, uni }); null otherwise.
+    const [founder, setFounder] = useState(null);
     const [events, setEvents] = useState([]);
     const [posts, setPosts] = useState([]);
     const [followerCount, setFollowerCount] = useState(null);
@@ -70,16 +76,23 @@ import { SHOW_EVENTS } from '../config/features'
         if (cancelled) return;
         setOrg(enriched);
         const joinable = orgRow.type !== "university";
-        const [{ data: evs }, { data: n }, { data: rows }, { data: roster }, { data: mc }] = await Promise.all([
+        // A student-founded club names its founder ("Founded by @handle") —
+        // public_profiles is anon-readable, so guests get the line too.
+        const founderId = orgRow.student_run && orgRow.owner_user_id ? orgRow.owner_user_id : null;
+        const [{ data: evs }, { data: n }, { data: rows }, { data: roster }, { data: mc }, { data: founderRow }] = await Promise.all([
           orgService.getOrgEvents(orgRow.id),
           communityService.getOrgFollowerCount(orgRow.id),
           // Board posts are signed-in-only (RLS) — guests just don't get the section.
           profile ? communityService.getOrgPosts(orgRow.id, { limit: 6 }) : Promise.resolve({ data: [] }),
           joinable ? clubService.getOrgMembers(orgRow.id) : Promise.resolve({ data: [] }),
           joinable ? clubService.getOrgMemberCount(orgRow.id) : Promise.resolve({ data: null }),
+          founderId ? profileService.getPublicProfile(founderId) : Promise.resolve({ data: null }),
         ]);
         if (cancelled) return;
         setEvents((evs || []).map(adaptEventForRow));
+        setFounder(founderRow && founderRow.username
+          ? { handle: bareHandle(founderRow.username), name: fullNameOf(founderRow.first_name, founderRow.last_name), uni: founderRow.university || null }
+          : null);
         setFollowerCount(typeof n === "number" ? n : 0);
         setMembers(roster || []);
         setMemberCount(joinable ? (typeof mc === "number" ? mc : 0) : null);
@@ -148,6 +161,8 @@ import { SHOW_EVENTS } from '../config/features'
         members,
         memberCount,
         onOpenPerson,
+        founder,
+        onManage,
       }),
       confirmLeave && React.createElement(ConfirmModal, {
         accent: "var(--c-startup)",

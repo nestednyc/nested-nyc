@@ -14,7 +14,8 @@ notifications today:
 | `reports` INSERT | Community report (internal) | `REPORT_RECIPIENTS` |
 | `org_memberships` INSERT (status `pending`, or a rejected row re-applied) | Club application | The org owner |
 | `org_memberships` UPDATE (`pending` → `accepted`) | You're in (club) | The applicant |
-| `organizations` INSERT (club / community) | New org waiting for review (internal) | `ADMIN_RECIPIENTS` (falls back to `REPORT_RECIPIENTS`) |
+| `organizations` INSERT (club / community from an org-email account) | New org waiting for review (internal) | `ADMIN_RECIPIENTS` (falls back to `REPORT_RECIPIENTS`) |
+| `organizations` INSERT with `student_run = true` (a student founded a club — live at once, no tick; migration `20260903000000`) | New student-run club is live (internal; founder + optional tick / takedown SQL) | `ADMIN_RECIPIENTS` (falls back to `REPORT_RECIPIENTS`) |
 
 And the **weekly digest** — `api/digest.js`, run by Vercel Cron every Monday
 14:00 UTC (`vercel.json` → `crons`). See §5.
@@ -114,7 +115,7 @@ create trigger notify_connections
     '{}', '5000');
 
 create trigger notify_organizations
-  after update on public.organizations
+  after insert or update on public.organizations
   for each row execute function supabase_functions.http_request(
     'https://www.nested.social/api/notify', 'POST',
     '{"Content-Type":"application/json","x-webhook-secret":"<WEBHOOK_SECRET>"}',

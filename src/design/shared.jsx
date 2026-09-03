@@ -165,12 +165,23 @@ import { SHOW_EVENTS } from '../config/features'
     );
   }
 
+  // "Student-run" label — what a student-founded club wears instead of the
+  // verified tick (organizations.student_run; the tick wins once an admin
+  // verifies it). One primitive, sized by class: `student-tag` beside an org
+  // name (org cards, the org page headline), `com-student-chip` on board
+  // cards, `owner-chip student-chip` in the OrgMini flyer foot.
+  function StudentTag({ className = "student-tag", size = 11 }) {
+    return React.createElement("span", { className, title: "Student-run club" },
+      React.createElement(Icon, { name: "flag", size, stroke: "currentColor", width: 2.2 }), "Student-run");
+  }
+
   // Compact org "flyer" — a taped paper card (cork-board vocabulary). The single
   // source for the org's small representation: the signup-form live preview AND
   // the dashboard's "your public flyer" echo both render this, so they can't
   // drift. Glyph is the campus mark (UniLogo) when the org's `uni` slug resolves,
-  // else the initials avatar. Foot shows the verified/pending state.
-  function OrgMini({ name, type, uni, bio, verified }) {
+  // else the initials avatar. Foot shows the verified / student-run / pending
+  // state (verified wins when both flags are set).
+  function OrgMini({ name, type, uni, bio, verified, studentRun }) {
     const uniObj = uni && UNI[uni] ? UNI[uni] : null;
     const typeLabel = type ? ((ORG_TYPES.find((t) => t.id === type) || {}).label || "Organization") : "Organization";
     const sub = [typeLabel, uniObj && uniObj.name].filter(Boolean).join(" · ");
@@ -190,7 +201,9 @@ import { SHOW_EVENTS } from '../config/features'
         React.createElement("div", { className: "org-mini-foot" },
           verified
             ? React.createElement("span", { className: "owner-chip" }, React.createElement(Icon, { name: "check", size: 12, stroke: "var(--accent)", width: 2.4 }), "Verified")
-            : React.createElement("span", { className: "pending-chip" }, React.createElement(Icon, { name: "clock", size: 12, stroke: "currentColor" }), "Pending .edu review")
+            : studentRun
+              ? React.createElement(StudentTag, { className: "owner-chip student-chip", size: 12 })
+              : React.createElement("span", { className: "pending-chip" }, React.createElement(Icon, { name: "clock", size: 12, stroke: "currentColor" }), "Pending .edu review")
         )
       )
     );
@@ -418,7 +431,7 @@ import { SHOW_EVENTS } from '../config/features'
     );
   }
 
-  export { Av, Facepile, CatTag, Pin, Stamp, Toasts, UniLogo, formatEventDate, Skeleton, CodeBoxes, ConfirmModal, OrgMini, Polaroid, resizePhoto, LINK_KINDS, LinkRows, linkRowsFrom };
+  export { Av, Facepile, CatTag, Pin, Stamp, Toasts, UniLogo, formatEventDate, Skeleton, CodeBoxes, ConfirmModal, OrgMini, StudentTag, Polaroid, resizePhoto, LINK_KINDS, LinkRows, linkRowsFrom };
 
   // Top-bar tabs — shared by NestedApp's goNav, the StudentShell topbar,
   // and SoonPane's icon lookup.

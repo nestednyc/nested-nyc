@@ -173,6 +173,10 @@ import { storageService } from '../services/storageService'
 
     return React.createElement(OrgForm, {
       mode: 'edit',
+      // A student-run club keeps its type (the org_lock_verified trigger pins
+      // it silently) — hide the type chips so the founder isn't offered a
+      // change that can't take. Once verified it edits like any org.
+      variant: org && org.student_run && !org.verified ? 'student' : 'org',
       initialValues,
       aside: buildEditAside({ onCancel }),
       ctaCopy: { primary: submitting ? 'Saving…' : 'Save changes', icon: 'check' },

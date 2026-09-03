@@ -117,7 +117,7 @@ export default async function handler(req, res) {
         .limit(200),
       admin
         .from("events")
-        .select("id, title, date, time, location, organization:organizations(name, verified, type, slug, university_id)")
+        .select("id, title, date, time, location, organization:organizations(name, verified, student_run, type, slug, university_id)")
         .gte("date", today)
         .lte("date", plus7)
         .order("date", { ascending: true })
@@ -138,7 +138,8 @@ export default async function handler(req, res) {
     const events = eventsRes.data || [];
     const flyers = flyersRes.data || [];
     const unis = unisRes.data || [];
-    const okEvents = (events || []).filter((e) => !e.organization || e.organization.verified);
+    // Live hosts only: verified orgs and student-run clubs (live without a tick).
+    const okEvents = (events || []).filter((e) => !e.organization || e.organization.verified || e.organization.student_run);
     if (!(posts || []).length && !okEvents.length && !(flyers || []).length) {
       return res.status(200).json({ skipped: "quiet week", weekStart });
     }

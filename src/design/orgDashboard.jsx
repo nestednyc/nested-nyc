@@ -49,7 +49,8 @@ import { postTimeAgo } from './postAdapter'
     const totalRsvps = events.reduce((acc, e) => acc + (e.attendees || 0), 0);
     const [tab, setTab] = useState('upcoming');
     const list = tab === 'upcoming' ? upcoming : past;
-    const canPost = !!(org && org.verified); // unverified orgs can't post until approved
+    // Pending orgs can't post until approved; a student-run club is live from day one.
+    const canPost = !!(org && (org.verified || org.student_run));
 
     if (!org) {
       return (
@@ -78,12 +79,13 @@ import { postTimeAgo } from './postAdapter'
         ),
 
         React.createElement("div", { className: "dash-panels fade-up" },
-          // Left: the owner's own flyer echo (verified) OR the pending notice.
-          org.verified
+          // Left: the owner's own flyer echo (verified, or a live student-run club)
+          // OR the pending notice.
+          (org.verified || org.student_run)
             ? React.createElement("div", { className: "dash-panel" },
                 React.createElement("div", { className: "panel-h" }, "Your public flyer"),
-                React.createElement(OrgMini, { name: org.name, type: org.type, uni: org.uni, bio: org.bio, verified: true }),
-                React.createElement("p", { className: "echo-note" }, "↳ this is what students see")
+                React.createElement(OrgMini, { name: org.name, type: org.type, uni: org.uni, bio: org.bio, verified: !!org.verified, studentRun: !!org.student_run }),
+                React.createElement("p", { className: "echo-note" }, org.verified ? "↳ this is what students see" : "↳ live as a student-run club · this is what students see")
               )
             : React.createElement("div", { className: "dash-panel pending" },
                 React.createElement("div", { className: "panel-h" }, "Pending review"),

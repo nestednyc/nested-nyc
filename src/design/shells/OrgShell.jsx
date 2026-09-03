@@ -10,6 +10,7 @@ import React from 'react'
 import Icon from '../icons'
 import { Av, Toasts } from '../shared'
 import { StyleTweaks } from '../tweaks-panel'
+import { ClubPanel } from '../headerMenus'
 import OrgDashboard from '../orgDashboard'
 import EventDetail from '../eventDetail'
 import Community from '../community'
@@ -20,6 +21,8 @@ export default function OrgShell({ api }) {
   const {
     t, setTweak, toasts, rootClass, rootStyle,
     route, setRoute, orgAccount, signOut,
+    // a student who runs clubs: the chip becomes a switcher (org-email accounts keep the bare chip)
+    canSwitchModes, ownedOrgs, enterClubMode, leaveClubMode, acctOpen, setAcctOpen,
     orgEvents, orgEventsLoading, setEventDraftId, eventDraftId,
     eventResponses, loadEventResponses,
     eventViewId, setEventViewId,
@@ -37,7 +40,10 @@ export default function OrgShell({ api }) {
     applicants, loadApplicants, decideApplicant, pendingCount, orgMemberCount,
   } = api;
 
-      const canPost = !!(orgAccount && orgAccount.verified);
+      // Verified orgs and student-run clubs are live (post, host); an
+      // org-email account waiting on review is not.
+      const canPost = !!(orgAccount && (orgAccount.verified || orgAccount.student_run));
+      const otherClubs = canSwitchModes ? (ownedOrgs || []).filter((o) => o.id !== orgAccount.id) : [];
 
       return (
         React.createElement("div", { className: rootClass + " corkbg", style: { ...rootStyle, minHeight: "100vh" } },
@@ -58,13 +64,38 @@ export default function OrgShell({ api }) {
               }, React.createElement(Icon, { name: "board", size: 18 }), "Community")
             ),
             React.createElement("span", { className: "spacer", style: { flex: 1 } }),
-            React.createElement("button", { className: "me-chip", onClick: signOut, title: "Sign out" },
-              React.createElement(Av, { name: orgAccount.name, img: orgAccount.logo || null }),
-              React.createElement("span", { className: "who" },
-                React.createElement("b", null, orgAccount.name),
-                React.createElement("small", null, "Sign out →")
-              )
-            )
+            canSwitchModes
+              // A student running the club: the chip opens the club switcher
+              // (other clubs, start another, back to student mode, sign out).
+              ? React.createElement("div", { className: "hdr-anchor" },
+                  React.createElement("button", {
+                    className: "me-chip" + (acctOpen ? " on" : ""),
+                    onClick: () => setAcctOpen((v) => !v),
+                    "aria-haspopup": "menu", "aria-expanded": !!acctOpen, title: "Club menu",
+                  },
+                    React.createElement(Av, { name: orgAccount.name, img: orgAccount.logo || null }),
+                    React.createElement("span", { className: "who" },
+                      React.createElement("b", null, orgAccount.name),
+                      React.createElement("small", null, "Club mode · switch →")
+                    )
+                  ),
+                  React.createElement(ClubPanel, {
+                    open: acctOpen, org: orgAccount, others: otherClubs,
+                    onSwitch: (id) => enterClubMode(id),
+                    onStartClub: () => { setRoute("clubFound"); window.scrollTo({ top: 0 }); },
+                    onLeave: leaveClubMode,
+                    onSignOut: signOut,
+                    onClose: () => setAcctOpen(false),
+                  })
+                )
+              // An org-email account: the chip IS the sign-out button (unchanged).
+              : React.createElement("button", { className: "me-chip", onClick: signOut, title: "Sign out" },
+                  React.createElement(Av, { name: orgAccount.name, img: orgAccount.logo || null }),
+                  React.createElement("span", { className: "who" },
+                    React.createElement("b", null, orgAccount.name),
+                    React.createElement("small", null, "Sign out →")
+                  )
+                )
           ),
 
           route === "orgDashboard" && React.createElement(OrgDashboard, {
@@ -97,7 +128,11 @@ export default function OrgShell({ api }) {
             boardEvents, spotlight,
             reported, onReport: reportContent,
             rsvped,
-            onOpenEvent: (id) => openEventDetail(id, "community"),
+            // A student who runs clubs opens events as a STUDENT (the org-side
+            // event page has no RSVP identity, questions sheet or "you're
+            // hosting" for them; Back lands on the student board). An org-email
+            // account stays on this side ("orgCommunity" keeps club mode).
+            onOpenEvent: (id) => openEventDetail(id, canSwitchModes ? "community" : "orgCommunity"),
             onCreateEvent: () => { setRoute("eventCreate"); window.scrollTo({ top: 0 }); },
             follows, orgFollowerCount,
             postLikes, postSaves, postComments, posting,
@@ -146,7 +181,7 @@ export default function OrgShell({ api }) {
             profile,
             rsvped,
             orgAccount,
-            onBack: () => { setEventViewId(null); setRoute(eventViewFrom === "community" ? "orgCommunity" : "orgDashboard"); },
+            onBack: () => { setEventViewId(null); setRoute(eventViewFrom === "orgCommunity" || eventViewFrom === "community" ? "orgCommunity" : "orgDashboard"); },
             onRSVP: toggleRsvp,
             onOpenOrg: openOrgView,
             onEditEvent: (id) => { setEventDraftId(id); setEventViewId(null); setRoute("eventEdit"); window.scrollTo({ top: 0 }); },

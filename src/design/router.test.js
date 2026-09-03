@@ -120,3 +120,27 @@ test('event RSVP responses route (org) round-trips', () => {
   assert.equal(accessOf('orgMembers'), 'org');
   assert.equal(titleFor('orgMembers'), 'Applications · Nested NYC');
 });
+
+// ---------- student-founded clubs ----------
+test('parse("/clubs/new") → clubFound: student-gated, literal-only, round-trips', () => {
+  const r = parse('/clubs/new', '');
+  assert.equal(r.route, 'clubFound');
+  assert.deepEqual(r.params, {});
+  assert.equal(parse('/clubs/new/', '').route, 'clubFound');   // trailing slash normalises
+  assert.equal(parse('/CLUBS/NEW', '').route, 'clubFound');    // typed URLs match case-insensitively
+  assert.equal(parse('/clubs', ''), null);                     // no /clubs index
+  assert.equal(parse('/clubs/abc', ''), null);                 // no /clubs/:slug — literal "new" only
+  assert.equal(build('clubFound', {}), '/clubs/new');
+  assert.equal(build(parse('/clubs/new', '').route, {}), '/clubs/new');
+  assert.equal(accessOf('clubFound'), 'student');              // a guest gets the auth wall + returnTo
+  assert.equal(titleFor('clubFound'), 'Start a club · Nested NYC');
+  assert.equal(validateNext('/clubs/new'), '/clubs/new');      // survives the signup email round-trip
+});
+
+test('club mode is route-derived: /dashboard/* is org-class, the event page and org pages stay public', () => {
+  assert.equal(accessOf('orgDashboard'), 'org');
+  assert.equal(accessOf('orgMembers'), 'org');
+  assert.equal(accessOf('eventDetail'), 'public');
+  assert.equal(accessOf('orgView'), 'public');
+  assert.equal(accessOf('community'), 'student');
+});

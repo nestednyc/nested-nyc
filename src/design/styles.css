@@ -1378,6 +1378,8 @@ input, textarea, select { font-family: inherit; }
 }
 .pending-chip { color: var(--ink-faint); background: var(--paper-2); border: 1px dashed var(--line); }
 .owner-chip { color: var(--accent-ink); background: var(--accent-wash); }
+/* student-run club (organizations.student_run): live, no tick — a quiet tint instead */
+.owner-chip.student-chip { color: var(--ink); background: color-mix(in oklch, var(--c-hack) 18%, var(--paper)); }
 
 /* ---- verify note (form step 3) ---- */
 .verify-note {
@@ -1408,6 +1410,13 @@ input, textarea, select { font-family: inherit; }
 .org-headline .uni-logo, .org-headline .av { flex-shrink: 0; }
 .org-headline h1 { font-family: var(--disp); font-weight: 800; font-size: clamp(26px, 3.4vw, 38px); line-height: 1.04; letter-spacing: -0.02em; color: var(--ink); max-width: 22ch; overflow-wrap: anywhere; }
 .org-sub { display: block; margin-top: 8px; font-family: var(--mono); font-size: 12px; color: var(--ink-soft); }
+.org-headline .student-tag { margin-top: 10px; }
+/* "Founded by @handle · campus" under a student-run club's name (button when a
+   person-opener is wired, plain span for guests) */
+.org-founder { display: inline-flex; align-items: center; gap: 5px; margin-top: 8px; border: 0; background: none; padding: 0; font-family: var(--mono); font-size: 12px; color: var(--ink-soft); text-align: left; }
+.org-founder b { font-weight: 600; color: var(--ink); }
+button.org-founder { cursor: pointer; }
+button.org-founder:hover b { text-decoration: underline; }
 
 /* ---- org dashboard "control room" ---- */
 .dash-panels { display: grid; grid-template-columns: 1.25fr 1fr; gap: 18px; margin: 18px 0 8px; align-items: start; }
@@ -1468,6 +1477,9 @@ input, textarea, select { font-family: inherit; }
 .oc-id b { display: flex; align-items: center; gap: 7px; font-family: var(--disp); font-weight: 700; font-size: 16px; color: var(--ink); }
 .oc-id small { font-family: var(--mono); font-size: 11.5px; color: var(--ink-faint); }
 .verify-tick { display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: 50%; background: var(--accent); flex-shrink: 0; }
+/* "Student-run" tag beside an org name — the student-founded club's stand-in
+   for the tick (org cards, the org page headline) */
+.student-tag { display: inline-flex; align-items: center; gap: 5px; font-family: var(--mono); font-size: 10.5px; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; line-height: 1.2; color: var(--ink); background: color-mix(in oklch, var(--c-hack) 18%, var(--paper)); padding: 3px 9px; border-radius: 999px; flex-shrink: 0; white-space: nowrap; }
 
 /* ---- university logo (image tile w/ initials fallback) ---- */
 /* contain + light padding: the mark fills the tile but a circular seal or
@@ -2393,6 +2405,8 @@ input, textarea, select { font-family: inherit; }
 .com-namebtn:hover { text-decoration: underline; }
 .com-avlink { border: 0; background: none; padding: 0; cursor: pointer; display: flex; flex: none; }
 .com-org-tick { display: inline-flex; align-items: center; justify-content: center; width: 15px; height: 15px; border-radius: 50%; background: var(--accent); flex: none; }
+/* board / event cards: a student-run club's inline pill where the tick would sit */
+.com-student-chip { display: inline-flex; align-items: center; gap: 4px; font-family: var(--mono); font-size: 10px; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; line-height: 1.2; color: var(--ink); background: color-mix(in oklch, var(--c-hack) 18%, var(--paper)); padding: 2px 7px; border-radius: 999px; flex: none; white-space: nowrap; }
 .com-follow { margin-left: auto; display: inline-flex; align-items: center; gap: 5px; border: 1.5px solid var(--line); background: transparent; color: var(--ink); font-family: var(--mono); font-size: 11.5px; padding: 5px 11px; border-radius: 99px; cursor: pointer; flex: none; transition: all .14s; }
 .com-follow:hover { border-color: var(--ink); }
 .com-follow.on { background: var(--ink); color: var(--paper); border-color: var(--ink); }
@@ -2711,7 +2725,7 @@ input, textarea, select { font-family: inherit; }
 .yc-event, .yc-org { display: flex; align-items: center; gap: 10px; width: 100%; border: 0; background: none; padding: 7px 0; text-align: left; color: var(--ink); font: inherit; cursor: pointer; }
 .yc-event .who, .yc-org .who { display: flex; flex-direction: column; min-width: 0; }
 .yc-event .who b, .yc-org .who b { font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.yc-event .who small { font-family: var(--mono); font-size: 10.5px; color: var(--ink-faint); }
+.yc-event .who small, .yc-org .who small { font-family: var(--mono); font-size: 10.5px; color: var(--ink-faint); }
 .yc-event:hover .who b, .yc-org:hover .who b { text-decoration: underline; }
 .yc-date { flex: none; width: 36px; text-align: center; border: 1.5px dashed var(--line); border-radius: 8px; padding: 3px 0; line-height: 1.05; font-family: var(--mono); }
 .yc-date b { display: block; font-family: var(--disp); font-size: 16px; }

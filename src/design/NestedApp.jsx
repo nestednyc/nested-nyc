@@ -185,18 +185,42 @@ import { useOrg } from './hooks/useOrg'
     // each domain's reset*.
     const { toasts, toast } = useToasts();
     const {
-      profile, orgAccount, sessionPending, pendingStudent, joinedAt,
-      adoptProfile, adoptOrgAccount,
+      profile: studentProfile, orgAccount: activeOrg, ownedOrgs, sessionPending, pendingStudent, joinedAt,
+      adoptProfile, adoptOrgAccount, enterClubMode, leaveClubMode,
       hydrateSession, saveProfileToSupabase, signOutAuth,
     } = useSession({
       applyParsed, authCallbackRef, replaceNextRef, profileRef, orgAccountRef,
       stashReturnTo, takeReturnTo, setAuthMode, setRoute, toast,
       onSignedOut: () => setRoute("discover"), // back to guest browsing, not the auth wall
     });
+    // ─── Club mode (derived, never stored) ──────────────────────────────────
+    // useSession holds the mode-independent identities: the student profile
+    // and the ACTIVE owned org. Which one the app "is" right now follows the
+    // route: /dashboard/* (org-class URLs) and an event opened from the org
+    // board are club mode; everything else is student mode. An org-email
+    // account (no student profile) is always in club mode. The pair exposed
+    // below is role-pure — exactly the either/or every consumer has always
+    // seen — so posting identity, follow/join gates, the shell dispatch and
+    // the unverified bounce need no mode awareness. Switching modes is a
+    // navigation (enterClubMode / leaveClubMode), so deep links, Back/Forward
+    // and reload all resolve the same way.
+    const clubMode = !!activeOrg && (
+      !studentProfile || accessOf(route) === "org" ||
+      (route === "eventDetail" && eventViewFrom === "orgCommunity")
+    );
+    const profile = clubMode ? null : studentProfile;
+    const orgAccount = clubMode ? activeOrg : null;
+    const canSwitchModes = !!studentProfile && ownedOrgs.length > 0;
+    const ownedOrgIds = new Set(ownedOrgs.map((o) => o.id));
+    // Student-domain hooks key on the STUDENT identity (not the derived
+    // `profile`): their realtime channels, inbox, RSVPs and memberships stay
+    // alive across a round trip through club mode instead of tearing down
+    // and refetching on every switch. They only render in StudentShell,
+    // which never mounts in club mode.
     const {
       people, setPeople, connected, setConnected, incoming, setIncoming,
       incomingPending, onConnect, onDisconnect, resetPeople,
-    } = usePeople({ profile, toast, requireAuth });
+    } = usePeople({ profile: studentProfile, toast, requireAuth });
     const {
       setInbox, blocked, setBlocked, conversations, unreadMessages,
       thread, threadStatus, threadPeer, threadHasMore, loadingEarlier,
@@ -205,7 +229,7 @@ import { useOrg } from './hooks/useOrg'
       loadEarlierThread, requestBlock, blockPeerNow, unblockPeer,
       requestDeleteConversation, deleteConversationNow, resetMessaging,
     } = useMessaging({
-      profile, people, route, setRoute,
+      profile: studentProfile, people, route, setRoute,
       messageThreadHandle, setMessageThreadHandle,
       toast, requireAuth,
     });
@@ -218,14 +242,14 @@ import { useOrg } from './hooks/useOrg'
       updateProjectStatus, setCoLead, kickMember, approveRequest, rejectRequest,
       createProject, saveProjectEdits, deleteProjectById, resetProjects,
     } = useProjects({
-      profile, route, detailId, editId, projectsLoading,
+      profile: studentProfile, route, detailId, editId, projectsLoading,
       setDetailId, setEditId, setRoute, toast, requireAuth,
     });
     const {
       rsvped, setRsvped, toggleRsvp, resetEvents,
       rsvpPrompt, rsvpSubmitting, rsvpError, requestRsvp, editRsvpAnswers, submitRsvp, cancelRsvpPrompt,
       myAnswers, loadMyAnswers,
-    } = useEvents({ profile, toast, requireAuth });
+    } = useEvents({ profile: studentProfile, toast, requireAuth });
     const {
       feed, feedLoading, feedError, refreshFeed, savedPosts, savedLoading, ensureSavedPosts,
       postLikes, postSaves, postComments, posting, ensureFeed,
@@ -237,22 +261,26 @@ import { useOrg } from './hooks/useOrg'
       postDetail, ensurePost, editCommunityPost,
       composerPreset, openBoardComposer, clearComposerPreset, projectPosts, ensureProjectPosts,
       orgFollowerCount, orgPostCount, ensureOrgStats, markFollowed,
-    } = useCommunity({ profile, orgAccount, toast, requireAuth });
+    } = useCommunity({ profile, orgAccount, toast, requireAuth }); // the DERIVED pair: posts as the club only in club mode
     // Club membership (Join → application → the owner's decision). After
     // useCommunity: accepting auto-follows, mirrored through markFollowed.
+    // Student half on the student identity, owner half on the active club.
     const {
       memberships, membershipsLoaded, ensureMemberships, myClubs,
       applyPrompt, applySubmitting, applyError, requestJoin: requestJoinClub, submitApplication, cancelApply, leaveOrg,
       applicants, loadApplicants, decideApplicant, pendingCount, orgMemberCount, resetClubs,
-    } = useClubs({ profile, orgAccount, toast, requireAuth, markFollowed });
+    } = useClubs({ profile: studentProfile, orgAccount: activeOrg, toast, requireAuth, markFollowed });
     // The persisted activity feed behind the bell (likes, comments, mentions,
-    // org follows). Keyed on whoever is signed in — a student, or the org owner.
+    // org follows). Keyed on the auth uid — the same in both modes, so the
+    // channel never churns on a switch.
     const {
       activity, activityLoading, unreadActivity, markActivityRead, resetNotifications,
-    } = useNotifications({ uid: profile ? profile.id : (orgAccount ? orgAccount.owner_user_id : null), toast });
+    } = useNotifications({ uid: studentProfile ? studentProfile.id : (activeOrg ? activeOrg.owner_user_id : null), toast });
+    // Per-club data (its events), keyed on the active club — survives a round
+    // trip through student mode; switching clubs refetches.
     const {
       orgEvents, orgEventsLoading, createOrgEvent, updateOrgEvent, eventResponses, loadEventResponses, resetOrg,
-    } = useOrg({ orgAccount, toast, setRoute, setEventDraftId });
+    } = useOrg({ orgAccount: activeOrg, toast, setRoute, setEventDraftId });
 
     // The community feed loads lazily on the first visit to the board —
     // deliberately NOT part of the signed-in boot barrier.
@@ -359,9 +387,12 @@ import { useOrg } from './hooks/useOrg'
     });
 
     // Keep the mirror-side identity refs (declared above the domain-hooks
-    // block) tracking the live state.
-    useEffect(() => { profileRef.current = profile; }, [profile]);
-    useEffect(() => { orgAccountRef.current = orgAccount; }, [orgAccount]);
+    // block) tracking the live state — the MODE-INDEPENDENT identities, never
+    // the derived pair: applyParsed must tell "a student who runs clubs" from
+    // "an org-email account" whichever shell is up (mirroring the null half
+    // would turn every Back out of club mode into the org-account bounce).
+    useEffect(() => { profileRef.current = studentProfile; }, [studentProfile]);
+    useEffect(() => { orgAccountRef.current = activeOrg; }, [activeOrg]);
 
     // returnTo: where to land after auth, surviving the email round-trip via
     // sessionStorage (and ?next= on the emailRedirectTo for new-tab links).
@@ -422,21 +453,24 @@ import { useOrg } from './hooks/useOrg'
         setAuthMode("signup");
         return redirect("onboarding");
       }
-      if (org) {
-        // Org accounts live in the dashboard subtree. Their own slug + any
-        // student/anon/home URL go to the dashboard; other public surfaces
-        // (events, projects, other orgs) stay.
+      if (org && !me) {
+        // Org-email accounts live in the dashboard subtree. Their own slug +
+        // any student/anon/home URL go to the dashboard; other public
+        // surfaces (events, projects, other orgs) stay.
         if (target === "orgView" && params.orgViewSlug === org.slug) {
           return redirect("orgDashboard");
         }
         if (access === "student" || access === "anon" || target === "discover") {
           return redirect("orgDashboard");
         }
-      } else if (access === "org") {
-        return redirect("discover"); // student on an org-only URL
+      } else if (access === "org" && !org) {
+        return redirect("discover"); // a student with no clubs on an org-only URL
       } else if (me && access === "anon") {
         return redirect("discover"); // already signed in — no auth screens
       }
+      // A student who runs clubs (me && org) passes through on both classes:
+      // club mode is derived from the route itself (see clubMode above), so
+      // /dashboard/* renders the dashboard and /community the board.
       if (me && target === "userProfile" && me.username && params.profileViewUsername &&
           params.profileViewUsername.toLowerCase() === String(me.username).toLowerCase()) {
         return redirect("profile"); // own handle → own profile page
@@ -497,7 +531,7 @@ import { useOrg } from './hooks/useOrg'
       // read below is user-scoped (saved/joined/requested/people/connections/…)
       // and needs a session, so we skip them. Signing in flips profile.id and
       // re-runs this effect down the authenticated path.
-      if (!profile || !profile.id) {
+      if (!studentProfile || !studentProfile.id) {
         let cancelled = false;
         setProjectsLoading(true);
         setLoadErrors(null);
@@ -546,8 +580,8 @@ import { useOrg } from './hooks/useOrg'
           // rows keeps the exact university/skills/fields that toPerson drops.
           setPeople(rankPeople(
             ((peopleRes && peopleRes.data) || [])
-              .filter((r) => r.id !== profile.id && r.account_type !== "org_admin"),
-            profile
+              .filter((r) => r.id !== studentProfile.id && r.account_type !== "org_admin"),
+            studentProfile
           ).map(toPerson));
           setConnected(((connRes && connRes.data) || []).map((t) => t.id));
           setIncoming(((incomingRes && incomingRes.data) || [])
@@ -576,7 +610,7 @@ import { useOrg } from './hooks/useOrg'
         }
       })();
       return () => { cancelled = true; };
-    }, [profile && profile.id, reloadNonce]);
+    }, [studentProfile && studentProfile.id, reloadNonce]); // the student identity: once per session, not per mode switch
 
     // The cross-domain sign-out composer: useSession owns the auth slice
     // (Supabase session, profile/orgAccount identity, cached LS blob); every
@@ -656,8 +690,10 @@ import { useOrg } from './hooks/useOrg'
     // fallback) and navigate to /u/:username.
     async function openProfile(userId) {
       if (!userId) return;
-      if (!profile) return requireAuth("Sign in to view student profiles");
-      if (userId === profile.id) { setRoute("profile"); window.scrollTo({ top: 0 }); return; }
+      // The student identity, not the derived one: an attendee click from the
+      // org-side event page (club mode) must open /u/:handle, not the wall.
+      if (!studentProfile) return requireAuth("Sign in to view student profiles");
+      if (userId === studentProfile.id) { setRoute("profile"); window.scrollTo({ top: 0 }); return; }
       const person = people.find((pp) => pp.id === userId);
       if (person && person.handle) return openPerson(person.handle);
       // Not in the loaded People list (e.g. an event attendee who hasn't
@@ -701,7 +737,7 @@ import { useOrg } from './hooks/useOrg'
     // null orgAccount). While the first hydrateSession is in flight, hold a
     // skeleton instead — hydration then either fills the identity or
     // applyParsed corrects the position (replaceState, sub-second).
-    const needsStudent = route === "profile" || route === "create" || route === "edit" ||
+    const needsStudent = route === "profile" || route === "create" || route === "edit" || route === "clubFound" ||
       route === "userProfile" || route === "notifications" || route === "messages" || route === "messageThread" ||
       route === "community" || route === "communityPost";
     const needsOrg = route === "orgDashboard" || route === "orgEditMe" || route === "orgCommunity" ||
@@ -739,8 +775,10 @@ import { useOrg } from './hooks/useOrg'
       profileEditOnArrive, setProfileEditOnArrive,
       // root hydration-barrier surface
       projectsLoading, loadErrors, retrySurface,
-      // session — identity installs go through adopt* (ref + state together)
+      // session — identity installs go through adopt* (ref + state together);
+      // profile/orgAccount are the mode-derived pair, ownedOrgs the student's clubs
       profile, adoptProfile, orgAccount, adoptOrgAccount, pendingStudent, joinedAt,
+      ownedOrgs, ownedOrgIds, canSwitchModes, enterClubMode, leaveClubMode,
       hydrateSession, saveProfileToSupabase, signOut,
       // people
       people, connected, incoming, incomingPending, onConnect, onDisconnect,
@@ -834,6 +872,9 @@ import { useOrg } from './hooks/useOrg'
     // ---------- CREATE (full-screen, no topbar — same shell as onboarding) ----------
     if (route === "create") return React.createElement(FullScreens, { screen: "create", api });
 
+    // ---------- START A CLUB (student founding screen, same shell) ----------
+    if (route === "clubFound") return React.createElement(FullScreens, { screen: "clubFound", api });
+
     // ---------- EDIT (full-screen, no topbar) ----------
     if (route === "edit") {
       const editProject = projectsList.find((p) => p.id === editId);
@@ -866,8 +907,9 @@ import { useOrg } from './hooks/useOrg'
     }
 
     // ---------- ORG APP SHELL (dashboard + own public page) ----------
-    if (orgAccount && route === "orgCommunity" && !orgAccount.verified) {
-      // Unverified orgs can't post yet — same gate as events. Bounce home.
+    if (orgAccount && route === "orgCommunity" && !orgAccount.verified && !orgAccount.student_run) {
+      // Unverified orgs can't post yet — same gate as events (student-run
+      // clubs are live from day one). Bounce home.
       replaceNextRef.current = true;
       setRoute("orgDashboard");
       return null;

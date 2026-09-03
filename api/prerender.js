@@ -17,9 +17,10 @@
    vercel.json → functions["api/prerender.js"].includeFiles.
 
    Reads with the ANON key so Supabase RLS returns exactly the
-   public rows the app exposes (published projects, verified
-   orgs/events). NEVER the service-role key here — that bypasses
-   RLS and would bake private rows into public, cacheable HTML.
+   public rows the app exposes (published projects, live orgs —
+   verified or student-run — and their events). NEVER the
+   service-role key here — that bypasses RLS and would bake
+   private rows into public, cacheable HTML.
    ============================================================ */
 import fs from "node:fs";
 import path from "node:path";
@@ -165,23 +166,28 @@ async function load(type, key) {
   if (type === "org") {
     let { data, error } = await supa
       .from("organizations")
-      .select("slug, name, bio, logo, banner, links, website, instagram")
+      .select("slug, name, bio, logo, banner, links, website, instagram, student_run")
       .eq("slug", key)
       .single();
     // 42703 = undefined column: this deploy is running against a schema
-    // without organizations.links (migration raced the deploy, or a preview
-    // points at a stale DB). Fall back to the legacy select rather than
+    // without organizations.student_run (migration 20260903000000 raced the
+    // deploy, or a preview points at a stale DB). Fall back to the previous
+    // select (links has been live since 20260721000001) rather than
     // soft-404ing every org page into the cache.
     if (error && error.code === "42703") {
       ({ data } = await supa
         .from("organizations")
-        .select("slug, name, bio, logo, banner, website, instagram")
+        .select("slug, name, bio, logo, banner, links, website, instagram")
         .eq("slug", key)
         .single());
     }
     if (!data) return null;
     const name = data.name || "Organization";
-    const desc = clip(data.bio || "", 200) || ("An organization on " + SITE_NAME + ".");
+    // A student-run club is live without verification; the description
+    // carries the same label the page shows so unfurls don't imply a tick.
+    const desc =
+      (clip(data.bio || "", 200) || ("An organization on " + SITE_NAME + ".")) +
+      (data.student_run ? " · Student-run club" : "");
     const jsonld = {
       "@context": "https://schema.org",
       "@type": "Organization",

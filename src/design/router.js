@@ -22,8 +22,11 @@
 // by the path itself (e.g. which auth form /login opens).
 //
 // `soon` has no entry on purpose: no URL at all (build returns null, the
-// URL stays put). Org owners have no public-page route — visiting their
-// own /org/:slug just routes them to the dashboard.
+// URL stays put). Org-email accounts have no public-page route — visiting
+// their own /org/:slug just routes them to the dashboard. A student who runs
+// clubs sees the public page with a "Manage club" button instead. `/clubs/new`
+// (student access) is the founding screen: a guest gets the auth wall with a
+// returnTo, so the link survives signup.
 const ROUTES = [
   { route: "discover",      path: "/",                          access: "public" },
   { route: "events",        path: "/events",                    access: "public" },
@@ -31,6 +34,7 @@ const ROUTES = [
   { route: "detail",        path: "/projects/:id",              access: "public",  params: { id: "detailId" } },
   { route: "edit",          path: "/projects/:id/edit",         access: "student", params: { id: "editId" } },
   { route: "create",        path: "/create",                    access: "student" },
+  { route: "clubFound",     path: "/clubs/new",                 access: "student" },
   { route: "community",     path: "/community",                 access: "student" },
   { route: "communityPost", path: "/community/:id",             access: "student", params: { id: "postViewId" } },
   { route: "people",        path: "/people",                    access: "student" },
@@ -117,6 +121,7 @@ const BUILD = {
   detail:        (s) => (s.detailId ? "/projects/" + enc(s.detailId) : null),
   edit:          (s) => (s.editId ? "/projects/" + enc(s.editId) + "/edit" : null),
   create:        () => "/create",
+  clubFound:     () => "/clubs/new",
   community:     () => "/community",
   communityPost: (s) => (s.postViewId ? "/community/" + enc(s.postViewId) : null),
   orgCommunity:  () => "/dashboard/community",
@@ -171,6 +176,7 @@ export function titleFor(route, ctx) {
     case "detail":        return c.detailTitle ? c.detailTitle + " · " + SITE : SITE;
     case "edit":          return "Edit flyer · " + SITE;
     case "create":        return "Pin a project · " + SITE;
+    case "clubFound":     return "Start a club · " + SITE;
     case "community":     return "Community · " + SITE;
     case "communityPost": return "Post · " + SITE;
     case "orgCommunity":  return "Community · " + SITE;

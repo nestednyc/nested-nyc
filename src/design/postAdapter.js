@@ -44,6 +44,12 @@ export function fromDbPost(row) {
           slug: (row.org && row.org.slug) || "",
           name: (row.org && row.org.name) || row.author_name || "",
           verified: !!(row.org && row.org.verified),
+          // Student-founded club (organizations.student_run): live without the
+          // tick — cards show a "student-run" chip instead (the tick wins when
+          // both are set). ownerId is the founder's uid, so club mode can tell
+          // "my club" from any other org.
+          studentRun: !!(row.org && row.org.student_run),
+          ownerId: (row.org && row.org.owner_user_id) || null,
         }
       : null,
     likes: row.like_count || 0,
@@ -155,7 +161,7 @@ export function toBoardEvent(row, { universities } = {}) {
     place: row.location || "",
     type: row.event_type || "talk",
     org: org
-      ? { id: org.id, slug: org.slug || "", name: org.name || row.organizer_name || "", logo: org.logo || "", verified: !!org.verified }
+      ? { id: org.id, slug: org.slug || "", name: org.name || row.organizer_name || "", logo: org.logo || "", verified: !!org.verified, studentRun: !!org.student_run, ownerId: org.owner_user_id || null }
       : null,
     orgName: (org && org.name) || row.organizer_name || "Nested",
     going: row.attendees || 0,

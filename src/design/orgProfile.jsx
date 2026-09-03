@@ -8,7 +8,7 @@
 import React from 'react'
 import Icon from './icons'
 import { ETYPE, UNI, ORG_TYPES, cleanProjectLinks } from './data'
-import { Av, Facepile, CatTag, Stamp, UniLogo } from './shared'
+import { Av, Facepile, CatTag, Stamp, UniLogo, StudentTag } from './shared'
 import { LinkPill } from './people'
 import { postTimeAgo } from './postAdapter'
 import { JoinButton, MemberRoster } from './clubJoin'
@@ -40,7 +40,10 @@ import { JoinButton, MemberRoster } from './clubJoin'
           kicker && React.createElement("span", { className: "oc-kicker" }, kicker),
           React.createElement("b", null, org.name,
             org.verified && React.createElement("span", { className: "verify-tick", title: "Verified .edu org" },
-              React.createElement(Icon, { name: "check", size: 11, stroke: "var(--paper)", width: 3 }))),
+              React.createElement(Icon, { name: "check", size: 11, stroke: "var(--paper)", width: 3 })),
+            // Student-founded club: the "Student-run" tag stands in for the tick
+            // (reads the raw row and the adapted event shape alike).
+            !org.verified && !!(org.student_run || org.studentRun) && React.createElement(StudentTag, null)),
           React.createElement("small", null, orgSub(org))
         ),
         onOpen && React.createElement(Icon, { name: "arrowRight", size: 18, stroke: "var(--ink-faint)" })
@@ -128,8 +131,12 @@ import { JoinButton, MemberRoster } from './clubJoin'
     );
   }
 
+  // `founder` ({ handle, name, uni }) names who founded a student-run club;
+  // `onManage` marks the founder's own page — one "Manage club" CTA replaces
+  // Join / Follow.
   function OrgProfile({ org, events = [], posts = [], following, followerCount, canFollow = true, onBack, onOpenEvent, onFollow,
-                        membership, canJoin = false, onJoin, members = [], memberCount = null, onOpenPerson }) {
+                        membership, canJoin = false, onJoin, members = [], memberCount = null, onOpenPerson,
+                        founder = null, onManage }) {
     if (!org) return null;
     const uniObj = org.uni && UNI[org.uni] ? UNI[org.uni] : null;
     const barColor = uniObj ? uniObj.color : "var(--accent)";
@@ -141,6 +148,10 @@ import { JoinButton, MemberRoster } from './clubJoin'
     // Universities aren't joinable; clubs and other orgs are.
     const joinable = org.type !== "university";
     const joinUrl = typeof org.join_url === "string" && /^https?:\/\//i.test(org.join_url) ? org.join_url : null;
+    // A student-founded club is live without the tick — it wears the
+    // "Student-run" tag instead (an admin's verified flag wins over it).
+    const studentRun = !!(org.student_run && !org.verified);
+    const founderUni = founder && founder.uni && UNI[founder.uni] ? UNI[founder.uni].name : null;
 
     return (
       React.createElement("div", { className: "org-wrap" },
@@ -159,7 +170,14 @@ import { JoinButton, MemberRoster } from './clubJoin'
                 : React.createElement(Av, { name: org.name, size: 60 }),
               React.createElement("div", { className: "org-id", style: { minWidth: 0 } },
                 React.createElement("h1", null, org.name),
-                meta && React.createElement("span", { className: "org-sub" }, meta)
+                studentRun && React.createElement(StudentTag, null),
+                meta && React.createElement("span", { className: "org-sub" }, meta),
+                // "Founded by @handle · campus" — opens the founder when a person-
+                // opener is wired (students), plain text otherwise (guests).
+                founder && founder.handle && React.createElement(onOpenPerson ? "button" : "span", {
+                  className: "org-founder",
+                  ...(onOpenPerson ? { type: "button", onClick: () => onOpenPerson(founder.handle), title: "Open @" + founder.handle } : {}),
+                }, "Founded by ", React.createElement("b", null, "@" + founder.handle), founderUni ? " · " + founderUni : null)
               )
             ),
 
@@ -170,8 +188,11 @@ import { JoinButton, MemberRoster } from './clubJoin'
             ),
 
             React.createElement("div", { className: "org-cta" },
-              joinable && canJoin && React.createElement(JoinButton, { membership, onClick: () => onJoin && onJoin(org) }),
-              canFollow && React.createElement("button", { className: "btn " + (following ? "btn-primary done" : (joinable && canJoin ? "btn-ghost" : "btn-primary")), onClick: () => onFollow && onFollow(org) },
+              // The founder's own club: one "Manage club" CTA instead of Join / Follow.
+              onManage && React.createElement("button", { className: "btn btn-primary", type: "button", onClick: () => onManage(org) },
+                React.createElement(Icon, { name: "grid", size: 17, stroke: "var(--paper)" }), "Manage club"),
+              !onManage && joinable && canJoin && React.createElement(JoinButton, { membership, onClick: () => onJoin && onJoin(org) }),
+              !onManage && canFollow && React.createElement("button", { className: "btn " + (following ? "btn-primary done" : (joinable && canJoin ? "btn-ghost" : "btn-primary")), onClick: () => onFollow && onFollow(org) },
                 following
                   ? [React.createElement(Icon, { name: "check", size: 17, stroke: "var(--paper)", key: "i" }), "Following"]
                   : [React.createElement(Icon, { name: "plus", size: 17, stroke: joinable && canJoin ? "currentColor" : "var(--paper)", key: "i" }), "Follow"]),
