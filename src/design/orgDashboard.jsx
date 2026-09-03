@@ -50,7 +50,7 @@ import { postTimeAgo } from './postAdapter'
     const [tab, setTab] = useState('upcoming');
     const list = tab === 'upcoming' ? upcoming : past;
     // Pending orgs can't post until approved; a student-run club is live from day one.
-    const canPost = !!(org && (org.verified || org.student_run));
+    const canPost = !!org; // every org is live from creation (verification retired)
 
     if (!org) {
       return (
@@ -79,24 +79,13 @@ import { postTimeAgo } from './postAdapter'
         ),
 
         React.createElement("div", { className: "dash-panels fade-up" },
-          // Left: the owner's own flyer echo (verified, or a live student-run club)
-          // OR the pending notice.
-          (org.verified || org.student_run)
-            ? React.createElement("div", { className: "dash-panel" },
-                React.createElement("div", { className: "panel-h" }, "Your public flyer"),
-                React.createElement(OrgMini, { name: org.name, type: org.type, uni: org.uni, bio: org.bio, verified: !!org.verified, studentRun: !!org.student_run }),
-                React.createElement("p", { className: "echo-note" }, org.verified ? "↳ this is what students see" : "↳ live as a student-run club · this is what students see")
-              )
-            : React.createElement("div", { className: "dash-panel pending" },
-                React.createElement("div", { className: "panel-h" }, "Pending review"),
-                React.createElement("div", { className: "verify-note", style: { marginTop: 0 } },
-                  React.createElement(Icon, { name: "clock", size: 22, stroke: "var(--accent)" }),
-                  React.createElement("div", null,
-                    React.createElement("b", null, "Your flyer isn't on the board yet"),
-                    React.createElement("p", null, "Your page and events stay private until we verify your org — usually within a day. Then it goes live and you can pin events.")
-                  )
-                )
-              ),
+          // Left: the owner's own flyer echo — every org is live from creation
+          // (verification retired 2026-09-03), so there is no pending state.
+          React.createElement("div", { className: "dash-panel" },
+            React.createElement("div", { className: "panel-h" }, "Your public flyer"),
+            React.createElement(OrgMini, { name: org.name, type: org.type, uni: org.uni, bio: org.bio, studentRun: !!org.student_run }),
+            React.createElement("p", { className: "echo-note" }, org.student_run ? "↳ live as a student-run club · this is what students see" : "↳ this is what students see")
+          ),
 
           // Right: management + the numbers.
           React.createElement("div", { className: "dash-side" },

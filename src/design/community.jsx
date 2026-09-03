@@ -343,9 +343,7 @@ import { JoinPill } from './clubJoin'
             org
               ? React.createElement("span", { className: "nm" },
                   React.createElement("button", { className: "com-namebtn", onClick: openOrg, type: "button" }, org.name),
-                  org.verified && React.createElement("span", { className: "com-org-tick", role: "img", "aria-label": "Verified org", title: "Verified .edu org" },
-                    React.createElement(Icon, { name: "check", size: 10, stroke: "var(--paper)", width: 3 })),
-                  !org.verified && org.studentRun && React.createElement("span", { className: "com-student-chip", title: "Student-run club" }, "student-run"))
+                  org.studentRun && React.createElement("span", { className: "com-student-chip", title: "Student-run club" }, "student-run"))
               : React.createElement("span", { className: "nm" },
                   React.createElement("button", { className: "com-namebtn", onClick: () => p.authorHandle && onOpenPerson && onOpenPerson(p.authorHandle), type: "button" }, p.author),
                   p.isFirst && React.createElement("span", { className: "com-new-chip", title: "Their first post on the board" },
@@ -470,9 +468,7 @@ import { JoinPill } from './clubJoin'
               org
                 ? React.createElement("button", { className: "com-namebtn", onClick: openOrg, type: "button" }, org.name)
                 : React.createElement("b", null, e.orgName),
-              org && org.verified && React.createElement("span", { className: "com-org-tick", role: "img", "aria-label": "Verified org", title: "Verified .edu org" },
-                React.createElement(Icon, { name: "check", size: 10, stroke: "var(--paper)", width: 3 })),
-              org && !org.verified && org.studentRun && React.createElement("span", { className: "com-student-chip", title: "Student-run club" }, "student-run")),
+              org && org.studentRun && React.createElement("span", { className: "com-student-chip", title: "Student-run club" }, "student-run")),
             React.createElement("span", { className: "com-meta" },
               (e.uni && UNI[e.uni] ? UNI[e.uni].name + " · " : "") + "pinned an event " + postTimeAgo(e.at))
           ),
@@ -529,6 +525,27 @@ import { JoinPill } from './clubJoin'
     );
   }
 
+  // ── One club in the directory ──────────────────────────────────────
+  // Name → its page, campus + tier, Follow / Join (never on your own club).
+  function ClubRow({ o, viewerIsStudent, followSet, memberships, onJoin, onToggleFollow, onOpenOrg, ownsOrg }) {
+    const uniName = o.uni && UNI[o.uni] ? UNI[o.uni].name : null;
+    return React.createElement("div", { className: "com-rail-org" },
+      React.createElement(Av, { name: o.name, img: o.logo || null }),
+      React.createElement("span", { className: "who" },
+        React.createElement("button", { className: "com-namebtn", type: "button", onClick: () => o.slug && onOpenOrg && onOpenOrg(o.slug) }, o.name),
+        // non-breaking hyphen: the tier wraps as one word in the narrow rail
+        React.createElement("small", null, [uniName || "NYC", o.studentRun ? "student‑run" : null].filter(Boolean).join(" · "))
+      ),
+      viewerIsStudent && (ownsOrg(o.id)
+        ? React.createElement("span", { className: "com-meta" }, "yours")
+        : React.createElement("span", { className: "com-pills" },
+            React.createElement(FollowPill, { on: followSet.has(o.id), onClick: () => onToggleFollow(o.id), small: true }),
+            onJoin && o.type !== "university" && React.createElement(JoinPill, { membership: memberships ? memberships[o.id] : undefined, onClick: () => onJoin(o), small: true })))
+    );
+  }
+  // How many clubs the rail card shows before "Show all".
+  const CLUBS_PEEK = 5;
+
   // ── Your corner — the left column on wide screens ──────────────────
   // The viewer's own footholds on the board: projects they can post about
   // (one click → the composer pre-tagged), events they're going to, orgs they
@@ -547,7 +564,7 @@ import { JoinPill } from './clubJoin'
                 React.createElement(Av, { name: o.name, img: o.logo || null }),
                 React.createElement("span", { className: "who" },
                   React.createElement("b", null, o.name),
-                  React.createElement("small", null, (o.verified ? "verified" : "student-run") + " · manage →")))),
+                  React.createElement("small", null, (o.studentRun || o.student_run ? "student-run · " : "") + "manage →")))),
           ownedOrgs.length < MAX_STUDENT_CLUBS
             ? React.createElement("button", { className: "btn btn-ghost btn-sm", style: { marginTop: 8 }, onClick: onStartClub },
                 React.createElement(Icon, { name: "flag", size: 14 }), ownedOrgs.length ? "Start another club" : "Start a club")
@@ -567,7 +584,8 @@ import { JoinPill } from './clubJoin'
                     React.createElement(Icon, { name: "pencil", size: 12 }), "Post about it")
                 );
               }),
-          myProjects.length === 0 && React.createElement("button", { className: "btn btn-ghost btn-sm", style: { marginTop: 8 }, onClick: onStart },
+          // The one "pin a project" door on the board lives here now.
+          React.createElement("button", { className: "btn btn-ghost btn-sm", style: { marginTop: 8 }, onClick: onStart },
             React.createElement(Icon, { name: "plus", size: 14 }), "Pin a project")
         ),
         going.length > 0 && React.createElement("div", { className: "com-rail-card" },
@@ -607,9 +625,7 @@ import { JoinPill } from './clubJoin'
           React.createElement("div", { className: "com-who" },
             React.createElement("span", { className: "nm" },
               React.createElement("button", { className: "com-namebtn com-spot-name", onClick: openOrg, type: "button" }, org.name),
-              org.verified && React.createElement("span", { className: "com-org-tick", role: "img", "aria-label": "Verified org", title: "Verified .edu org" },
-                React.createElement(Icon, { name: "check", size: 10, stroke: "var(--paper)", width: 3 })),
-              !org.verified && org.studentRun && React.createElement("span", { className: "com-student-chip", title: "Student-run club" }, "student-run")),
+              org.studentRun && React.createElement("span", { className: "com-student-chip", title: "Student-run club" }, "student-run")),
             React.createElement("span", { className: "com-meta" }, [uniObj && uniObj.name, org.location].filter(Boolean).join(" · ") || "NYC")
           ),
           viewerIsStudent && hosting && React.createElement("span", { className: "com-meta" }, "your club"),
@@ -700,8 +716,13 @@ import { JoinPill } from './clubJoin'
     // the clubs the viewer runs: Your corner rows + "Start a club", and
     // no Follow / Join / RSVP pills on their own club's cards
     ownedOrgs = [], ownedOrgIds, onManageClub, onStartClub,
+    // every live club (the directory: a rail card on desktop, a toggle on mobile)
+    clubs = [],
   }) {
     const ownsOrg = (id) => !!(id && ownedOrgIds && ownedOrgIds.has(id));
+    const [showAllClubs, setShowAllClubs] = useState(false);
+    // Mobile only (the rails collapse there): "board" | "clubs".
+    const [mobileTab, setMobileTab] = useState("board");
     const [confirmId, setConfirmId] = useState(null);
     const [reportTarget, setReportTarget] = useState(null); // { type, id }
     const meId = profile ? profile.id : (asOrg ? asOrg.owner_user_id : null);
@@ -826,15 +847,8 @@ import { JoinPill } from './clubJoin'
       .slice(0, 3);
     // The most-viewed live projects — a reason to wander back to the big board.
     const trending = !onOpenProject ? [] : [...projects].sort((a, b) => (b.views || 0) - (a.views || 0)).slice(0, 3);
-    // …and the orgs that have been posting, so following starts from the feed.
-    const orgsOnBoard = [];
-    const seen = new Set();
-    for (const p of feed) {
-      if (!p.org || seen.has(p.org.id)) continue;
-      seen.add(p.org.id);
-      orgsOnBoard.push({ ...p.org, img: p.authorAvatar || null, uni: p.uni ? UNI[p.uni] : null });
-      if (orgsOnBoard.length >= 5) break;
-    }
+    // Shared by the rail card and the mobile Clubs view.
+    const clubRowProps = { viewerIsStudent, followSet, memberships, onJoin, onToggleFollow, onOpenOrg, ownsOrg };
     const spotOrgId = spotlight && spotlight.org ? spotlight.org.id : null;
 
     return (
@@ -847,7 +861,19 @@ import { JoinPill } from './clubJoin'
               : "What NYC students and their orgs are building right now — wins, works-in-progress, and the photos to prove it.")
           )
         ),
-        React.createElement("div", { className: "com-cols" + (viewerIsStudent ? " three" : "") },
+        // Mobile (the rails collapse ≤860px): Board ↔ Clubs toggle; the
+        // Clubs view is the whole directory, full width.
+        clubs.length > 0 && React.createElement("div", { className: "dash-tabs com-mtoggle" },
+          React.createElement("button", { className: "chip-filter" + (mobileTab === "board" ? " active" : ""), type: "button", onClick: () => setMobileTab("board") },
+            React.createElement(Icon, { name: "board", size: 15 }), "Board"),
+          React.createElement("button", { className: "chip-filter" + (mobileTab === "clubs" ? " active" : ""), type: "button", onClick: () => setMobileTab("clubs") },
+            React.createElement(Icon, { name: "flag", size: 15 }), "Clubs", React.createElement("span", { className: "count" }, clubs.length))
+        ),
+        mobileTab === "clubs"
+        ? React.createElement("div", { className: "com-rail-card com-clubs-all" },
+            React.createElement("h4", null, "Clubs on Nested"),
+            clubs.map((o) => React.createElement(ClubRow, { key: o.id, o, ...clubRowProps })))
+        : React.createElement("div", { className: "com-cols" + (viewerIsStudent ? " three" : "") },
           viewerIsStudent && React.createElement(YourCorner, {
             myProjects,
             going: boardEvents.filter((e) => rsvpSet.has(e.id)).sort((a, b) => (a.date || "").localeCompare(b.date || "")),
@@ -925,6 +951,16 @@ import { JoinPill } from './clubJoin'
                 React.createElement("span", null, React.createElement("b", null, feed.filter((p) => p.org && p.org.id === asOrg.id).length), "posts")
               )
             ),
+            // The clubs directory, first thing in the rail: every live club, a
+            // peek of CLUBS_PEEK then "Show all". (Replaces the old posted-
+            // recently list — a club that hasn't posted yet belongs here too.)
+            clubs.length > 0 && React.createElement("div", { className: "com-rail-card com-rail-people com-clubs" },
+              React.createElement("h4", null, "Clubs on Nested"),
+              (showAllClubs ? clubs : clubs.slice(0, CLUBS_PEEK)).map((o) => React.createElement(ClubRow, { key: o.id, o, ...clubRowProps })),
+              clubs.length > CLUBS_PEEK && React.createElement("button", {
+                className: "btn btn-ghost btn-sm", type: "button", style: { marginTop: 8 }, onClick: () => setShowAllClubs((v) => !v),
+              }, showAllClubs ? "Show fewer" : "Show all " + clubs.length + " clubs")
+            ),
             (asks.length > 0 || openRoleProjects.length > 0) && React.createElement("div", { className: "com-rail-card" },
               React.createElement("h4", null, "Looking for help"),
               asks.map((p) => React.createElement("button", { key: p.id, className: "com-rail-ask", type: "button", onClick: () => p.org ? (p.org.slug && onOpenOrg && onOpenOrg(p.org.slug)) : (p.authorHandle && onOpenPerson && onOpenPerson(p.authorHandle)) },
@@ -952,23 +988,6 @@ import { JoinPill } from './clubJoin'
               React.createElement("h4", null, "Builders to check out"),
               builders.map((u) => React.createElement(PersonRow, { key: u.id, u, ...personRowProps }))
             ),
-            viewerIsStudent && orgsOnBoard.length > 0 && React.createElement("div", { className: "com-rail-card com-rail-people" },
-              React.createElement("h4", null, "Orgs on the board"),
-              orgsOnBoard.map((o) => (
-                React.createElement("div", { key: o.id, className: "com-rail-org" },
-                  React.createElement(Av, { name: o.name, img: o.img }),
-                  React.createElement("span", { className: "who" },
-                    React.createElement("button", { className: "com-namebtn", type: "button", onClick: () => o.slug && onOpenOrg && onOpenOrg(o.slug) }, o.name),
-                    React.createElement("small", null, o.uni ? o.uni.name : "NYC")
-                  ),
-                  ownsOrg(o.id)
-                    ? React.createElement("span", { className: "com-meta" }, "yours")
-                    : React.createElement("span", { className: "com-pills" },
-                        React.createElement(FollowPill, { on: followSet.has(o.id), onClick: () => onToggleFollow(o.id), small: true }),
-                        onJoin && React.createElement(JoinPill, { membership: memberships ? memberships[o.id] : undefined, onClick: () => onJoin(o), small: true }))
-                )
-              ))
-            ),
             trending.length > 0 && React.createElement("div", { className: "com-rail-card" },
               React.createElement("h4", null, "Hot on the board"),
               trending.map((p) => {
@@ -980,12 +999,6 @@ import { JoinPill } from './clubJoin'
                 );
               })
             ),
-            !asOrg && React.createElement("div", { className: "com-rail-card" },
-              React.createElement("h4", null, "Working on something?"),
-              React.createElement("p", null, "Photos of the actual work get more replies. Tag your project so people can find the flyer — or pin a new one."),
-              React.createElement("button", { className: "btn btn-primary", style: { marginTop: 10 }, onClick: onStart },
-                React.createElement(Icon, { name: "plus", size: 15, stroke: "var(--paper)" }), "Pin a project")
-            )
           )
         ),
         confirmId && React.createElement(ConfirmModal, {

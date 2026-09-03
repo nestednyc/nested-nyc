@@ -31,7 +31,7 @@ export default function OrgShell({ api }) {
     // community board (org side)
     feed, feedLoading, feedError, refreshFeed,
     feedHasMore, loadingMore, loadMoreFeed,
-    boardEvents, spotlight, reported, reportContent, editCommunityPost,
+    boardEvents, spotlight, clubs, reported, reportContent, editCommunityPost,
     activity, unreadActivity, markActivityRead, toast,
     follows, orgFollowerCount, orgPostCount,
     postLikes, postSaves, postComments, posting,
@@ -40,9 +40,8 @@ export default function OrgShell({ api }) {
     applicants, loadApplicants, decideApplicant, pendingCount, orgMemberCount,
   } = api;
 
-      // Verified orgs and student-run clubs are live (post, host); an
-      // org-email account waiting on review is not.
-      const canPost = !!(orgAccount && (orgAccount.verified || orgAccount.student_run));
+      // Every org is live from creation (verification retired 2026-09-03).
+      const canPost = !!orgAccount;
       const otherClubs = canSwitchModes ? (ownedOrgs || []).filter((o) => o.id !== orgAccount.id) : [];
 
       return (
@@ -118,14 +117,13 @@ export default function OrgShell({ api }) {
           }),
 
           // The org's seat at the community board: same feed students see,
-          // composer posts AS the org (verified orgs only — the dispatch in
-          // NestedApp bounces unverified ones back to the dashboard).
+          // composer posts AS the org.
           route === "orgCommunity" && React.createElement(Community, {
             asOrg: orgAccount,
             projects: projectsList || [],
             feed, feedLoading, feedError, onRetry: refreshFeed,
             feedHasMore, loadingMore, onLoadMore: loadMoreFeed,
-            boardEvents, spotlight,
+            boardEvents, spotlight, clubs,
             reported, onReport: reportContent,
             rsvped,
             // A student who runs clubs opens events as a STUDENT (the org-side

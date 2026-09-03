@@ -7,7 +7,7 @@
 import React from 'react'
 import Icon from './icons'
 import { ORG_TYPES, UNIVERSITIES, cleanProjectLinks } from './data'
-import { Av, Stamp, UniLogo, OrgMini, LinkRows, linkRowsFrom, resizePhoto } from './shared'
+import { Av, UniLogo, OrgMini, LinkRows, linkRowsFrom, resizePhoto } from './shared'
 import { QuestionBuilder, questionIssues, normalizeQuestions } from './eventRsvp'
 
   const { useState, useRef } = React;
@@ -27,10 +27,9 @@ import { QuestionBuilder, questionIssues, normalizeQuestions } from './eventRsvp
   };
 
   // Step-3 preview / aside mirror — the shared org flyer rendered with the
-  // in-progress draft (never verified, since this only shows pre-creation;
-  // a student-founded club previews with its student-run label).
+  // in-progress draft (a student-founded club previews with its student-run label).
   function OrgPreview({ name, type, uni, bio, studentRun }) {
-    return React.createElement(OrgMini, { name, type, uni, bio, verified: false, studentRun: !!studentRun });
+    return React.createElement(OrgMini, { name, type, uni, bio, studentRun: !!studentRun });
   }
 
   // variant: "org" (the org-email onboarding + edit) | "student" (a student
@@ -258,20 +257,10 @@ import { QuestionBuilder, questionIssues, normalizeQuestions } from './eventRsvp
             ? "Here's your org page. Save your changes — you can keep editing later."
             : student
               ? "Here's your club's page. It goes live the moment you pin it, labeled student-run — students can follow, join and RSVP right away."
-              : "Here's your org page. It goes up right away; the .edu stamp lands once we verify you (usually within a day)."),
+              : "Here's your org page. It goes live the moment you pin it — students can follow it, join it and RSVP to what you host right away."),
 
           React.createElement("div", { className: "create-preview-wrap" },
             React.createElement(OrgPreview, { name, type, uni, bio, studentRun: student })
-          ),
-
-          React.createElement("div", { className: "verify-note" },
-            React.createElement(Stamp, { size: 52, label: "ORG" }),
-            React.createElement("div", null,
-              React.createElement("b", null, "About the .edu stamp"),
-              React.createElement("p", null, student
-                ? "Official orgs with an org email carry the .edu stamp; a student-run club can apply for it later. Either way your page is on the board today."
-                : "Verified orgs get the rubber stamp on their page and rank higher in Events. New orgs are live immediately and reviewed shortly after.")
-            )
           )
         )
       );

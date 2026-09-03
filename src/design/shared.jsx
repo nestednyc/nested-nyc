@@ -181,7 +181,9 @@ import { SHOW_EVENTS } from '../config/features'
   // drift. Glyph is the campus mark (UniLogo) when the org's `uni` slug resolves,
   // else the initials avatar. Foot shows the verified / student-run / pending
   // state (verified wins when both flags are set).
-  function OrgMini({ name, type, uni, bio, verified, studentRun }) {
+  // Foot: the "Student-run" tag for a student-founded club, else nothing —
+  // every org is live from creation (verification retired 2026-09-03).
+  function OrgMini({ name, type, uni, bio, studentRun }) {
     const uniObj = uni && UNI[uni] ? UNI[uni] : null;
     const typeLabel = type ? ((ORG_TYPES.find((t) => t.id === type) || {}).label || "Organization") : "Organization";
     const sub = [typeLabel, uniObj && uniObj.name].filter(Boolean).join(" · ");
@@ -199,11 +201,9 @@ import { SHOW_EVENTS } from '../config/features'
         ),
         React.createElement("p", { className: "org-mini-bio" }, (bio || "").trim() || "A one-line description of who you are and what you host."),
         React.createElement("div", { className: "org-mini-foot" },
-          verified
-            ? React.createElement("span", { className: "owner-chip" }, React.createElement(Icon, { name: "check", size: 12, stroke: "var(--accent)", width: 2.4 }), "Verified")
-            : studentRun
-              ? React.createElement(StudentTag, { className: "owner-chip student-chip", size: 12 })
-              : React.createElement("span", { className: "pending-chip" }, React.createElement(Icon, { name: "clock", size: 12, stroke: "currentColor" }), "Pending .edu review")
+          studentRun
+            ? React.createElement(StudentTag, { className: "owner-chip student-chip", size: 12 })
+            : React.createElement("span", { className: "owner-chip" }, React.createElement(Icon, { name: "board", size: 12, stroke: "var(--accent)", width: 2.2 }), "On the board")
         )
       )
     );

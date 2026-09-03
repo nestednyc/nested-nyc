@@ -138,8 +138,8 @@ export default async function handler(req, res) {
     const events = eventsRes.data || [];
     const flyers = flyersRes.data || [];
     const unis = unisRes.data || [];
-    // Live hosts only: verified orgs and student-run clubs (live without a tick).
-    const okEvents = (events || []).filter((e) => !e.organization || e.organization.verified || e.organization.student_run);
+    // Every org is live from creation (verification retired 2026-09-03).
+    const okEvents = events || [];
     if (!(posts || []).length && !okEvents.length && !(flyers || []).length) {
       return res.status(200).json({ skipped: "quiet week", weekStart });
     }

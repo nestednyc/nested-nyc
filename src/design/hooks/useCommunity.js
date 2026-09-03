@@ -84,6 +84,8 @@ export function useCommunity({ profile, orgAccount, toast, requireAuth }) {
   const [boardEvents, setBoardEvents] = useState([]);
   // The club in the spotlight: { org, post } or null.
   const [spotlight, setSpotlight] = useState(null);
+  // Every live club on Nested (the board's clubs directory), newest first.
+  const [clubs, setClubs] = useState([]);
   // "type:id" keys I've reported this session (reports are write-only).
   const [reported, setReported] = useState(new Set());
   // The /community/:id permalink: the post on screen, or why there isn't one.
@@ -134,13 +136,14 @@ export function useCommunity({ profile, orgAccount, toast, requireAuth }) {
     setFeedLoading(true);
     setFeedError(null);
     const today = localDateISO();
-    const [{ data: rows, error }, { data: marks }, { data: eventRows }, { data: spot }, { data: unis }] = await Promise.all([
+    const [{ data: rows, error }, { data: marks }, { data: eventRows }, { data: spot }, { data: unis }, { data: clubRows }] = await Promise.all([
       communityService.getFeed({}),
       communityService.getMyMarks(),
       // bounded: dated today or later, at most 100 — events.is_past is never maintained
       eventService.getUpcomingEvents({ from: today, limit: 100, viewerId: profile ? profile.id : null }),
       communityService.getSpotlight(),
       orgService.listUniversities(),
+      communityService.getClubs(),
       ensureFollows(),
     ]);
     setFeedLoading(false);
@@ -161,6 +164,7 @@ export function useCommunity({ profile, orgAccount, toast, requireAuth }) {
     setSpotlight(spot
       ? { org: { ...spot.org, studentRun: !!spot.org.student_run, uni: resolveOrgUniSlug(spot.org, unis || []) }, post: spot.post ? fromDbPost(spot.post) : null }
       : null);
+    setClubs((clubRows || []).map((o) => ({ ...o, studentRun: !!o.student_run, uni: resolveOrgUniSlug(o, unis || []) })));
   }
 
   async function refreshFeed() {
@@ -482,6 +486,7 @@ export function useCommunity({ profile, orgAccount, toast, requireAuth }) {
     followsLoadRef.current = false;
     setBoardEvents([]);
     setSpotlight(null);
+    setClubs([]);
     setReported(new Set());
     setPostDetail({ id: null, post: null, loading: false, missing: false });
     setComposerPreset(null);
@@ -497,7 +502,7 @@ export function useCommunity({ profile, orgAccount, toast, requireAuth }) {
     feedHasMore, loadingMore, loadMoreFeed,
     savedPosts, savedLoading, ensureSavedPosts,
     follows, followsLoaded, followedOrgs, ensureFollows, toggleFollowOrg, markFollowed,
-    boardEvents, spotlight,
+    boardEvents, spotlight, clubs,
     reported, reportContent,
     postDetail, ensurePost, editCommunityPost,
     composerPreset, openBoardComposer, clearComposerPreset,

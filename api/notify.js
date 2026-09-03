@@ -466,17 +466,16 @@ async function planNewReport(r) {
   };
 }
 
-// → the founders: a new org signed up (organizations INSERT). An org-email
-// signup is invisible until someone runs the verify UPDATE — this is the
-// nudge. A student-founded club (record.student_run, migration
-// 20260903000000) is ALREADY live and labeled student-run, so the same alert
-// says so, shows the founder, and inlines the optional tick / takedown SQL
-// instead. Universities are seeded by migration, never inserted at runtime,
-// so this only fires for real club / community signups. Internal alert →
-// fixed addresses, no opt-out.
+// → the founders: a new org is live (organizations INSERT). Every org goes
+// live the moment it's created (verification retired 2026-09-03), so this is
+// a heads-up with the takedown SQL — a student-founded club
+// (record.student_run, migration 20260903000000) also shows the founder.
+// Universities are seeded by migration, never inserted at runtime, so this
+// only fires for real club / community signups. Internal alert → fixed
+// addresses, no opt-out.
 async function planNewOrg(org) {
   if (!org || !org.id || !ADMIN_RECIPIENTS.length) return null;
-  if (org.type === "university" || org.verified) return null;
+  if (org.type === "university") return null; // seeded campuses never announce; every other org does (all live from creation)
   const studentRun = org.student_run === true;
   let ownerEmail = "";
   let school = "";

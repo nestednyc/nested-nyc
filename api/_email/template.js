@@ -356,12 +356,14 @@ export const emails = {
     };
   },
 
-  // → the founders (ADMIN_RECIPIENTS): a new org signed up. An org-email signup
-  // waits for verification; a student-run club (studentRun + founder, migration
-  // 20260903000000) is already live and labeled student-run — same alert, other
-  // branch: it shows the founder and the optional tick / takedown SQL.
+  // → the founders (ADMIN_RECIPIENTS): a new org is live. Every org goes live
+  // the moment it's created (verification retired 2026-09-03) — this is a
+  // heads-up with the takedown SQL, not an approval request. A student-run
+  // club (studentRun + founder, migration 20260903000000) also shows who
+  // founded it.
   newOrg: ({ name, type, slug, location, bio, ownerEmail, school, studentRun, founder }) => {
     const where = `${school ? ` at ${school}` : ""}${location ? ` (${location})` : ""}`;
+    const takedown = `To take it down, run as service role: delete from public.organizations where slug = '${slug}';`;
     if (studentRun) {
       const f = founder || {};
       // personLabel already yields "@handle" when there is one — only add the
@@ -374,29 +376,29 @@ export const emails = {
           preheader: `${name} — a student-run club — is live on Nested`,
           eyebrow: "student-run club",
           heading: `${name} is live`,
-          body: `A new student-run club${where} just created its page. It is already public and labeled student-run (no verified tick). Founded by ${who}${ownerEmail ? ` — account ${ownerEmail}` : ""}. To give it the tick, run as service role: update public.organizations set verified = true where slug = '${slug}'; To take it down: delete from public.organizations where slug = '${slug}';`,
+          body: `A new student-run club${where} just created its page and is already public, labeled student-run. Founded by ${who}${ownerEmail ? ` — account ${ownerEmail}` : ""}. ${takedown}`,
           actor: f.name
             ? { name: f.name, avatarUrl: f.avatarUrl, meta: ["student founder", f.school].filter(Boolean).join(" · ") }
             : undefined,
           note: bio,
           ctaLabel: "Open its page",
           ctaUrl: url(`/org/${encodeURIComponent(slug || "")}`),
-          footerNote: "Internal alert — this address is on ADMIN_RECIPIENTS for Nested. Student-run clubs go live without review; verifying one only adds the tick.",
+          footerNote: "Internal alert — this address is on ADMIN_RECIPIENTS for Nested. Orgs go live without review.",
           unsubUrl: null,
         }),
       };
     }
     return {
-      subject: `New org waiting for review: ${name}`,
+      subject: `New org is live: ${name}`,
       html: renderEmail({
-        preheader: `${name} signed up on Nested`,
+        preheader: `${name} is live on Nested`,
         eyebrow: "new org",
-        heading: `${name} signed up`,
-        body: `A new ${type || "org"}${where} just created its page${ownerEmail ? ` — owner ${ownerEmail}` : ""}. It stays invisible until verified. To approve it, run as service role: update public.organizations set verified = true where slug = '${slug}';`,
+        heading: `${name} is live`,
+        body: `A new ${type || "org"}${where} just created its page and is already public${ownerEmail ? ` — owner ${ownerEmail}` : ""}. ${takedown}`,
         note: bio,
         ctaLabel: "Open its page",
         ctaUrl: url(`/org/${encodeURIComponent(slug || "")}`),
-        footerNote: "Internal alert — this address is on ADMIN_RECIPIENTS for Nested. The page 404s for everyone but the owner until the org is verified.",
+        footerNote: "Internal alert — this address is on ADMIN_RECIPIENTS for Nested. Orgs go live without review.",
         unsubUrl: null,
       }),
     };

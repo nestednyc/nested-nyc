@@ -114,10 +114,10 @@ import { Av, UniLogo, Skeleton, Polaroid } from './shared'
     if (!Array.isArray(clubs) || !clubs.length) return null;
     return React.createElement("div", { className: "pf-clubs" },
       React.createElement("span", { className: "lbl" }, "Clubs"),
-      clubs.map((c) => React.createElement("button", { key: c.id, type: "button", className: "pf-club", onClick: () => c.slug && onOpenOrg && onOpenOrg(c.slug), title: c.student_run && !c.verified ? c.name + " · student-run" : c.name },
+      clubs.map((c) => React.createElement("button", { key: c.id, type: "button", className: "pf-club", onClick: () => c.slug && onOpenOrg && onOpenOrg(c.slug), title: c.student_run ? c.name + " · student-run" : c.name },
         React.createElement(Av, { name: c.name, img: c.logo || null, size: 20 }), c.name,
         // Student-founded club (no tick yet): a small flag marks it.
-        c.student_run && !c.verified && React.createElement(Icon, { name: "flag", size: 11, stroke: "var(--ink-faint)", width: 2.2 }))));
+        c.student_run && React.createElement(Icon, { name: "flag", size: 11, stroke: "var(--ink-faint)", width: 2.2 }))));
   }
 
   function PersonProfile({ person, connected, canMessage, onConnect, onMessage, isBlocked = false, onBlock, onUnblock, showConnect = true, clubs, onOpenOrg }) {

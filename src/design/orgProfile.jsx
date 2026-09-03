@@ -39,11 +39,9 @@ import { JoinButton, MemberRoster } from './clubJoin'
         React.createElement("span", { className: "oc-id" },
           kicker && React.createElement("span", { className: "oc-kicker" }, kicker),
           React.createElement("b", null, org.name,
-            org.verified && React.createElement("span", { className: "verify-tick", title: "Verified .edu org" },
-              React.createElement(Icon, { name: "check", size: 11, stroke: "var(--paper)", width: 3 })),
-            // Student-founded club: the "Student-run" tag stands in for the tick
-            // (reads the raw row and the adapted event shape alike).
-            !org.verified && !!(org.student_run || org.studentRun) && React.createElement(StudentTag, null)),
+            // Student-founded club: the "Student-run" tag (reads the raw row and
+            // the adapted event shape alike). No tick — verification is retired.
+            !!(org.student_run || org.studentRun) && React.createElement(StudentTag, null)),
           React.createElement("small", null, orgSub(org))
         ),
         onOpen && React.createElement(Icon, { name: "arrowRight", size: 18, stroke: "var(--ink-faint)" })
@@ -148,9 +146,8 @@ import { JoinButton, MemberRoster } from './clubJoin'
     // Universities aren't joinable; clubs and other orgs are.
     const joinable = org.type !== "university";
     const joinUrl = typeof org.join_url === "string" && /^https?:\/\//i.test(org.join_url) ? org.join_url : null;
-    // A student-founded club is live without the tick — it wears the
-    // "Student-run" tag instead (an admin's verified flag wins over it).
-    const studentRun = !!(org.student_run && !org.verified);
+    // A student-founded club wears the "Student-run" tag.
+    const studentRun = !!org.student_run;
     const founderUni = founder && founder.uni && UNI[founder.uni] ? UNI[founder.uni].name : null;
 
     return (

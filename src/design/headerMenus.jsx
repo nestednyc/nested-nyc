@@ -198,7 +198,7 @@ import { postTimeAgo } from './postAdapter'
         React.createElement(Av, { name: org.name, img: org.logo || null }),
         React.createElement("div", { className: "menu-id-txt" },
           React.createElement("b", null, org.name),
-          React.createElement("small", null, org.verified ? "verified org · you run this" : "student-run · you run this")
+          React.createElement("small", null, org.student_run ? "student-run · you run this" : "you run this")
         )
       ),
       React.createElement("div", { className: "menu-div" }),

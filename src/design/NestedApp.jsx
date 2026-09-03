@@ -257,7 +257,7 @@ import { useOrg } from './hooks/useOrg'
       loadPostComments, addCommunityComment, deleteCommunityComment, resetCommunity,
       follows, followsLoaded, followedOrgs, ensureFollows, toggleFollowOrg,
       feedHasMore, loadingMore, loadMoreFeed,
-      boardEvents, spotlight, reported, reportContent,
+      boardEvents, spotlight, clubs, reported, reportContent,
       postDetail, ensurePost, editCommunityPost,
       composerPreset, openBoardComposer, clearComposerPreset, projectPosts, ensureProjectPosts,
       orgFollowerCount, orgPostCount, ensureOrgStats, markFollowed,
@@ -807,7 +807,7 @@ import { useOrg } from './hooks/useOrg'
       loadPostComments, addCommunityComment, deleteCommunityComment,
       follows, followsLoaded, followedOrgs, ensureFollows, toggleFollowOrg,
       feedHasMore, loadingMore, loadMoreFeed,
-      boardEvents, spotlight, reported, reportContent,
+      boardEvents, spotlight, clubs, reported, reportContent,
       postViewId, openPost, postDetail, editCommunityPost,
       composerPreset, openBoardComposer, clearComposerPreset, projectPosts,
       orgFollowerCount, orgPostCount,
@@ -907,13 +907,8 @@ import { useOrg } from './hooks/useOrg'
     }
 
     // ---------- ORG APP SHELL (dashboard + own public page) ----------
-    if (orgAccount && route === "orgCommunity" && !orgAccount.verified && !orgAccount.student_run) {
-      // Unverified orgs can't post yet — same gate as events (student-run
-      // clubs are live from day one). Bounce home.
-      replaceNextRef.current = true;
-      setRoute("orgDashboard");
-      return null;
-    }
+    // (Every org is live from creation — verification was retired 2026-09-03,
+    // so there is no unverified bounce off the org board any more.)
     if (orgAccount && (route === "orgDashboard" || route === "orgCommunity" || route === "eventDetail" || route === "eventResponses" || route === "orgMembers")) {
       return React.createElement(OrgShell, { api });
     }

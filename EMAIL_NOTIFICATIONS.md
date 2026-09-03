@@ -9,12 +9,12 @@ notifications today:
 | `team_members` INSERT (status `pending`) | Join request | Project owner + co-leads (`projects.admins`) |
 | `team_members` UPDATE (→ `approved`) | You're in | The requester |
 | `connections` INSERT | New connection | The target |
-| `organizations` UPDATE (verified → `true`) | You're verified | The org owner |
+| `organizations` UPDATE (verified → `true`) | You're verified — **retired 2026-09-03** (nothing flips `verified` any more; the handler stays inert) | The org owner |
 | `messages` INSERT (**first of a pair only**) | New message | The message recipient |
 | `reports` INSERT | Community report (internal) | `REPORT_RECIPIENTS` |
 | `org_memberships` INSERT (status `pending`, or a rejected row re-applied) | Club application | The org owner |
 | `org_memberships` UPDATE (`pending` → `accepted`) | You're in (club) | The applicant |
-| `organizations` INSERT (club / community from an org-email account) | New org waiting for review (internal) | `ADMIN_RECIPIENTS` (falls back to `REPORT_RECIPIENTS`) |
+| `organizations` INSERT (club / community from an org-email account) | New org is live (internal heads-up + takedown SQL; every org is live from creation) | `ADMIN_RECIPIENTS` (falls back to `REPORT_RECIPIENTS`) |
 | `organizations` INSERT with `student_run = true` (a student founded a club — live at once, no tick; migration `20260903000000`) | New student-run club is live (internal; founder + optional tick / takedown SQL) | `ADMIN_RECIPIENTS` (falls back to `REPORT_RECIPIENTS`) |
 
 And the **weekly digest** — `api/digest.js`, run by Vercel Cron every Monday
@@ -47,7 +47,7 @@ reach the browser.
 | `APP_URL` | `https://www.nested.social` (used to build links inside emails) |
 | `UNSUBSCRIBE_SECRET` | Optional; HMAC key for unsubscribe links (defaults to `WEBHOOK_SECRET`) |
 | `REPORT_RECIPIENTS` | Comma-separated founder addresses that receive community reports |
-| `ADMIN_RECIPIENTS` | Optional; addresses for "new org waiting for review" (defaults to `REPORT_RECIPIENTS`) |
+| `ADMIN_RECIPIENTS` | Optional; addresses for the "new org is live" heads-up (defaults to `REPORT_RECIPIENTS`) |
 | `CRON_SECRET` | Vercel sets `Authorization: Bearer <CRON_SECRET>` on cron invocations of `/api/digest`; set it so nobody else can trigger a send |
 | `EMAIL_LOGO_URL` | Local previews only — overrides the band logo (normally `https://www.nested.social/email/nested-mark-ivory.png`). **Leave unset in production**: a forgotten override silently breaks the logo in every email |
 

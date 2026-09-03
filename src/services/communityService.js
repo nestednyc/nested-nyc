@@ -27,6 +27,8 @@ export function communityErrorMessage(error, fallback) {
 
 const POST_SELECT = '*, project:projects(id, name, category), org:organizations(id, slug, name, verified, student_run, owner_user_id)'
 const SPOTLIGHT_SELECT = 'id, slug, name, logo, bio, location, verified, student_run, owner_user_id, type, university_id, spotlight_until'
+// The clubs directory rows carry the join sheet too (Join opens it in place).
+const CLUBS_SELECT = SPOTLIGHT_SELECT + ', join_questions, join_url, created_at'
 
 export const communityService = {
   /**
@@ -51,12 +53,26 @@ export const communityService = {
    * future, hand-set by a founder — see migration 20260830000001) plus its
    * latest board post. `data` is null when nobody is spotlighted.
    */
+  /**
+   * Every club on Nested (never a university), newest first — the board's
+   * clubs directory. Every org is live from creation (verification retired).
+   */
+  async getClubs() {
+    if (!isSupabaseConfigured()) return { data: [], error: notConfigured }
+    const { data, error } = await supabase
+      .from('organizations')
+      .select(CLUBS_SELECT)
+      .neq('type', 'university')
+      .order('created_at', { ascending: false })
+      .limit(200)
+    return { data: data || [], error }
+  },
+
   async getSpotlight() {
     if (!isSupabaseConfigured()) return { data: null, error: notConfigured }
     const { data: orgs, error } = await supabase
       .from('organizations')
       .select(SPOTLIGHT_SELECT)
-      .or('verified.eq.true,student_run.eq.true') // any live org an admin chose to pin
       .gt('spotlight_until', new Date().toISOString())
       .order('spotlight_until', { ascending: true })
       .limit(1)

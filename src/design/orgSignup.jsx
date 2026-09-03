@@ -9,7 +9,7 @@
    ============================================================ */
 import React from 'react'
 import Icon from './icons'
-import { Stamp, CodeBoxes } from './shared'
+import { CodeBoxes } from './shared'
 import { authService, isSupabaseConfigured, getErrorMessage } from '../lib/supabase'
 import { lookupService } from '../services/lookupService'
 
@@ -240,12 +240,7 @@ import { lookupService } from '../services/lookupService'
           ),
           React.createElement("div", { className: "onb-pitch" },
             React.createElement("h2", null, "For ", React.createElement("em", null, "orgs"), " on", React.createElement("br"), "campus."),
-            React.createElement("p", null, "Universities, clubs and communities — Nested is the shared calendar for every NYC campus. Sign your org up, publish events, and reach students across schools."),
-            React.createElement("div", { className: "onb-mini-board" },
-              React.createElement("div", { style: { display: "grid", placeItems: "center", padding: "28px 0" } },
-                React.createElement(Stamp, { size: 92, label: "ORG" })
-              )
-            )
+            React.createElement("p", null, "Universities, clubs and communities — Nested is the shared calendar for every NYC campus. Sign your org up, publish events, and reach students across schools. Your page is live the moment you pin it.")
           )
         ),
         React.createElement("div", { className: "onb-main grain" },
