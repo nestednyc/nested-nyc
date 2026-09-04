@@ -19,7 +19,9 @@ import React from 'react'
 import { isProjectAdmin, isProjectOwner } from '../data'
 import { isSupabaseConfigured, authService, supabase } from '../../lib/supabase'
 import { projectService, closeRole } from '../../services/projectService'
+import { communityService, communityErrorMessage } from '../../services/communityService'
 import { toDbProject, fromDbProject, creatorTeamMember } from '../projectAdapter'
+import { toDbPost } from '../postAdapter'
 
 const { useState, useEffect, useRef } = React;
 
@@ -201,6 +203,20 @@ export function useProjects({
     if (error) {
       setProjects((arr) => arr.map((p) => p.id === id ? prev : p));
       toast("Couldn't save — " + (error.message || "try again"), "x");
+      return;
+    }
+    // The flyer's "latest update" note doubles as a Community board post, tagged
+    // to this project — same table + kind "Post to the board" already writes, so
+    // followers see it without a separate trip through the composer. Clearing the
+    // note (empty text) stays flyer-only.
+    const text = (patch.alert || "").trim();
+    if (text) {
+      const { error: postError } = await communityService.createPost(
+        toDbPost({ kind: "update", body: text, projectId: id }, profile)
+      );
+      if (postError) {
+        toast(communityErrorMessage(postError, "Saved, but didn't post to Community"), "x");
+      }
     }
   }
   // Owner-only: promote a crew member into projects.admins (co-lead) or
