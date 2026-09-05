@@ -21,6 +21,8 @@ import { connectionService } from '../services/connectionService'
 import { messageService } from '../services/messageService'
 import { parse as parseLocation, build as buildPath, accessOf, validateNext, titleFor, describeFor } from './router'
 import { useToasts } from './hooks/useToasts'
+import { useModeSwitch } from './hooks/useModeSwitch'
+import { ModeCurtain } from './modeCurtain'
 import { useSession } from './hooks/useSession'
 import { usePeople } from './hooks/usePeople'
 import { useMessaging } from './hooks/useMessaging'
@@ -184,15 +186,26 @@ import { useOrg } from './hooks/useOrg'
     // the initial-hydration Promise.all below; signOut composes signOutAuth +
     // each domain's reset*.
     const { toasts, toast } = useToasts();
+    // The pixel-resolve curtain around the student ↔ club switch. Before
+    // useSession: its SIGNED_OUT callback cancels a pending switch (TDZ).
+    const { curtain, switchMode, onCurtainDone, cancelSwitch, resetModeSwitch } = useModeSwitch();
     const {
       profile: studentProfile, orgAccount: activeOrg, ownedOrgs, sessionPending, pendingStudent, joinedAt,
-      adoptProfile, adoptOrgAccount, enterClubMode, leaveClubMode,
+      adoptProfile, adoptOrgAccount, enterClubMode: enterClubModeRaw, leaveClubMode: leaveClubModeRaw,
       hydrateSession, saveProfileToSupabase, signOutAuth,
     } = useSession({
       applyParsed, authCallbackRef, replaceNextRef, profileRef, orgAccountRef,
       stashReturnTo, takeReturnTo, setAuthMode, setRoute, toast,
-      onSignedOut: () => setRoute("discover"), // back to guest browsing, not the auth wall
+      onSignedOut: () => { cancelSwitch(); setRoute("discover"); }, // back to guest browsing, not the auth wall
     });
+    // Every identity switch — Manage <club>, Switch to <club>, Back to student
+    // mode, a join-request row — funnels through these two, so wrapping them
+    // here plays the curtain for all of them: ~140 ms cover from the tap,
+    // the raw switch (identity + route, one commit) under full cover, ~380 ms
+    // reveal converging on the new chip. URL-driven moves (Back / Forward,
+    // deep links, applyParsed) never come this way and stay instant.
+    const enterClubMode = (orgId, target) => switchMode(() => enterClubModeRaw(orgId, target), { into: "club" });
+    const leaveClubMode = () => switchMode(() => leaveClubModeRaw(), { into: "board" });
     // ─── Club mode (derived, never stored) ──────────────────────────────────
     // useSession holds the mode-independent identities: the student profile
     // and the ACTIVE owned org. Which one the app "is" right now follows the
@@ -492,6 +505,7 @@ import { useOrg } from './hooks/useOrg'
     // ─── URL mirror (read side): Back/Forward ───────────────────────────────
     useEffect(() => {
       function onPop(e) {
+        cancelSwitch(); // a Back inside the cover drops the pending switch
         const { pathname, search } = window.location;
         // A /auth/* entry resurfacing in history is a dead callback — replace
         // it with home directly (no state may change, so fix the bar here).
@@ -617,6 +631,7 @@ import { useOrg } from './hooks/useOrg'
     // other domain contributes its reset*; the router-param clears are
     // root-owned and must stay listed here explicitly.
     async function signOut() {
+      resetModeSwitch(); // drop a pending switch before the await
       await signOutAuth();
       resetProjects();    // feed + the saved/joined/requested buckets
       resetEvents();      // RSVPs
@@ -731,6 +746,7 @@ import { useOrg } from './hooks/useOrg'
       t.texture ? "" : "no-texture",
     ].join(" ");
 
+    function renderShell() {
     // ---------- FIRST-HYDRATION HOLD ----------
     // A deep link can land on a screen whose identity hasn't resolved yet
     // (student screens crash on a null profile; org screens render against a
@@ -778,7 +794,7 @@ import { useOrg } from './hooks/useOrg'
       // session — identity installs go through adopt* (ref + state together);
       // profile/orgAccount are the mode-derived pair, ownedOrgs the student's clubs
       profile, adoptProfile, orgAccount, adoptOrgAccount, pendingStudent, joinedAt,
-      ownedOrgs, ownedOrgIds, canSwitchModes, enterClubMode, leaveClubMode,
+      ownedOrgs, ownedOrgIds, canSwitchModes, enterClubMode, leaveClubMode, switchMode,
       hydrateSession, saveProfileToSupabase, signOut,
       // people
       people, connected, incoming, incomingPending, onConnect, onDisconnect,
@@ -915,6 +931,14 @@ import { useOrg } from './hooks/useOrg'
 
     // ---------- MAIN APP (student) ----------
     return React.createElement(StudentShell, { api });
+    }
+
+    // The curtain is the persistent sibling above whichever shell is up, so
+    // it outlives the swap it covers (hooks/useModeSwitch.js, modeCurtain.jsx).
+    return React.createElement(React.Fragment, null,
+      renderShell(),
+      React.createElement(ModeCurtain, { curtain, onDone: onCurtainDone })
+    );
   }
 
   export { App as NestedApp };

@@ -28,7 +28,7 @@ export default function FullScreens({ screen, draft, editProject, api }) {
     authMode, toast, setJustVerified,
     forgotEmailSeed, setForgotEmailSeed, forgotFrom, setForgotFrom,
     orgAuthMode, setOrgAuthMode,
-    profile, adoptProfile, orgAccount, adoptOrgAccount, pendingStudent, hydrateSession, signOut,
+    profile, adoptProfile, orgAccount, adoptOrgAccount, pendingStudent, hydrateSession, signOut, switchMode,
     detailId, setEditId, setEventDraftId,
     projectsList, createProject, saveProjectEdits, deleteProjectById,
     createOrgEvent, updateOrgEvent,
@@ -157,9 +157,12 @@ export default function FullScreens({ screen, draft, editProject, api }) {
           profile,
           onCancel: () => { setRoute("community"); window.scrollTo({ top: 0 }); },
           onCreated: (org) => {
-            adoptOrgAccount(org);
-            setRoute("orgDashboard");
-            window.scrollTo({ top: 0 });
+            // The founding switch rides the curtain like Manage does.
+            switchMode(() => {
+              adoptOrgAccount(org);
+              setRoute("orgDashboard");
+              window.scrollTo({ top: 0 });
+            }, { into: "club" });
             toast(org.name + " is live — you're in club mode", "sparkle");
           },
         })

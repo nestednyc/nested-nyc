@@ -31,6 +31,9 @@
   --accent: oklch(0.60 0.185 30);
   --accent-ink: oklch(0.42 0.16 32);
   --accent-wash: oklch(0.60 0.185 30 / 0.12);
+  /* the mode-switch curtain's lead block color (see mosaic.js pickPalette):
+     a warmer orange than the accent, Hamza's pick 09-05 over red / the accent */
+  --curtain: oklch(0.70 0.17 55);
 
   --disp: "Bricolage Grotesque", sans-serif;
   --body: "Hanken Grotesk", sans-serif;
@@ -831,6 +834,18 @@ input, textarea, select { font-family: inherit; }
 }
 .toast svg { width: 18px; height: 18px; color: var(--c-hack); }
 @keyframes toastIn { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+/* ============================================================
+   MODE CURTAIN — the pixel-resolve between student and club mode
+   (modeCurtain.jsx paints it, hooks/useModeSwitch.js times it).
+   z tiers: topbar 40 · hdr-menu 60 · scrim 80 · toast / sheet-scrim 90 ·
+   curtain 95 · dev tweaks panel max. inset:0 (not 100vh) so the iOS
+   toolbar can't leave a strip; a fixed canvas never widens scrollWidth.
+   ============================================================ */
+.mode-curtain { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 95; display: block; background: transparent; image-rendering: pixelated; touch-action: none; }
+.mode-curtain[data-phase="cover"] { pointer-events: auto; cursor: progress; }
+.mode-curtain[data-phase="reveal"] { pointer-events: none; }
+@media (prefers-reduced-motion: reduce) { .mode-curtain { display: none; } }
 
 /* ============================================================
    MODAL

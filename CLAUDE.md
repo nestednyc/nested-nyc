@@ -66,7 +66,7 @@ Five channels, all authed via `supabase.realtime.setAuth` before subscribing (RL
 src/
 ├── design/              # THE live app — every screen the user sees
 │   ├── NestedApp.jsx    # composition root: route machine, URL mirror, hydration barrier, hook wiring, dispatch, TWEAK_DEFAULTS
-│   ├── hooks/           # domain hooks: useToasts useSession usePeople useMessaging useProjects useEvents useCommunity useNotifications useOrg
+│   ├── hooks/           # domain hooks: useToasts useModeSwitch useSession usePeople useMessaging useProjects useEvents useCommunity useNotifications useOrg
 │   ├── shells/          # render frames fed by the api bag: StudentShell, OrgShell, FullScreens (auth/create/edit routes)
 │   ├── router.js        # pure URL codec: parse/build/accessOf/validateNext/titleFor
 │   ├── community.jsx    # the community board + the /community/:id permalink page (CommunityPost)
@@ -169,6 +169,8 @@ Migrations live in `supabase/migrations/`, applied in order. ⚠️ Prod migrati
 
 A signed-in student can found and run clubs without a second account (migration `20260903000000`, screen `clubFound.jsx`, entry points in `community.jsx` "Your corner" → **Your clubs**, the account menu and the mobile sheet). `/clubs/new` wraps the same `OrgForm` the org-email onboarding uses (`variant="student"`: type locked to `club`, the type chips hidden, campus prefilled from the profile, "live right away" copy) around the shared `createOrgFromValues` from `orgOnboard.jsx`; success runs `adoptOrgAccount` (an upsert into `ownedOrgs` + activate + persist) and lands on `/dashboard`, which is club mode. The row is stamped `student_run` by the DB (see the `organizations` row + triggers above) and is **live immediately** — public page, board posts as the club, events, follows, applications — labeled "student-run" (`OrgMini studentRun`, `.student-chip` / `.com-student-chip`); org-email orgs are live from creation too (no verification gate, no tick — retired 2026-09-03). The board's **clubs directory** (`communityService.getClubs`, `clubs` in `useCommunity`) lists every club: a "Clubs on Nested" rail card (5, then "Show all") on desktop and a Board / Clubs toggle on phones. In club mode a student's chip is a `ClubPanel` (switch club, start another, back to student mode, sign out); org-email accounts keep the bare sign-out chip. Student-mode rules for a club you run: its public page shows **Manage club** instead of Join/Follow, its events and board cards say "you're hosting" instead of RSVP/Follow (the server blocks self-RSVP, self-join and self-follow), and a join-request notification opens `/dashboard/members` in club mode. Org-email accounts are untouched: `hydrateSession` still routes an owner with no student profile straight to the dashboard.
 
+**Mode-switch curtain** (`hooks/useModeSwitch.js`, `modeCurtain.jsx`, pure schedule in `mosaic.js` — tested): the explicit identity switches — Manage <club>, Switch to <club>, Back to student mode, a join-request row, a club's founding — play a pixel-resolve on one fixed canvas above the shell swap: ~140 ms cover in the curtain orange (`--curtain`) plus paper and cork spreading from the tap → the switch itself (identity + route, one commit) under full cover → ~380 ms reveal, blocks splitting finer and converging on the new chip. NestedApp wraps `useSession`'s `enterClubMode` / `leaveClubMode` in `switchMode(apply, { into })` (every call site funnels through them) and `FullScreens` wraps the founding landing; `useModeSwitch` is called right after `useToasts` (its `cancelSwitch` feeds `useSession`'s SIGNED_OUT callback), the dispatch lives in a `renderShell()` closure with `<ModeCurtain>` as its persistent Fragment sibling, and popstate + `signOut` cancel a pending switch. The timers are the authority (rAF may stall); reduced motion, a hidden tab or no 2D canvas → the plain cut; URL-driven moves never animate. Dev tuning: `localStorage["nested.dev.switchSlow"] = 4` (slow motion), `localStorage["nested.dev.switchLead"] = <css color>` (lead swap). E2E: `e2e/mode-switch-check.mjs` on the `e2e/_mock-student-club.mjs` canned session.
+
 ### Event RSVP questions
 
 An event can carry up to 10 questions (`eventRsvp.jsx` — `QuestionBuilder` on step 3 of the event form; types short / long / choice / multi / date / yesno, each optionally required). "I'm going" (event page or a board card) goes through `useEvents.requestRsvp(event)`: no questions → the plain toggle; questions → `RsvpModal` → `rsvp_with_answers` RPC (required questions enforced server-side). The event page shows "Your answers · Edit"; un-RSVP cascades the answers away. Hosts read everything on `/dashboard/events/:id/rsvps` (`eventResponses.jsx`: attendee × question table + CSV, loaded by `useOrg.loadEventResponses`). Answers are private to the attendee and the host — never on the "Who's going" roster. Board events carry `questions` + `iWasGoing` (the viewer's own registration embedded by `getUpcomingEvents({ viewerId })`) so the card's going-count stays exact. E2E: `e2e/community-rsvp-check.mjs`.
@@ -226,12 +228,12 @@ npm install
 npm run dev        # localhost:5173
 npm run build      # production build → dist/
 npm run preview
-npm test           # node --test: router.test.js + messageAdapter.test.js + data.test.js
+npm test           # node --test: router.test.js + messageAdapter.test.js + data.test.js + postAdapter.test.js + mosaic.test.js
 ```
 
 - Env (`.env`, see `.env.example`): `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`.
 - Local Supabase stack via the CLI/Docker (`supabase/config.toml`): API :54321, DB :54322, Studio :54323; email confirmations auto-pass locally.
-- **Tests cover only the pure modules** (`router.js`, `messageAdapter.js`, and `data.js`'s `resolveOrgUniSlug`) via `node --test` — no framework. Everything else is verified manually in the browser (Playwright is a devDependency for ad-hoc verification scripts, not a checked-in suite).
+- **Tests cover only the pure modules** (`router.js`, `messageAdapter.js`, `postAdapter.js`, `mosaic.js`, and `data.js`'s `resolveOrgUniSlug`) via `node --test` — no framework. Everything else is verified manually in the browser (Playwright is a devDependency for ad-hoc verification scripts, not a checked-in suite).
 
 ## Deployment
 
