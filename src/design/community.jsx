@@ -17,7 +17,7 @@ import Icon from './icons'
 import { CAT, UNI, ETYPE, isProjectAdmin, MAX_STUDENT_CLUBS } from './data'
 import { Av, Skeleton, ConfirmModal, formatEventDate } from './shared'
 import { POST_BODY_MAX, POST_IMAGES_MAX } from '../services/communityService'
-import { postTimeAgo } from './postAdapter'
+import { postTimeAgo, threadComments } from './postAdapter'
 import { JoinPill } from './clubJoin'
 
   const { useState, useRef, useEffect } = React;
@@ -275,6 +275,30 @@ import { JoinPill } from './clubJoin'
     return null;
   }
 
+  // ── One comment (top-level or reply) ──────────────────────────────
+  // `root` is the top-level comment the row belongs to — replying to a
+  // reply still targets the root (one level, ever); the composer @mentions
+  // the tapped author so the right person gets pinged.
+  function CommentRow({ c, root, reply, mine, profileId, onReply, onDelete, onReport }) {
+    return (
+      React.createElement("div", { className: "com-comment" + (reply ? " reply" : "") },
+        React.createElement(Av, { name: c.author, img: c.authorAvatar || null }),
+        React.createElement("div", { className: "com-comment-main" },
+          React.createElement("div", { className: "com-comment-bubble" },
+            React.createElement("b", null, c.author),
+            React.createElement("span", null, c.body)
+          ),
+          profileId && React.createElement("button", { className: "com-reply-btn", type: "button", onClick: () => onReply(root, c) }, "Reply")
+        ),
+        (c.authorId === profileId || mine)
+          ? React.createElement("button", { className: "com-del", onClick: () => onDelete(c.id), "aria-label": "Delete comment" },
+              React.createElement(Icon, { name: "x", size: 12 }))
+          : React.createElement("button", { className: "com-del com-flag", onClick: () => onReport("comment", c.id), "aria-label": "Report comment", title: "Report comment" },
+              React.createElement(Icon, { name: "flag", size: 12 }))
+      )
+    );
+  }
+
   // ── One pinned note ───────────────────────────────────────────────
   function PostCard({
     p, mine, liked, savedOn, comments, profileId, viewerIsStudent, followed, membership, ask, reported,
@@ -285,6 +309,8 @@ import { JoinPill } from './clubJoin'
   }) {
     const [open, setOpen] = useState(!!defaultOpen);
     const [text, setText] = useState("");
+    const [replyTo, setReplyTo] = useState(null); // { rootId, name }
+    const commentInput = useRef(null);
     const [editing, setEditing] = useState(false);
     const [draft, setDraft] = useState(null); // { body, kind, projectId }
     const [saving, setSaving] = useState(false);
@@ -299,10 +325,19 @@ import { JoinPill } from './clubJoin'
       const next = !open;
       setOpen(next);
       if (next) onLoadComments(p.id);
+      else setReplyTo(null);
     }
     async function sendComment() {
-      const res = await onAddComment(p.id, text);
-      if (res && res.ok) setText("");
+      const res = await onAddComment(p.id, text, replyTo ? replyTo.rootId : null);
+      if (res && res.ok) { setText(""); setReplyTo(null); }
+    }
+    // Reply always attaches to the ROOT comment; tapping Reply on a reply
+    // pre-addresses its author (the root author gets the reply notification,
+    // the @mention pings the person actually answered).
+    function armReply(root, c) {
+      setReplyTo({ rootId: root.id, name: c.author });
+      if (c.id !== root.id && c.authorHandle) setText((t) => (t.trim() ? t : "@" + c.authorHandle + " "));
+      if (commentInput.current) commentInput.current.focus();
     }
     const openOrg = () => org && org.slug && onOpenOrg && onOpenOrg(org.slug);
 
@@ -411,24 +446,28 @@ import { JoinPill } from './clubJoin'
         ),
         open && React.createElement("div", { className: "com-comments" },
           comments && comments.loading && React.createElement("div", { className: "ev-skel line", style: { width: "55%" } }),
-          comments && comments.list && comments.list.map((c) => (
-            React.createElement("div", { className: "com-comment", key: c.id },
-              React.createElement(Av, { name: c.author, img: c.authorAvatar || null }),
-              React.createElement("div", { className: "com-comment-bubble" },
-                React.createElement("b", null, c.author),
-                React.createElement("span", null, c.body)
-              ),
-              (c.authorId === profileId || mine)
-                ? React.createElement("button", { className: "com-del", onClick: () => onDeleteComment(p.id, c.id), "aria-label": "Delete comment" },
-                    React.createElement(Icon, { name: "x", size: 12 }))
-                : React.createElement("button", { className: "com-del com-flag", onClick: () => onReport("comment", c.id), "aria-label": "Report comment", title: "Report comment" },
-                    React.createElement(Icon, { name: "flag", size: 12 }))
+          comments && comments.list && threadComments(comments.list).map((c) => (
+            React.createElement("div", { className: "com-thread", key: c.id },
+              React.createElement(CommentRow, {
+                c, root: c, mine, profileId,
+                onReply: armReply, onDelete: (id) => onDeleteComment(p.id, id), onReport,
+              }),
+              c.replies.length > 0 && React.createElement("div", { className: "com-replies" },
+                c.replies.map((r) => React.createElement(CommentRow, {
+                  key: r.id, c: r, root: c, reply: true, mine, profileId,
+                  onReply: armReply, onDelete: (id) => onDeleteComment(p.id, id), onReport,
+                })))
             )
           )),
           comments && comments.list && comments.list.length === 0 && React.createElement("div", { className: "com-meta", style: { padding: "6px 0" } }, "No comments yet."),
+          replyTo && React.createElement("div", { className: "com-replying" },
+            "Replying to ", React.createElement("b", null, replyTo.name),
+            React.createElement("button", { className: "x", type: "button", onClick: () => setReplyTo(null), "aria-label": "Cancel reply" },
+              React.createElement(Icon, { name: "x", size: 11 }))),
           React.createElement("div", { className: "com-comment-row" },
             React.createElement("input", {
-              className: "com-comment-input", placeholder: "Add a comment…",
+              ref: commentInput,
+              className: "com-comment-input", placeholder: replyTo ? "Write a reply…" : "Add a comment…",
               value: text, maxLength: 1000,
               onChange: (e) => setText(e.target.value),
               onKeyDown: (e) => { if (e.key === "Enter" && text.trim()) sendComment(); },

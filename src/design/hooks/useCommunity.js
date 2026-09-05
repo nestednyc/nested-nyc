@@ -417,11 +417,12 @@ export function useCommunity({ profile, orgAccount, toast, requireAuth }) {
     setSpotlight((s) => (s && s.post && s.post.id === postId ? { ...s, post: bump([s.post])[0] } : s));
   }
 
-  async function addCommunityComment(postId, body) {
+  // `parentId` (a root comment's id) makes it a one-level reply.
+  async function addCommunityComment(postId, body, parentId) {
     if (!me) return requireAuth("Sign in to comment");
     const text = (body || "").trim();
     if (!text) return { ok: false };
-    const { data, error } = await communityService.addComment(toDbComment(postId, text, me));
+    const { data, error } = await communityService.addComment(toDbComment(postId, text, me, parentId));
     if (error) {
       toast(communityErrorMessage(error, "Comment didn't send — try again"), "x");
       return { ok: false };
@@ -439,12 +440,16 @@ export function useCommunity({ profile, orgAccount, toast, requireAuth }) {
     const cur = postComments[postId];
     if (!cur || !cur.list) return;
     const prev = cur.list;
-    setPostComments((c) => ({ ...c, [postId]: { list: prev.filter((x) => x.id !== commentId), loading: false } }));
-    bumpCommentCount(postId, -1);
+    // Deleting a top-level comment takes its replies with it (FK cascade) —
+    // mirror that optimistically so the count and the thread agree.
+    const keep = prev.filter((x) => x.id !== commentId && x.parentId !== commentId);
+    const removed = prev.length - keep.length;
+    setPostComments((c) => ({ ...c, [postId]: { list: keep, loading: false } }));
+    bumpCommentCount(postId, -removed);
     const { error } = await communityService.deleteComment(commentId);
     if (error) {
       setPostComments((c) => ({ ...c, [postId]: { list: prev, loading: false } }));
-      bumpCommentCount(postId, 1);
+      bumpCommentCount(postId, removed);
       toast("Couldn't delete that — try again", "x");
     }
   }

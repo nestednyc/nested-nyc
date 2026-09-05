@@ -6,7 +6,7 @@
    ============================================================ */
 import { personLabel } from "./data";
 
-export const NOTIF_KINDS = ["post_like", "post_comment", "mention", "org_follow", "org_join_request", "org_join_accepted", "org_join_rejected"];
+export const NOTIF_KINDS = ["post_like", "post_comment", "comment_reply", "mention", "org_follow", "org_join_request", "org_join_accepted", "org_join_rejected"];
 
 export function fromDbNotification(row) {
   if (!row || !row.id) return null;
@@ -57,6 +57,7 @@ export function notificationText(n) {
   switch (n.kind) {
     case "post_like":    return who + " liked your post";
     case "post_comment": return who + " commented on your post";
+    case "comment_reply": return who + " replied to your comment";
     case "mention":      return who + " mentioned you";
     case "org_follow":   return who + " followed " + (n.snippet || "your org");
     case "org_join_request":  return who + " applied to join " + (n.snippet || "your org");

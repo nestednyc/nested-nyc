@@ -2022,7 +2022,23 @@ button.org-founder:hover b { text-decoration: underline; }
   .topbar-mob .iconbtn, .topbar-mob .mob-avatar { width: 38px; height: 38px; }
   .topbar-mob .iconbtn svg { width: 18px; height: 18px; }
   .topbar-mob .mob-avatar .av { width: 32px; height: 32px; font-size: 12px; }
+}
 
+/* The Community tab re-widened the bar this pass had tuned: "Community" runs
+   ~24px wider than the parked "Events" label, so three text tabs + the
+   3-control cluster hit 384px of content on a 360px phone again (board
+   relaunch). One more step down — tighter gaps, slimmer tabs, 36px icons —
+   buys it back; only true ≤320px legacy widths still clip, as before. */
+@media (max-width: 389px) {
+  .topbar { gap: 3px; }
+  .topbar .nav button { padding: 7px 5px; font-size: 12px; }
+  .topbar-mob { gap: 2px; }
+  .topbar-mob .btn { padding: 8px 9px; font-size: 12px; }
+  .topbar-mob .iconbtn, .topbar-mob .mob-avatar { width: 36px; height: 36px; }
+  .topbar-mob .mob-avatar .av { width: 30px; height: 30px; }
+}
+
+@media (max-width: 540px) {
   /* Matches tab row (Saved · Requests · My projects) ran ~12px too wide for a
      390px phone, so the third tab pushed the page past the viewport — which left
      a strip of cork exposed to the right of the sticky top bar (the header looked
@@ -2350,6 +2366,23 @@ button.org-founder:hover b { text-decoration: underline; }
 }
 .com-comment-bubble b { font-size: 12.5px; }
 .com-comment .com-del { margin-left: 0; align-self: center; }
+/* one-level replies: a thread = the comment + its indented replies */
+.com-thread { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.com-comment-main { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 0; }
+.com-reply-btn {
+  border: none; background: none; cursor: pointer; padding: 0 2px;
+  font-family: var(--mono); font-size: 10.5px; font-weight: 600; letter-spacing: .06em;
+  color: var(--ink-faint);
+}
+.com-reply-btn:hover { color: var(--accent-ink); }
+.com-replies {
+  display: flex; flex-direction: column; gap: 8px;
+  margin-left: 12px; padding-left: 13px; border-left: 1.5px dashed var(--line);
+}
+.com-comment.reply .av { width: 22px; height: 22px; font-size: 9px; }
+.com-replying { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-soft); padding: 0 2px; }
+.com-replying .x { border: none; background: none; cursor: pointer; color: var(--ink-faint); display: flex; padding: 2px; }
+.com-replying .x:hover { color: var(--ink); }
 .com-comment-row { display: flex; align-items: center; gap: 8px; }
 .com-comment-input {
   flex: 1; border: 1.5px solid var(--line); border-radius: 99px; background: transparent;

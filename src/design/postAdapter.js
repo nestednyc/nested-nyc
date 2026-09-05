@@ -9,7 +9,8 @@
    scoped by RLS, so the feed can't join profiles for strangers);
    personLabel keeps the @handle-first precedence used everywhere.
    ============================================================ */
-import { normalizeCat, personLabel, resolveOrgUniSlug } from "./data";
+// .js extension: plain `node --test` (postAdapter.test.js) resolves it too.
+import { normalizeCat, personLabel, resolveOrgUniSlug } from "./data.js";
 
 // posts.kind — WHY a note is on the board (migration 20260830000000).
 export const POST_KINDS = ["update", "win", "ask"];
@@ -64,12 +65,39 @@ export function fromDbComment(row) {
   return {
     id: row.id,
     postId: row.post_id,
+    parentId: row.parent_id || null,
     authorId: row.author_id,
     author: personLabel({ username: row.author_handle, firstName: row.author_name }),
+    authorHandle: row.author_handle || "",
     authorAvatar: row.author_avatar || "",
     body: row.body || "",
     at: row.created_at,
   };
+}
+
+// Flat created_at-ASC comment list → top-level comments each carrying its
+// `replies` (one level — parent_id is always a root id). A reply whose
+// parent is hidden (reports) or gone stands alone at top level instead of
+// vanishing, re-sorted into time order.
+export function threadComments(list) {
+  const byId = new Map();
+  const tops = [];
+  const orphans = [];
+  for (const c of list || []) {
+    if (c.parentId) continue;
+    const t = { ...c, replies: [] };
+    byId.set(t.id, t);
+    tops.push(t);
+  }
+  for (const c of list || []) {
+    if (!c.parentId) continue;
+    const parent = byId.get(c.parentId);
+    if (parent) parent.replies.push(c);
+    else orphans.push({ ...c, replies: [] });
+  }
+  return orphans.length
+    ? [...tops, ...orphans].sort((a, b) => new Date(a.at) - new Date(b.at))
+    : tops;
 }
 
 // First usable photo URL from a cork-board profile's photos array (entries
@@ -118,10 +146,12 @@ export function toDbOrgPost(p, org, userId) {
   };
 }
 
-// Comment snapshot payload for `post_comments`.
-export function toDbComment(postId, body, profile) {
+// Comment snapshot payload for `post_comments`. `parentId` (a ROOT
+// comment's id) makes it a reply — one level, enforced server-side too.
+export function toDbComment(postId, body, profile, parentId) {
   return {
     post_id: postId,
+    parent_id: parentId || null,
     author_id: profile.id,
     author_name: (((profile.firstName || "") + " " + (profile.lastName || "")).replace(/\s+/g, " ")).trim(),
     author_handle: profile.username || "",

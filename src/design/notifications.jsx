@@ -23,7 +23,7 @@ import { postTimeAgo } from './postAdapter'
         React.createElement(Av, { name: n.actor.name, img: n.actor.avatar || null }),
         React.createElement("span", { className: "act-txt" },
           React.createElement("b", null, notificationText(n)),
-          n.snippet && React.createElement("small", null, n.kind === "post_comment" || n.kind === "mention" ? "“" + n.snippet + "”" : n.snippet)),
+          n.snippet && React.createElement("small", null, n.kind === "post_comment" || n.kind === "comment_reply" || n.kind === "mention" ? "“" + n.snippet + "”" : n.snippet)),
         React.createElement("span", { className: "act-time" }, postTimeAgo(n.at))
       )
     );
