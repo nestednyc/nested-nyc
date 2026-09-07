@@ -19,6 +19,7 @@
    ============================================================ */
 import { execFileSync, execSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 
 const PROD_REF = 'fkiyjxxiysbvmflbibsu';
 const argv = process.argv.slice(2);
@@ -56,9 +57,16 @@ if (LOCAL) {
   if (!PAT || !PAT.startsWith('sbp_')) { console.error('Missing SUPABASE_PAT (sbp_…) in the environment.'); process.exit(2); }
   // Management API via curl — fetch/urllib user-agents hit Cloudflare 1010.
   runRows = (sql) => {
-    const out = execFileSync('curl', ['-sS', '-X', 'POST', `https://api.supabase.com/v1/projects/${REF}/database/query`,
-      '-H', `Authorization: Bearer ${PAT}`, '-H', 'Content-Type: application/json',
-      '-d', JSON.stringify({ query: sql })], { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
+    let out;
+    try {
+      out = execFileSync('curl', ['-sS', '-X', 'POST', `https://api.supabase.com/v1/projects/${REF}/database/query`,
+        '-H', `Authorization: Bearer ${PAT}`, '-H', 'Content-Type: application/json',
+        '-d', JSON.stringify({ query: sql })], { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'] });
+    } catch (e) {
+      // A transport failure makes curl exit non-zero and Node's error would carry the
+      // whole argv, Authorization header included — never let that reach a log.
+      throw new Error(`curl to the Management API failed (exit ${e.status ?? '?'}): ${String(e.stderr || '').replace(/sbp_[A-Za-z0-9]+/g, 'sbp_…').slice(0, 300)}`);
+    }
     let res; try { res = JSON.parse(out); } catch { throw new Error('Non-JSON from the Management API: ' + out.slice(0, 300)); }
     // The API answers a failed statement with an object ({ message } / { error }), never an array.
     if (!Array.isArray(res)) throw new Error('SQL failed: ' + JSON.stringify(res).slice(0, 500));
@@ -74,6 +82,15 @@ if (!MIGRATED) {
   if (SEND) process.exit(4);
 }
 const q = (s) => "'" + String(s).replace(/'/g, "''") + "'";   // SQL string literal
+// One message id per (batch, sender, recipient), derived rather than random, so a
+// re-run after a mid-request failure hands send_intro_message the SAME id and gets
+// the original message back instead of a PT409 (its idempotency is keyed on the id).
+const introId = (batch, sender, recipient) => {
+  const h = createHash('sha256').update(`nested-intro:${batch}:${sender}:${recipient}`).digest();
+  h[6] = (h[6] & 0x0f) | 0x40; h[8] = (h[8] & 0x3f) | 0x80;   // RFC 4122 version + variant bits
+  const x = h.subarray(0, 16).toString('hex');
+  return `${x.slice(0, 8)}-${x.slice(8, 12)}-${x.slice(12, 16)}-${x.slice(16, 20)}-${x.slice(20, 32)}`;
+};
 
 // ---- the round ----------------------------------------------------------------
 const round = JSON.parse(readFileSync(FILE, 'utf8'));
@@ -136,7 +153,7 @@ for (const [i, item] of round.entries()) {
     continue;
   }
   if (!SEND) { console.log('   ok — would send\n'); continue; }
-  const [row] = runRows(`select public.send_intro_message(gen_random_uuid(), ${q(A.id)}, ${q(B.id)}, ${q(body)}, ${q(note)}, ${q(batch)}) as id`);
+  const [row] = runRows(`select public.send_intro_message(${q(introId(batch, A.id, B.id))}, ${q(A.id)}, ${q(B.id)}, ${q(body)}, ${q(note)}, ${q(batch)}) as id`);
   sent++;
   console.log(`   SENT — message ${row.id}\n`);
   await new Promise((res) => setTimeout(res, 1000));

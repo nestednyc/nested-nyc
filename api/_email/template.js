@@ -2,7 +2,7 @@
    NESTED NYC — transactional email template
    ------------------------------------------------------------
    ONE renderer, reused by every notification email and the weekly
-   digest. renderEmail(o) + emails.* (ten builders). The five
+   digest. renderEmail(o) + emails.* (eleven builders). The five
    person-actor builders (joinRequest, joinApproved,
    clubJoinRequest, newConnection, newMessage) take an optional
    `avatarUrl` (profiles.avatar — null is fine): a Supabase-storage
