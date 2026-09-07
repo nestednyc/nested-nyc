@@ -55,6 +55,29 @@ const c = await planFor({ type: 'INSERT', table: 'messages', record: { ...row(RE
 check('(c) a second reply plans nothing', c === null, JSON.stringify(c && c.recipientIds));
 check('(c) intro_log.sender_notified_at is stamped', sql(`select sender_notified_at is not null from public.intro_log where sender_id='${A}' and recipient_id='${B}'`) === 't');
 
+// (d) the sender writes again BEFORE any reply → quiet (the pair is logged, and it's the wrong direction for the intro branch)
+sql(`update public.intro_log set sender_notified_at = null where sender_id = '${A}' and recipient_id = '${B}'`);
+const d = await planFor({ type: 'INSERT', table: 'messages', record: { ...row(INTRO), id: '10000000-0000-0000-0000-00000000000b', created_at: new Date().toISOString() } });
+check('(d) the sender\'s own second message plans nothing', d === null, JSON.stringify(d && d.recipientIds));
+check('(d) … and does not stamp the intro', sql(`select sender_notified_at is null from public.intro_log where sender_id='${A}' and recipient_id='${B}'`) === 't');
+
+// (e) the same intro row delivered twice by the webhook → the receiver is NOT emailed twice
+const e = await planFor({ type: 'INSERT', table: 'messages', record: row(INTRO) });
+check('(e) redelivery of the intro row plans nothing (pair already logged)', e === null, JSON.stringify(e && e.recipientIds));
+
+// (f) a normal pair with no intro: first message emails, second is quiet (regression)
+const C = 'c3c3c3c3-c3c3-c3c3-c3c3-c3c3c3c3c3c3';
+sql(`delete from public.message_notify_log where sender_id in ('${B}','${C}') or recipient_id in ('${B}','${C}')`);
+sql(`delete from public.messages where (sender_id='${B}' and recipient_id='${C}') or (sender_id='${C}' and recipient_id='${B}')`);
+const first = { id: '10000000-0000-0000-0000-00000000000c', sender_id: B, recipient_id: C, created_at: new Date().toISOString() };
+const f1 = await planFor({ type: 'INSERT', table: 'messages', record: first });
+check('(f) a normal first message still plans the receiver email', !!f1 && f1.recipientIds[0] === C, JSON.stringify(f1 && f1.recipientIds));
+if (f1 && f1.onSent) await f1.onSent(C);
+sql(`insert into public.messages (id, sender_id, recipient_id, body_enc, created_at) values ('${first.id}', '${B}', '${C}', '\\x00'::bytea, '${first.created_at}')`);
+const f2 = await planFor({ type: 'INSERT', table: 'messages', record: { id: '10000000-0000-0000-0000-00000000000d', sender_id: C, recipient_id: B, created_at: new Date(Date.now() + 1000).toISOString() } });
+check('(f) the normal pair\'s reply plans nothing (no intro → no reply email)', f2 === null, JSON.stringify(f2 && f2.recipientIds));
+sql(`delete from public.messages where id = '${first.id}'`);
+
 const fails = results.filter((r) => !r).length;
 console.log(`${results.length - fails}/${results.length} checks passed`);
 process.exit(fails ? 1 : 0);

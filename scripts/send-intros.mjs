@@ -60,9 +60,18 @@ if (LOCAL) {
       '-H', `Authorization: Bearer ${PAT}`, '-H', 'Content-Type: application/json',
       '-d', JSON.stringify({ query: sql })], { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
     let res; try { res = JSON.parse(out); } catch { throw new Error('Non-JSON from the Management API: ' + out.slice(0, 300)); }
-    if (res && res.error) throw new Error('SQL failed: ' + JSON.stringify(res).slice(0, 500));
-    return Array.isArray(res) ? res : [];
+    // The API answers a failed statement with an object ({ message } / { error }), never an array.
+    if (!Array.isArray(res)) throw new Error('SQL failed: ' + JSON.stringify(res).slice(0, 500));
+    return res;
   };
+}
+// The migration must be on this database before anything can be sent; a dry run
+// still reports every pair, minus the "never introduced" check, so it stays useful
+// before the apply.
+const [{ ok: MIGRATED }] = runRows(`select to_regprocedure('public.send_intro_message(uuid,uuid,uuid,text,text,text)') is not null as ok`);
+if (!MIGRATED) {
+  console.log('NOTE: migration 20260907000000_ai_intros is NOT applied here (send_intro_message missing).' + (SEND ? ' Refusing to send.' : ' Dry run continues without the intro_log check.'));
+  if (SEND) process.exit(4);
 }
 const q = (s) => "'" + String(s).replace(/'/g, "''") + "'";   // SQL string literal
 
@@ -109,7 +118,9 @@ for (const [i, item] of round.entries()) {
       exists (select 1 from public.connections c where (c.user_id = ${q(A.id)} and c.target_id = ${q(B.id)}) or (c.user_id = ${q(B.id)} and c.target_id = ${q(A.id)})) as connected,
       exists (select 1 from public.messages m where (m.sender_id = ${q(A.id)} and m.recipient_id = ${q(B.id)}) or (m.sender_id = ${q(B.id)} and m.recipient_id = ${q(A.id)})) as has_thread,
       exists (select 1 from public.blocks b where (b.blocker_id = ${q(A.id)} and b.blocked_id = ${q(B.id)}) or (b.blocker_id = ${q(B.id)} and b.blocked_id = ${q(A.id)})) as blocked,
-      exists (select 1 from public.intro_log l where least(l.sender_id, l.recipient_id) = least(${q(A.id)}::uuid, ${q(B.id)}::uuid) and greatest(l.sender_id, l.recipient_id) = greatest(${q(A.id)}::uuid, ${q(B.id)}::uuid)) as introduced`);
+      ${MIGRATED
+        ? `exists (select 1 from public.intro_log l where least(l.sender_id, l.recipient_id) = least(${q(A.id)}::uuid, ${q(B.id)}::uuid) and greatest(l.sender_id, l.recipient_id) = greatest(${q(A.id)}::uuid, ${q(B.id)}::uuid))`
+        : 'false'} as introduced`);
     if (rel.connected) issues.push('already connected');
     if (rel.has_thread) issues.push('already have a thread');
     if (rel.blocked) issues.push('a block exists between them');
