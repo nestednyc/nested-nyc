@@ -1156,6 +1156,46 @@ input, textarea, select { font-family: inherit; }
 .att-chip-x:hover { color: var(--c-startup); background: color-mix(in oklch, var(--c-startup) 10%, transparent); }
 .att-tray-note { width: 100%; font-size: 12px; color: var(--c-startup); }
 
+/* ---- Nested AI intros: the card above the first message + the flame on the intro bubble ---- */
+/* the card: both faces, "Nested AI introduced you", the one-line overlap; gone after the first reply */
+.intro-card { align-self: center; text-align: center; background: var(--paper); border: 1.5px solid var(--paper-edge); border-radius: 14px; padding: 16px 18px 14px; box-shadow: var(--shadow-card); max-width: 300px; display: flex; flex-direction: column; align-items: center; gap: 6px; margin: 4px 0 10px; }
+.intro-faces { display: flex; margin-bottom: 4px; }
+.intro-faces .av { box-shadow: 0 0 0 3px var(--paper); }
+.intro-faces .av + .av { margin-left: -12px; }
+.intro-title { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; color: var(--ink); }
+.intro-title b { font-family: var(--disp); font-weight: 800; letter-spacing: -.01em; }
+.intro-note { font-size: 13px; color: var(--ink-soft); line-height: 1.4; }
+/* the flame: time + the wordmark's three sparks + a pixel AI, bottom-right of the intro bubble */
+.bubble-foot { display: flex; align-items: center; justify-content: flex-end; gap: 10px; align-self: stretch; margin-top: 2px; }
+.bubble-foot .bubble-time { align-self: auto; }
+.flame { display: inline-flex; align-items: center; gap: 5px; color: var(--ink-faint); }
+.flame svg { display: block; overflow: visible; }
+.flame .sp { transform-box: fill-box; transform-origin: 50% 100%; }
+/* strike in the accent (stepped, like a match catching), hold, fade to grey, rest, again */
+@media (prefers-reduced-motion: no-preference) {
+  .flame .sp, .flame .ai { animation: flameCycle 6s infinite both; }
+  .flame .ai { animation-name: flameCycleAi; }
+  .flame .sp3 { animation-delay: .55s; }
+  .flame .sp1 { animation-delay: .70s; }
+  .flame .sp2 { animation-delay: .85s; }
+  .flame .ai  { animation-delay: 1.05s; }
+}
+@keyframes flameCycle {
+  0%   { transform: scaleY(0); opacity: 0; color: var(--accent); animation-timing-function: steps(3, end); }
+  3%   { transform: scaleY(1.25); opacity: 1; color: var(--accent); animation-timing-function: steps(2, end); }
+  5%   { transform: scaleY(1); opacity: 1; color: var(--accent); animation-timing-function: linear; }
+  36%  { color: var(--accent); animation-timing-function: ease-in-out; }
+  48%  { color: var(--ink-faint); animation-timing-function: linear; }
+  100% { transform: scaleY(1); opacity: 1; color: var(--ink-faint); }
+}
+@keyframes flameCycleAi {
+  0%   { opacity: 0; color: var(--accent); animation-timing-function: steps(2, end); }
+  4%   { opacity: 1; color: var(--accent); animation-timing-function: linear; }
+  36%  { color: var(--accent); animation-timing-function: ease-in-out; }
+  48%  { color: var(--ink-faint); animation-timing-function: linear; }
+  100% { opacity: 1; color: var(--ink-faint); }
+}
+
 /* ===== DM split — desktop master–detail: conversation list (left) + thread (right) ===== */
 .dm { display: flex; align-items: stretch; height: calc(100dvh - 68px); }
 /* left: conversation list, its own scroll */

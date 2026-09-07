@@ -22,7 +22,23 @@ export function fromDbMessage(row, myId) {
     createdAt: row.created_at,
     readAt: row.read_at || null,
     attachments: Array.isArray(row.attachments) ? row.attachments.map(fromDbAttachment) : [],
+    // Nested AI intros: get_thread returns `origin` ('intro' | null) and the
+    // card's one-line overlap note; a human send has neither.
+    origin: row.origin || null,
+    introNote: row.intro_note || "",
   };
+}
+
+// ── Nested AI intros (Module: intro-card) ───────────────────────────────────
+// The receiver's thread shows the "Nested AI introduced you" card only while
+// the intro is the last word: an incoming message with origin 'intro' and
+// nothing from me yet. Returns that intro message (the card reads its note),
+// or null once I've replied, on the sender's own side, or with no intro at all.
+// Pure — the thread passes its loaded messages (chronological or not).
+export function introCardFor(messages) {
+  const list = Array.isArray(messages) ? messages : [];
+  if (list.some((m) => m && m.fromMe)) return null;
+  return list.find((m) => m && m.origin === "intro" && !m.fromMe) || null;
 }
 
 // One stored attachment row (from the get_thread attachments jsonb / send_message

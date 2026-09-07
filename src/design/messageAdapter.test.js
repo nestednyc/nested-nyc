@@ -19,6 +19,7 @@ import {
   messageStatus,
   dayKey,
   dayLabel,
+  introCardFor,
 } from './messageAdapter.js';
 
 const ME = 'me-id';
@@ -329,4 +330,37 @@ test('bumpInboxRow: an older incoming still increments unread even when the prev
   const out = bumpInboxRow(rows, PEER, { lastBody: 'older', lastAt: '2026-01-01T00:00:04.000Z', lastFromMe: false, read: false });
   assert.equal(out[0].lastBody, 'newer');       // preview kept (newer wins)
   assert.equal(out[0].unreadCount, 2);          // unread still applied
+});
+
+// ── Nested AI intros ────────────────────────────────────────────────────────
+test('fromDbMessage: origin + intro_note pass through; a human row gets null / ""', () => {
+  const intro = fromDbMessage(
+    { id: 'i1', sender_id: PEER, recipient_id: ME, body: 'hey', created_at: 't', origin: 'intro', intro_note: 'You and Ada both do backend.' },
+    ME,
+  );
+  assert.equal(intro.origin, 'intro');
+  assert.equal(intro.introNote, 'You and Ada both do backend.');
+  const plain = fromDbMessage({ id: 'p1', sender_id: PEER, recipient_id: ME, body: 'yo', created_at: 't' }, ME);
+  assert.equal(plain.origin, null);
+  assert.equal(plain.introNote, '');
+});
+
+test('introCardFor: an incoming intro with no reply from me → that message', () => {
+  const intro = { id: 'i1', fromMe: false, origin: 'intro', introNote: 'n' };
+  assert.equal(introCardFor([intro]), intro);
+});
+
+test('introCardFor: gone the moment I have sent anything (even a pending optimistic send)', () => {
+  const intro = { id: 'i1', fromMe: false, origin: 'intro' };
+  assert.equal(introCardFor([intro, { id: 'r1', fromMe: true, pending: true }]), null);
+});
+
+test("introCardFor: the sender's own side (the intro is fromMe) → null", () => {
+  assert.equal(introCardFor([{ id: 'i1', fromMe: true, origin: 'intro' }]), null);
+});
+
+test('introCardFor: no intro in the thread → null; empty / bad input → null', () => {
+  assert.equal(introCardFor([{ id: 'a', fromMe: false }, { id: 'b', fromMe: false }]), null);
+  assert.equal(introCardFor([]), null);
+  assert.equal(introCardFor(undefined), null);
 });

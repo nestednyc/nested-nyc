@@ -47,6 +47,9 @@ const samples = {
   "07-new-message-noavatar": emails.newMessage({
     senderName: "@sam", school: "NYU", senderUsername: "sam", unsubUrl,
   }),
+  "07b-intro-reply": emails.introReply({
+    replierName: "@lola", school: "Pace", replierUsername: "lola", avatarUrl: AVATAR, unsubUrl,
+  }),
   "08-new-report": emails.newReport({
     reporterName: "@sam", reporterSchool: "NYU", targetLabel: "a post by @spammer",
     excerpt: "Buy my course", reason: "spam", targetType: "post", targetId: "123",

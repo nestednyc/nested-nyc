@@ -1,0 +1,51 @@
+[
+  {
+    "sender": "jax",
+    "recipient": "lolalachapelle",
+    "body": "hey Lola, photo, video, graphic design, content, we overlap on basically everything. I shoot for events and parties around Pace and I’m always down to make stuff with people. you’re into fashion and music, are you working on anything right now?",
+    "note": "You and Jax both do marketing, graphic design, video and photography.",
+    "batch": "round-1"
+  },
+  {
+    "sender": "artemis",
+    "recipient": "xbass34x",
+    "body": "hey Sebastian, we’ve got the same toolkit: graphic design, photo, video, content. I’m comm design at The New School, deep in my senior thesis right now. you’re film at St. John’s, what are you shooting these days?",
+    "note": "You and Jason both do graphic design, content, photography and video.",
+    "batch": "round-1"
+  },
+  {
+    "sender": "rosebellagill",
+    "recipient": "gabbygrace",
+    "body": "hey Gabby, we’re both marketing at Pace and both put down fashion tech and social impact. I’m doing my MBA in marketing analytics and I make content and build brands. what are you working on this semester?",
+    "note": "You and Rosebella both do marketing.",
+    "batch": "round-1"
+  },
+  {
+    "sender": "michvallario",
+    "recipient": "ava",
+    "body": "hi Ava, content, marketing and research are on both our profiles, and we both put down fashion tech and music. I’m marketing at Pace. you’re econ and data science, are you doing anything with that right now?",
+    "note": "You and Michaelene both do marketing, content and research.",
+    "batch": "round-1"
+  },
+  {
+    "sender": "alvarocr",
+    "recipient": "el65411n",
+    "body": "hey Elena, marketing, product and project management on both sides, plus fintech and food. I’m in international management, involved in the tequila business back home and always looking at new business ideas. what are you building, or hoping to?",
+    "note": "You and Alvaro both do marketing, project mgmt and product.",
+    "batch": "round-1"
+  },
+  {
+    "sender": "amandawat",
+    "recipient": "clawud",
+    "body": "hey Dmitry, we both put down backend, and fintech and social impact. I’m business at Pace but I code on the backend side too. what are you working on right now?",
+    "note": "You and Amanda both do backend.",
+    "batch": "round-1"
+  },
+  {
+    "sender": "vvoeungs",
+    "recipient": "erabella",
+    "body": "hey Erabella, data and data analysis on both sides, and we both put down social impact. I’m CS, leaning ML. you’re pre-med, is there a research or data project you’d want a hand with?",
+    "note": "You and Veronica both do data and data analysis.",
+    "batch": "round-1"
+  }
+]

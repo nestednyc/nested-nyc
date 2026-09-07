@@ -291,6 +291,48 @@ async function planNewMessage(m) {
   if (!m || !isUuid(m.sender_id) || !isUuid(m.recipient_id) || !m.created_at) return null;
   if (m.sender_id === m.recipient_id) return null;
 
+  // 0. NESTED AI INTRO — the receiver's FIRST reply to an intro emails the intro's
+  // sender ("<name> wants to message you on Nested"). The pair-level guards below
+  // would swallow it: the intro row is earlier (step 2) and the pair is already in
+  // message_notify_log from the receiver's own first-message email (step 1). An
+  // intro_log row keyed (intro sender → receiver) exists exactly for that pair, so a
+  // message going the OTHER way is the receiver writing back. sender_notified_at is
+  // the dedupe, stamped only after a confirmed send, so the second reply falls
+  // through to the normal guards and stays quiet. Fail CLOSED on a query error.
+  const { data: intro, error: introErr } = await admin
+    .from("intro_log")
+    .select("sender_id,recipient_id,sender_notified_at")
+    .eq("sender_id", m.recipient_id)
+    .eq("recipient_id", m.sender_id)
+    .maybeSingle();
+  if (introErr) return null;
+  if (intro) {
+    if (intro.sender_notified_at) return null;   // told them once already
+    const { data: replier } = await admin
+      .from("profiles")
+      .select("first_name,last_name,username,university,avatar")
+      .eq("id", m.sender_id)
+      .maybeSingle();
+    return {
+      recipientIds: [String(intro.sender_id)],
+      make: (unsub) =>
+        emails.introReply({
+          replierName: personLabel(replier),
+          school: uniLabel(replier?.university),
+          replierUsername: bareHandle(replier?.username),
+          avatarUrl: replier?.avatar || "",
+          unsubUrl: unsub,
+        }),
+      onSent: async () => {
+        await admin
+          .from("intro_log")
+          .update({ sender_notified_at: new Date().toISOString() })
+          .eq("sender_id", intro.sender_id)
+          .eq("recipient_id", intro.recipient_id);
+      },
+    };
+  }
+
   // 1. DEDUPE AUTHORITY — already emailed this (unordered) pair? Mirrors
   // planNewConnection's up-front connection_notify_log check. This is what makes the
   // notification idempotent against a duplicate / at-least-once webhook delivery of
@@ -546,6 +588,10 @@ async function planFor({ type, table, record, old_record }) {
   if (table === "reports" && type === "INSERT") return planNewReport(record);
   return null;
 }
+
+// The planner is exported for the local dry test (e2e/_notify-dry.mjs): it
+// decides who gets what without touching Resend.
+export { planFor };
 
 // ── handler ────────────────────────────────────────────────
 export default async function handler(req, res) {

@@ -448,6 +448,8 @@ export default function StudentShell({ api }) {
             (route === "messageThread" && threadPeer)
               ? React.createElement(MessageThread, {
                   peer: threadPeer,
+                  // My own face for the Nested AI intro card (the same rule the account chip uses).
+                  me: profile ? { name: profile.username, avatar: firstPhotoUrl(profile.photos) } : null,
                   messages: thread,
                   status: threadStatus,
                   onSend: sendThreadMessage,

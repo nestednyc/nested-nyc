@@ -20,7 +20,8 @@
 import React from 'react'
 import Icon from './icons'
 import { Av, Skeleton } from './shared'
-import { relativeTime, messageStatus, dayKey, dayLabel } from './messageAdapter'
+import { relativeTime, messageStatus, dayKey, dayLabel, introCardFor } from './messageAdapter'
+import { Flame } from './introMark'
 import { MAX_MESSAGE_CHARS, MAX_ATTACH_COUNT } from '../services/messageService'
 import { Attachments, AttachPicker } from './messageAttachments'
 
@@ -47,8 +48,11 @@ import { Attachments, AttachPicker } from './messageAttachments'
   // the time shows only on the last bubble of a run (or on a failed bubble).
   function Bubble({ m, onRetry, onDiscard, firstOfGroup, lastOfGroup }) {
     const side = m.fromMe ? " me" : " them";
+    // A Nested AI intro, on the receiver's side: the bubble wears the flame
+    // (origin comes from get_thread; the sender's own copy renders plain).
+    const intro = m.origin === "intro" && !m.fromMe;
     const cls = "bubble" + side + (m.pending ? " pending" : "") + (m.failed ? " failed" : "")
-      + (firstOfGroup ? " gstart" : "") + (lastOfGroup ? " gend" : "");
+      + (firstOfGroup ? " gstart" : "") + (lastOfGroup ? " gend" : "") + (intro ? " intro" : "");
     return (
       React.createElement("div", { className: "bubble-row" + side + (firstOfGroup ? " group-start" : "") },
         React.createElement("div", { className: cls },
@@ -56,7 +60,11 @@ import { Attachments, AttachPicker } from './messageAttachments'
             ? React.createElement(Attachments, { items: m.attachments, fromMe: m.fromMe })   // ATTACHMENTS
             : null,
           m.body ? React.createElement("span", { className: "bubble-body" }, m.body) : null,
-          (lastOfGroup && !m.failed) ? React.createElement("span", { className: "bubble-time" }, relativeTime(m.createdAt)) : null,
+          intro
+            ? React.createElement("span", { className: "bubble-foot" },
+                React.createElement("span", { className: "bubble-time" }, relativeTime(m.createdAt)),
+                React.createElement(Flame, null))
+            : (lastOfGroup && !m.failed) ? React.createElement("span", { className: "bubble-time" }, relativeTime(m.createdAt)) : null,
           m.failed && React.createElement("div", { className: "bubble-failed-actions" },
             React.createElement("span", { className: "bubble-failed-label" }, "Failed to send"),
             React.createElement("button", {
@@ -121,6 +129,24 @@ import { Attachments, AttachPicker } from './messageAttachments'
     );
   }
 
+  // The Nested AI intro card — the top of the receiver's thread while the intro
+  // is the last word (introCardFor): both faces, the sparkle, "Nested AI
+  // introduced you", and the one-line overlap the intro carries as its note.
+  // It is not a message: it vanishes the moment the receiver sends anything.
+  function IntroCard({ intro, me, peer }) {
+    return (
+      React.createElement("div", { className: "intro-card", role: "note", "aria-label": "Nested AI introduced you" },
+        React.createElement("div", { className: "intro-faces" },
+          React.createElement(Av, { name: (me && me.name) || "you", img: me ? me.avatar : null, size: 44 }),
+          React.createElement(Av, { name: (peer && peer.name) || "them", img: peer ? peer.avatar : null, size: 44 })),
+        React.createElement("div", { className: "intro-title" },
+          React.createElement(Icon, { name: "sparkle", size: 12, stroke: "var(--accent)", fill: "var(--accent)" }),
+          React.createElement("b", null, "Nested AI"), " introduced you"),
+        intro.introNote ? React.createElement("div", { className: "intro-note" }, intro.introNote) : null
+      )
+    );
+  }
+
   // Build the scrollable timeline: a date divider wherever the calendar day
   // changes, each bubble (tagged first/last-of-run for grouping), and a single
   // delivery-status line under the LAST outgoing message (iMessage-style).
@@ -150,10 +176,11 @@ import { Attachments, AttachPicker } from './messageAttachments'
     return out;
   }
 
-  function MessageThread({ peer, messages = [], status = "loading", onSend, onBack, onOpenProfile,
+  function MessageThread({ peer, me = null, messages = [], status = "loading", onSend, onBack, onOpenProfile,
                            isBlocked = false, onBlock, onUnblock, onDelete, onRetry, onDiscard,
                            onLoadEarlier, hasMore = false, loadingEarlier = false }) {
     useSlowTick();
+    const intro = introCardFor(messages);   // the Nested AI intro card, while it applies
     const scrollRef = useRef(null);
     const endRef = useRef(null);
     const anchorRef = useRef(null);                 // pre-prepend {height,top} of the document scroller
@@ -238,6 +265,7 @@ import { Attachments, AttachPicker } from './messageAttachments'
           hasMore && React.createElement("div", { className: "thread-loadmore" },
             React.createElement("button", { className: "btn btn-ghost", onClick: loadEarlier, disabled: loadingEarlier },
               loadingEarlier ? "Loading…" : [React.createElement(Icon, { name: "arrowRight", size: 14, key: "i", style: { transform: "rotate(-90deg)" } }), "Load earlier messages"])),
+          intro && React.createElement(IntroCard, { intro, me, peer }),
           messages.length
             ? React.createElement(Timeline, { messages, onRetry, onDiscard })
             : React.createElement("div", { className: "thread-empty" },

@@ -229,7 +229,7 @@ export function renderEmail(o) {
 
 const url = (path) => SITE + path;
 
-/* The ten notifications. Each returns { subject, html }. The senders
+/* The eleven notifications. Each returns { subject, html }. The senders
    (api/notify.js, api/digest.js) pass per-recipient unsub links; the five
    person-actor builders also take an optional `avatarUrl` (profiles.avatar —
    null is fine, the shell builds an initials fallback from the name). */
@@ -333,6 +333,23 @@ export const emails = {
       ctaLabel: "Open conversation",
       ctaUrl: url(senderUsername ? `/messages/${senderUsername}` : `/messages`),
       footerNote: "You're getting this because someone messaged you for the first time on Nested.",
+      unsubUrl,
+    }),
+  }),
+
+  // → the intro's sender: the student Nested AI introduced them to wrote back
+  // (their first reply; api/notify.js sends this once per intro)
+  introReply: ({ replierName, school, replierUsername, avatarUrl, unsubUrl }) => ({
+    subject: `${replierName} wants to message you on Nested`,
+    html: renderEmail({
+      preheader: `${replierName} wrote back to your intro on Nested`,
+      eyebrow: "they wrote back",
+      heading: `${replierName} wants to message you`,
+      body: `You reached out to ${replierName}${school ? ` from ${school}` : ""} through a Nested intro, and they replied. Open the conversation to keep it going.`,
+      actor: { name: replierName, avatarUrl, meta: school || "student" },
+      ctaLabel: "Open conversation",
+      ctaUrl: url(replierUsername ? `/messages/${replierUsername}` : `/messages`),
+      footerNote: "You're getting this because someone replied to your intro on Nested.",
       unsubUrl,
     }),
   }),
