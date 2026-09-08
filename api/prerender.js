@@ -28,8 +28,8 @@ import { fileURLToPath } from "node:url";
 import { createClient } from "@supabase/supabase-js";
 import { limit, clientIp } from "./_rate-limit.js";
 
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const ANON_KEY = process.env.SUPABASE_ANON_KEY;
+const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+const ANON_KEY = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
 
 const SITE = "https://nested.social";
 const SITE_NAME = "Nested NYC";
