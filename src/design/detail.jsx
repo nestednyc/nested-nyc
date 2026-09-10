@@ -250,7 +250,10 @@ import { LinkPill } from './people'
         React.createElement("span", { className: "t-who" },
           React.createElement("b", null, name),
           (realName && realName !== name) && React.createElement("small", { style: { display: "block", color: "var(--ink-soft)" } }, realName),
-          React.createElement("small", null, sub))
+          // `sub` is a role TITLE (free text the project owner wrote for the
+          // open slot) redisplayed as this person's badge — clamp it so a
+          // long, sentence-style title can't read like a quote from them.
+          sub && React.createElement("small", { className: "t-role", title: sub }, sub))
       );
     }
 

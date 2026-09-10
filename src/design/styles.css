@@ -559,8 +559,14 @@ input, textarea, select { font-family: inherit; }
 .team-pile { display: flex; flex-direction: column; gap: 9px; }
 .team-row { display: flex; align-items: center; gap: 11px; }
 .team-row .av { width: 36px; height: 36px; font-size: 13px; }
+.team-row .t-who { min-width: 0; }
 .team-row .t-who b { font-size: 14px; font-weight: 600; display: block; line-height: 1.2; }
 .team-row .t-who small { font-family: var(--mono); font-size: 10.5px; color: var(--ink-faint); }
+/* Role titles are free text a project owner writes for the open slot, then
+   this same string is redisplayed as a crew member's badge — clamp it to one
+   line (full text still reachable via the native title tooltip) so a long,
+   sentence-style title can't sprawl under someone's name like a quote. */
+.team-row .t-who small.t-role { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* Crew / lead rows that deep-link to a profile get a hover hit-area. */
 .team-row.clickable { cursor: pointer; border-radius: 10px; padding: 5px 8px; margin: -5px -8px; transition: background .14s ease; }
 .team-row.clickable:hover { background: var(--accent-wash); }

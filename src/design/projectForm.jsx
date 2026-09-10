@@ -271,6 +271,11 @@ import { Av, Facepile, CatTag, Pin, LinkRows, linkRowsFrom } from './shared'
                     className: "rb-title",
                     placeholder: "Role (e.g. iOS engineer)",
                     value: r.title,
+                    maxLength: 40,
+                    // Kept short on purpose: this text doubles as the badge
+                    // shown under a teammate's name once someone fills the
+                    // role — the "Short note" field next to it is where the
+                    // longer pitch belongs.
                     onChange: (e) => updateRole(i, "title", e.target.value),
                   }),
                   React.createElement("input", {
