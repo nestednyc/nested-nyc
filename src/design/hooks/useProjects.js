@@ -18,7 +18,7 @@
 import React from 'react'
 import { isProjectAdmin, isProjectOwner } from '../data'
 import { isSupabaseConfigured, authService, supabase } from '../../lib/supabase'
-import { projectService, closeRole } from '../../services/projectService'
+import { projectService } from '../../services/projectService'
 import { communityService, communityErrorMessage } from '../../services/communityService'
 import { toDbProject, fromDbProject, creatorTeamMember } from '../projectAdapter'
 import { toDbPost } from '../postAdapter'
@@ -321,15 +321,16 @@ export function useProjects({
       if (inInbox) setProjectRequests((arr) => [inInbox, ...arr]);
       return;
     }
-    // Reflect the new crew member on the flyer optimistically: bump joined,
-    // close the role they applied for so "N roles open" drops in the same
-    // render (mirrors close_project_role server-side), AND carry the ids the
-    // crew-manager features key off (promote needs userId, kick needs
+    // Reflect the new crew member on the flyer optimistically: bump joined
+    // (the role stays open — see projectService.approveRequest) AND carry the
+    // ids the crew-manager features key off (promote needs userId, kick needs
     // memberId) so the fresh member is manageable without a reload.
     if (req) setProjects((arr) => arr.map((p) => p.id === req.project_id
-      ? { ...p, joinedCount: (p.joinedCount || 0) + 1, roles: closeRole(p.roles, req.role), team: [...(p.team || []), { name: req.name, realName: req.realName || "", handle: req.handle, role: req.role || "Member", userId: req.user_id || null, memberId: req.id || null, image: req.image || null }] }
+      ? { ...p, joinedCount: (p.joinedCount || 0) + 1, team: [...(p.team || []), { name: req.name, realName: req.realName || "", handle: req.handle, role: req.role || "Member", userId: req.user_id || null, memberId: req.id || null, image: req.image || null }] }
       : p));
-    toast("Added to the crew", "check");
+    // The role no longer closes by itself, so say so: a lead with a one-person
+    // role marks it Filled in the editor once it's taken.
+    toast(req && req.role ? "Added to the crew — the role stays open until you mark it filled" : "Added to the crew", "check");
   }
   async function rejectRequest(memberId) {
     const inPending = pendingRequests.find((r) => r.id === memberId);
