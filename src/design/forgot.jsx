@@ -319,6 +319,11 @@ import { authService, isSupabaseConfigured, getErrorMessage } from '../lib/supab
                 React.createElement(Icon, { name: "arrowRight", size: 17, stroke: "var(--paper)" })
               )
             )
+          ),
+          React.createElement("p", { className: "onb-legal" },
+            React.createElement("a", { href: "/terms", target: "_blank", rel: "noopener noreferrer" }, "Terms"),
+            " · ",
+            React.createElement("a", { href: "/privacy", target: "_blank", rel: "noopener noreferrer" }, "Privacy")
           )
         )
       )

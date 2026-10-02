@@ -47,7 +47,7 @@ function url(loc, lastmod) {
 export default async function handler(req, res) {
   res.setHeader("Content-Type", "application/xml; charset=utf-8");
 
-  const urls = [url(SITE + "/"), url(SITE + "/events")];
+  const urls = [url(SITE + "/"), url(SITE + "/events"), url(SITE + "/terms"), url(SITE + "/privacy")];
 
   // Per-IP cap on cache-miss invocations; over the limit, emit just the static
   // URLs (skip the three 5k-row queries) rather than 429-ing a crawler.

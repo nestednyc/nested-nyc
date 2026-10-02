@@ -661,6 +661,35 @@ input, textarea, select { font-family: inherit; }
 .detail-stamp { position: absolute; top: 30px; right: 30px; width: 96px; height: 96px; transform: rotate(-11deg); opacity: .9; z-index: 3; pointer-events: none; }
 
 /* ============================================================
+   LEGAL DOCS — Terms of Service / Privacy Policy (legalDoc.jsx)
+   Reuses the flyer detail shell (.backbar/.back/.detail/.detail-body)
+   for chrome + paragraph type; a narrower wrap keeps the reading
+   measure comfortable, and these few rules add real heading
+   hierarchy, bullet lists, and the still-blank-placeholder flag.
+   ============================================================ */
+.legal-wrap { max-width: 760px; margin: 0 auto; padding: 26px clamp(18px,3vw,40px) 100px; }
+/* .detail prefix: has to out-rank the flyer page's `.detail h1` (18ch cap, no bottom margin). */
+.detail .legal-title { font-family: var(--disp); font-weight: 800; font-size: clamp(28px, 4vw, 42px); line-height: 1.05; letter-spacing: -0.02em; margin: 0 0 10px; max-width: none; }
+.legal-body h2 { font-family: var(--disp); font-weight: 700; font-size: 21px; line-height: 1.25; color: var(--ink); margin: 34px 0 12px; }
+.legal-body p { max-width: 66ch; }
+.legal-body ul { margin: 2px 0 18px; padding-left: 22px; max-width: 66ch; }
+.legal-body li { font-size: 16px; line-height: 1.62; color: var(--ink); margin-bottom: 8px; }
+.legal-body li::marker { color: var(--accent); }
+.legal-body a, .legal-foot a { font-weight: 600; color: var(--accent-ink); text-decoration: underline; text-underline-offset: 2px; overflow-wrap: anywhere; }
+.legal-body a:hover, .legal-foot a:hover { color: var(--accent); }
+.legal-foot { margin-top: 22px; text-align: center; font-family: var(--mono); font-size: 12.5px; color: var(--ink-soft); }
+.legal-placeholder { font-family: var(--mono); font-size: 0.88em; color: var(--ink-faint); background: var(--paper-2); border-radius: 4px; padding: 1px 6px; }
+/* Phones: the card's 26px side padding on top of the 18px gutter leaves a
+   ~300px measure at 390 — give the text the width back and step the heads down. */
+@media (max-width: 540px) {
+  .legal-wrap { padding-top: 14px; padding-bottom: 72px; }
+  .legal-wrap .backbar { padding-bottom: 16px; }
+  .legal-wrap .detail-inner { padding: 28px 20px 34px; }
+  .legal-body h2 { font-size: 19px; margin-top: 28px; }
+  .legal-body ul { padding-left: 20px; }
+}
+
+/* ============================================================
    ONBOARDING
    ============================================================ */
 .onb { min-height: 100vh; display: grid; grid-template-columns: 1.05fr 1fr; }
@@ -780,6 +809,24 @@ input, textarea, select { font-family: inherit; }
 .onb-twocol { display: flex; gap: 14px; }
 .onb-twocol .field { flex: 1; }
 .onb-actions .ghost-link.onb-finishlater { color: var(--ink-faint); }
+
+/* Small-print Terms / Privacy links — sits under the card on every auth
+   screen (onboarding + forgot); .onb-main is never hidden by the ≤880px
+   aside collapse, so this one placement covers desktop and mobile alike. */
+.onb-legal { margin: 18px auto 0; text-align: center; font-family: var(--mono); font-size: 11.5px; color: var(--ink-faint); }
+.onb-legal a { color: var(--ink-soft); text-decoration: underline; text-underline-offset: 2px; }
+.onb-legal a:hover { color: var(--ink); }
+
+/* Signup step 5 (interests): required Terms/Privacy consent — gates
+   signupGates[4], so the primary button stays disabled until checked.
+   Real links (new tab) rather than in-app nav — this sits right next to
+   Submit, and routing away would unmount the form and lose everything typed. */
+.onb-consent { display: flex; align-items: flex-start; gap: 10px; margin-top: 20px; cursor: pointer; }
+.onb-consent input { margin-top: 3px; width: 16px; height: 16px; accent-color: var(--accent); flex: none; cursor: pointer; }
+.onb-consent span { font-size: 13.5px; line-height: 1.5; color: var(--ink-soft); }
+.onb-consent a { font-weight: 700; color: var(--accent-ink); text-decoration: underline; text-underline-offset: 2px; }
+.onb-consent a:hover { color: var(--accent); }
+
 @media (max-width: 480px) {
   .onb-id-row { flex-direction: column; align-items: center; }
   .onb-snap { width: 150px; }

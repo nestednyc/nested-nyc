@@ -57,6 +57,8 @@ const ROUTES = [
   { route: "eventEdit",     path: "/dashboard/events/:id/edit", access: "org",     params: { id: "eventDraftId" } },
   { route: "eventResponses", path: "/dashboard/events/:id/rsvps", access: "org",    params: { id: "eventDraftId" } },
   { route: "orgMembers",    path: "/dashboard/members",           access: "org" },
+  { route: "terms",         path: "/terms",                     access: "public" },
+  { route: "privacy",       path: "/privacy",                   access: "public" },
 ];
 for (const r of ROUTES) r.segs = r.path === "/" ? [] : r.path.slice(1).split("/");
 
@@ -143,6 +145,8 @@ const BUILD = {
   eventEdit:     (s) => (s.eventDraftId ? "/dashboard/events/" + enc(s.eventDraftId) + "/edit" : null),
   eventResponses: (s) => (s.eventDraftId ? "/dashboard/events/" + enc(s.eventDraftId) + "/rsvps" : null),
   orgMembers:     () => "/dashboard/members",
+  terms:         () => "/terms",
+  privacy:       () => "/privacy",
   soon:          () => null,
 };
 
@@ -198,6 +202,8 @@ export function titleFor(route, ctx) {
     case "eventEdit":     return "Edit event · " + SITE;
     case "eventResponses": return "RSVPs · " + SITE;
     case "orgMembers":     return "Applications · " + SITE;
+    case "terms":          return "Terms of Service · " + SITE;
+    case "privacy":        return "Privacy Policy · " + SITE;
     default:              return SITE;
   }
 }
@@ -217,6 +223,8 @@ export function describeFor(route, ctx) {
     case "events":      return "Browse upcoming events across NYC campuses — talks, hackathons, mixers, and workshops — on Nested.";
     case "detail":      return c.detailBlurb || (c.detailTitle ? c.detailTitle + " — a student project on Nested." : SITE_DESC);
     case "userProfile": return c.username ? "@" + c.username + " on Nested — the student-only project network for NYC universities." : SITE_DESC;
+    case "terms":       return "Nested's Terms of Service.";
+    case "privacy":     return "Nested's Privacy Policy — what we collect, how we use it, and your choices.";
     default:            return SITE_DESC;
   }
 }

@@ -30,6 +30,7 @@ import ProjectDetail from '../detail'
 import Profile from '../profile'
 import OrgView from '../orgView'
 import EventDetail from '../eventDetail'
+import LegalDoc from '../legalDoc'
 
 const { useState } = React;
 
@@ -278,6 +279,12 @@ export default function StudentShell({ api }) {
           onManage: ownOrgView ? () => enterClubMode(ownOrgView.id) : null,
           onLeave: leaveOrg,
           onOpenPerson: openPerson,
+        }),
+
+        (route === "terms" || route === "privacy") && React.createElement(LegalDoc, {
+          doc: route,
+          onBack: () => goNav("discover"),
+          onOpenDoc: (r) => { setRoute(r); window.scrollTo({ top: 0 }); },
         }),
 
         // Student-side event detail. Drives back-navigation off eventViewFrom

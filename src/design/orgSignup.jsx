@@ -315,6 +315,11 @@ import { lookupService } from '../services/lookupService'
                   submitting ? (mode === 'signup' ? "Creating…" : "Signing in…") : (mode === 'signup' ? "Create org account" : "Sign in"))
               )
             )
+          ),
+          React.createElement("p", { className: "onb-legal" },
+            React.createElement("a", { href: "/terms", target: "_blank", rel: "noopener noreferrer" }, "Terms"),
+            " · ",
+            React.createElement("a", { href: "/privacy", target: "_blank", rel: "noopener noreferrer" }, "Privacy")
           )
         )
       )

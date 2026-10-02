@@ -144,3 +144,21 @@ test('club mode is route-derived: /dashboard/* is org-class, the event page and 
   assert.equal(accessOf('orgView'), 'public');
   assert.equal(accessOf('community'), 'student');
 });
+
+// ---------- legal pages ----------
+test('/terms and /privacy are public, round-trip, and survive ?next=', () => {
+  for (const [route, path, title] of [
+    ['terms', '/terms', 'Terms of Service · Nested NYC'],
+    ['privacy', '/privacy', 'Privacy Policy · Nested NYC'],
+  ]) {
+    const r = parse(path, '');
+    assert.equal(r.route, route);
+    assert.deepEqual(r.params, {});
+    assert.equal(parse(path + '/', '').route, route);            // trailing slash normalises
+    assert.equal(parse(path.toUpperCase(), '').route, route);    // typed URLs match case-insensitively
+    assert.equal(build(route, {}), path);
+    assert.equal(accessOf(route), 'public');                     // linked from the signed-out auth screens
+    assert.equal(titleFor(route), title);
+    assert.equal(validateNext(path), path);
+  }
+});

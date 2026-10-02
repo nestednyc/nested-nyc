@@ -76,6 +76,7 @@ import { toDbProfile, fromDbProfile, dataUrlToFile } from './profileAdapter'
     const [uniTab, setUniTab] = useState(0);
     const [major, setMajor] = useState("");
     const [interests, setInterests] = useState([]);
+    const [agreedToTerms, setAgreedToTerms] = useState(false);
 
     const [submitting, setSubmitting] = useState(false);
     const [submitError, setSubmitError] = useState("");
@@ -1131,6 +1132,23 @@ import { toDbProfile, fromDbProfile, dataUrlToFile } from './profileAdapter'
               })
             ),
             submitError && React.createElement("div", { className: "hint err", style: { marginTop: 16 } }, "// " + submitError)
+          ),
+          React.createElement("label", { className: "onb-consent" },
+            React.createElement("input", {
+              type: "checkbox",
+              checked: agreedToTerms,
+              onChange: (e) => setAgreedToTerms(e.target.checked),
+            }),
+            React.createElement("span", null,
+              "I agree to the ",
+              // New tab, real href — a plain button + setRoute would unmount this
+              // multi-step form and wipe everything typed so far. This is opened
+              // right next to Submit, so that's not a rare edge case.
+              React.createElement("a", { href: "/terms", target: "_blank", rel: "noopener noreferrer" }, "Terms of Service"),
+              " and ",
+              React.createElement("a", { href: "/privacy", target: "_blank", rel: "noopener noreferrer" }, "Privacy Policy"),
+              "."
+            )
           )
         )
       );
@@ -1142,7 +1160,7 @@ import { toDbProfile, fromDbProfile, dataUrlToFile } from './profileAdapter'
       passwordValid && confirmValid,
       usernameOk && usernameAvailable !== false && !usernameChecking,
       !!uni && !!major,
-      interests.length >= 3,
+      interests.length >= 3 && agreedToTerms,
     ];
     const signinGates = [isEdu, password.length > 0];
     const canNext = mode === "signup" ? signupGates[step] : signinGates[step];
@@ -1230,6 +1248,11 @@ import { toDbProfile, fromDbProfile, dataUrlToFile } from './profileAdapter'
           onOrgPath && React.createElement("button", { className: "onb-orgline", onClick: onOrgPath, type: "button" },
             "Running a uni or club? ",
             React.createElement("span", null, "Org sign-up →")
+          ),
+          React.createElement("p", { className: "onb-legal" },
+            React.createElement("a", { href: "/terms", target: "_blank", rel: "noopener noreferrer" }, "Terms"),
+            " · ",
+            React.createElement("a", { href: "/privacy", target: "_blank", rel: "noopener noreferrer" }, "Privacy")
           )
         )
       )

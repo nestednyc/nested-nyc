@@ -25,16 +25,16 @@ The `route` state stays the source of truth; `src/design/router.js` (pure, zero 
 2. **Write-only sync effect** — runs on every commit (deliberately no dep array — one-shot refs must be consumed by the *next* commit), builds the canonical path, sets `document.title`, and `pushState`s navigations / `replaceState`s corrections.
 3. **popstate listener** — Back/Forward re-parse the URL through `applyParsed`, which role-gates via `accessOf` (guest→gated stashes a returnTo and shows the auth wall; org↔student URLs bounce to their home).
 
-URL scheme: `/` (discover) · `/events[/:id]` · `/projects/:id[/edit]` · `/create` `/clubs/new` (found a club) `/community[/:id]` `/people` `/saved` `/notifications` `/profile` · `/messages[/:username]` (inbox / open thread) · `/u/:username` · `/org/:slug` (an org-email account's own slug routes to the dashboard; a student who runs the club sees the public page with a Manage button) · `/login` `/signup` `/forgot` `/org/signup` `/org/onboarding` · `/dashboard`, `/dashboard/edit`, `/dashboard/community`, `/dashboard/events/new`, `/dashboard/events/:id/edit`, `/dashboard/events/:id/rsvps`, `/dashboard/members` · `/auth/*` is reserved for Supabase email links (never routed; `?next=` is validated by `validateNext` against open redirects). `soon` has no URL. Unknown paths land on discover with the bar replaced to `/`.
+URL scheme: `/` (discover) · `/events[/:id]` · `/projects/:id[/edit]` · `/create` `/clubs/new` (found a club) `/community[/:id]` `/people` `/saved` `/notifications` `/profile` · `/messages[/:username]` (inbox / open thread) · `/u/:username` · `/org/:slug` (an org-email account's own slug routes to the dashboard; a student who runs the club sees the public page with a Manage button) · `/login` `/signup` `/forgot` `/org/signup` `/org/onboarding` · `/dashboard`, `/dashboard/edit`, `/dashboard/community`, `/dashboard/events/new`, `/dashboard/events/:id/edit`, `/dashboard/events/:id/rsvps`, `/dashboard/members` · `/terms` `/privacy` (public legal pages) · `/auth/*` is reserved for Supabase email links (never routed; `?next=` is validated by `validateNext` against open redirects). `soon` has no URL. Unknown paths land on discover with the bar replaced to `/`.
 
 Deep-linked projects absent from the feed cold-load via `projectService.getProject` (`detailFetch` state: loading → skeleton, missing → empty state); org event edits wait on `orgEventsLoading` instead of bouncing. `returnTo` (sessionStorage, re-validated on read) survives the signup email round-trip as `?next=` on `emailRedirectTo`.
 
 ### Views
 
-- Student: `discover` `events` `detail` `community` `communityPost` `people` `saved` `notifications` `messages` `messageThread` `profile` `userProfile` `create` `clubFound` `edit` `eventDetail` `onboarding` `forgot` `soon`
+- Student: `discover` `events` `detail` `community` `communityPost` `people` `saved` `notifications` `messages` `messageThread` `profile` `userProfile` `create` `clubFound` `edit` `eventDetail` `onboarding` `forgot` `terms` `privacy` `soon`
 - Org (club mode): `orgSignup` `orgOnboarding` `orgDashboard` `orgEditMe` `orgCommunity` `orgView` `eventCreate` `eventEdit` `eventResponses` `orgMembers`
 
-Access classes live in router.js (`accessOf`): **public** (discover, events, eventDetail, detail, orgView) renders for anonymous visitors; **student** / **org** routes gate via `applyParsed` (deep link → returnTo stash → auth wall) and gated *actions* toast + `requireAuth` to `onboarding`; **anon** routes (auth screens) bounce signed-in users home.
+Access classes live in router.js (`accessOf`): **public** (discover, events, eventDetail, detail, orgView, terms, privacy) renders for anonymous visitors; **student** / **org** routes gate via `applyParsed` (deep link → returnTo stash → auth wall) and gated *actions* toast + `requireAuth` to `onboarding`; **anon** routes (auth screens) bounce signed-in users home.
 
 ### Data flow
 
@@ -79,6 +79,7 @@ src/
 │   ├── headerMenus.jsx  # desktop topbar popovers (bell + account chip); mobile uses the account sheet
 │   ├── userProfile.jsx  # /u/:username — self-fetching student profile page
 │   ├── onboarding.jsx forgot.jsx                              # student auth screens
+│   ├── legalDoc.jsx     # /terms + /privacy — renders legal/*.md (the source of truth; edit the markdown, not the component). Linked from every auth screen; signup step 5 requires the consent checkbox
 │   ├── org*.jsx                                               # org account screens (orgForm.jsx = the shared 4-step body)
 │   ├── clubFound.jsx    # /clubs/new — a student founding a club (OrgForm variant="student")
 │   ├── shared.jsx       # shared UI primitives
