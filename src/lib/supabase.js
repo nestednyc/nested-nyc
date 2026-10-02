@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
-import { isSupportedEduEmail, TERMS_VERSION } from '../design/data'
+import { isSupportedEduEmail, hasAcceptedTerms, termsStamp } from '../design/data'
 
 /**
  * Supabase Configuration
@@ -150,6 +150,10 @@ export { supabase, isSupabaseConfigured, getConfigurationError }
  * Auth service with .edu email enforcement
  * Supports both password-based and passwordless (magic link/OTP) authentication
  */
+// User id the server confirmed has NOT yet agreed to the current Terms, for
+// this page load only (see authService.getTermsStatus).
+let termsPendingFor = null
+
 export const authService = {
   /**
    * Validate basic email shape only — no domain requirement. The gate for
@@ -316,8 +320,7 @@ export const authService = {
             email_domain: email.split('@')[1].toLowerCase(),
             // The wizard only reaches this call after the Terms/Privacy
             // checkbox — keep the record of when, and of which version.
-            terms_accepted_at: new Date().toISOString(),
-            terms_version: TERMS_VERSION
+            ...termsStamp('signup')
           }
         }
       })
@@ -382,8 +385,7 @@ export const authService = {
             account_type: 'org_admin',
             email_domain: email.split('@')[1].toLowerCase(),
             // Org sign-up gates this call behind the same consent checkbox.
-            terms_accepted_at: new Date().toISOString(),
-            terms_version: TERMS_VERSION
+            ...termsStamp('signup')
           }
         }
       })
@@ -772,6 +774,67 @@ export const authService = {
       return { data, error: null }
     } catch (err) {
       return { data: null, error: this._handleNetworkError(err) }
+    }
+  },
+
+  // ===========================================
+  // TERMS / PRIVACY ACCEPTANCE
+  // ===========================================
+
+  /**
+   * Has the signed-in account already agreed to the current Terms / Privacy
+   * Policy? The record lives in auth user metadata (stamped at signup, or by
+   * recordTermsAcceptance), so a yes on one device counts on every device.
+   * No session, or Supabase unconfigured → true (there is nobody to ask);
+   * null = the server couldn't be reached to confirm, so don't ask yet.
+   * @returns {Promise<{userId: string|null, accepted: boolean|null}>}
+   */
+  async getTermsStatus(isCached) {
+    const { ready } = this.checkSupabaseReady()
+    if (!ready) return { userId: null, accepted: true }
+    try {
+      const { data } = await supabase.auth.getSession()
+      const user = data && data.session && data.session.user
+      if (!user) return { userId: null, accepted: true }
+      // `isCached(userId)`: the caller already confirmed this account once.
+      if (hasAcceptedTerms(user) || (isCached && isCached(user.id))) return { userId: user.id, accepted: true }
+      // The server already said "not yet" during this page load — the strip
+      // remounts on every shell swap, and that must not cost a request each time.
+      if (termsPendingFor === user.id) return { userId: user.id, accepted: false }
+      // The cached session can trail another device's acceptance until the
+      // next token refresh — ask the server before asking the person again.
+      const fresh = await supabase.auth.getUser()
+      const freshUser = fresh && fresh.data && fresh.data.user
+      const accepted = freshUser ? hasAcceptedTerms(freshUser) : null
+      if (accepted === false) termsPendingFor = user.id
+      return { userId: user.id, accepted }
+    } catch (err) {
+      return { userId: null, accepted: null }
+    }
+  },
+
+  /**
+   * Save "this account agreed to the current Terms / Privacy Policy" onto the
+   * signed-in user. `via` says how: 'signup' (the checkbox) or 'notice' (the
+   * one-time strip existing accounts see). A no-op when the account already
+   * carries a stamp for the current version.
+   * @returns {Promise<{error: any}>}
+   */
+  async recordTermsAcceptance(via) {
+    const { ready, error: configError } = this.checkSupabaseReady()
+    if (!ready) return { error: configError }
+    try {
+      // Never overwrite an existing stamp for this version — the first yes
+      // (and its time) is the record.
+      const { data } = await supabase.auth.getSession()
+      const user = data && data.session && data.session.user
+      if (!user) return { error: { message: 'Not signed in' } }
+      if (hasAcceptedTerms(user)) return { error: null }
+      const { error } = await supabase.auth.updateUser({ data: termsStamp(via) })
+      if (!error && termsPendingFor === user.id) termsPendingFor = null
+      return { error: error ? this._mapSupabaseError(error) : null }
+    } catch (err) {
+      return { error: this._handleNetworkError(err) }
     }
   },
 

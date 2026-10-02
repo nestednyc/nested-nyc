@@ -372,6 +372,21 @@
 export const MAX_STUDENT_CLUBS = 5;
 
 // Version (= effective date) of legal/terms-of-service.md + privacy-policy.md.
-// Stamped into auth user metadata at signup and into the "seen" flag behind
-// the one-time notice — bump it whenever the documents materially change.
+// Stamped onto the auth user when someone agrees (termsStamp) — bump it
+// whenever the documents materially change and everyone is asked once more.
 export const TERMS_VERSION = "2026-10-02";
+
+// What gets saved onto the auth user when they agree. `via` is how they
+// agreed: 'signup' (the checkbox) or 'notice' (the one-time strip's Got it).
+export function termsStamp(via, now = new Date()) {
+  return { terms_accepted_at: now.toISOString(), terms_version: TERMS_VERSION, terms_accepted_via: via };
+}
+
+// Has this auth user already agreed to the CURRENT documents? Pure — takes the
+// Supabase user object ({ user_metadata }). Only a saved stamp counts — no
+// stamp, or a stamp for an older version, means "ask"; nobody is asked twice
+// for the same version.
+export function hasAcceptedTerms(user) {
+  const m = (user && user.user_metadata) || {};
+  return m.terms_version === TERMS_VERSION;
+}

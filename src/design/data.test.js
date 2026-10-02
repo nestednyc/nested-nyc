@@ -5,7 +5,7 @@
    ============================================================ */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { resolveOrgUniSlug, bareHandle, personLabel, fullNameOf, joinDots, detectProjectLink, cleanProjectLinks, PROJECT_LINK_MAX } from './data.js';
+import { resolveOrgUniSlug, bareHandle, personLabel, fullNameOf, joinDots, detectProjectLink, cleanProjectLinks, PROJECT_LINK_MAX, TERMS_VERSION, termsStamp, hasAcceptedTerms } from './data.js';
 
 // Universities as orgService.listUniversities() returns them. 'baruch' is
 // seeded in the DB but NOT in the 18-entry client taxonomy (UNI), so it must
@@ -196,4 +196,31 @@ test('cleanProjectLinks tolerates non-array input', () => {
   assert.deepEqual(cleanProjectLinks(null), []);
   assert.deepEqual(cleanProjectLinks(undefined), []);
   assert.deepEqual(cleanProjectLinks('subwaypulse.nyc'), []);
+});
+
+// ---------- Terms / Privacy acceptance ----------
+test('hasAcceptedTerms: a stamped current version is a yes, on any account type', () => {
+  assert.equal(hasAcceptedTerms({ created_at: '2026-06-01T00:00:00Z', user_metadata: { terms_version: TERMS_VERSION } }), true);
+  assert.equal(hasAcceptedTerms({ created_at: '2026-06-01T00:00:00Z', user_metadata: { account_type: 'org_admin', terms_version: TERMS_VERSION } }), true);
+});
+
+test('hasAcceptedTerms: accounts that predate the pages have not agreed', () => {
+  assert.equal(hasAcceptedTerms(null), false);
+  assert.equal(hasAcceptedTerms({ created_at: '2026-06-01T00:00:00Z' }), false);
+  assert.equal(hasAcceptedTerms({ created_at: '2026-10-02T16:29:59Z', user_metadata: {} }), false);
+});
+
+test('hasAcceptedTerms: an older stamped version asks again', () => {
+  assert.equal(hasAcceptedTerms({ created_at: '2026-10-03T00:00:00Z', user_metadata: { terms_version: '2025-01-01' } }), false);
+});
+
+test('hasAcceptedTerms: only a saved stamp counts — never the account age', () => {
+  assert.equal(hasAcceptedTerms({ created_at: '2026-10-02T16:45:00.123456Z', user_metadata: { email_domain: 'nyu.edu' } }), false);
+  assert.equal(hasAcceptedTerms({ created_at: '2027-01-01T00:00:00Z', user_metadata: { account_type: 'org_admin' } }), false);
+});
+
+test('termsStamp carries when, which version, and how', () => {
+  const s = termsStamp('notice', new Date('2026-10-02T17:00:00Z'));
+  assert.deepEqual(s, { terms_accepted_at: '2026-10-02T17:00:00.000Z', terms_version: TERMS_VERSION, terms_accepted_via: 'notice' });
+  assert.equal(hasAcceptedTerms({ created_at: '2026-06-01T00:00:00Z', user_metadata: s }), true);
 });

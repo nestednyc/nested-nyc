@@ -680,8 +680,9 @@ input, textarea, select { font-family: inherit; }
 .legal-foot { margin-top: 22px; text-align: center; font-family: var(--mono); font-size: 12.5px; color: var(--ink-soft); }
 /* Terms · Privacy under the public pages (LegalLinks). */
 .site-foot { margin: 0; padding: 0 18px 34px; }
-/* One-time "we've added Terms" strip under the top bar (LegalNotice) —
-   in flow, so it never covers a composer or a sheet. */
+/* One-time "we've added Terms" strip under the top bar (LegalNotice) — in
+   flow (it pushes the page down), so the shell leaves it off the fixed-height
+   DM split. */
 .legal-notice { display: flex; align-items: center; justify-content: center; gap: 14px; flex-wrap: wrap; padding: 10px clamp(18px,3vw,40px); background: var(--paper); border-bottom: 1.5px solid var(--paper-edge); font-size: 13.5px; line-height: 1.45; color: var(--ink-soft); }
 .legal-notice a { font-weight: 600; color: var(--accent-ink); text-decoration: underline; text-underline-offset: 2px; }
 .legal-notice a:hover { color: var(--accent); }

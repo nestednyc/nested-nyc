@@ -14,6 +14,7 @@ import React from 'react'
 import Icon from './icons'
 import { TERMS_VERSION } from './data'
 import storageKeys from './storageKeys.json'
+import { authService } from '../lib/supabase'
 import TERMS_RAW from '../../legal/terms-of-service.md?raw'
 import PRIVACY_RAW from '../../legal/privacy-policy.md?raw'
 
@@ -76,21 +77,32 @@ const DOCS = {
   privacy: PRIVACY_RAW,
 };
 
-// The sibling document, linked under the card. A real href (so it opens in a
-// new tab / copies as a link) that navigates in-app on a plain click.
+// The sibling document, linked under the card.
 const OTHER = {
   terms: { route: "privacy", path: "/privacy", label: "Privacy Policy" },
   privacy: { route: "terms", path: "/terms", label: "Terms of Service" },
 };
 
+// A real href (so it opens in a new tab / copies as a link) that navigates
+// in-app on a plain click.
+function docLink(route, path, label, onOpenDoc) {
+  return React.createElement("a", {
+    href: path,
+    onClick: (e) => {
+      if (!onOpenDoc || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+      e.preventDefault();
+      onOpenDoc(route);
+    },
+  }, label);
+}
+
+// The two documents as new-tab links — for the places that must not navigate
+// away (a half-filled signup form, the notice strip).
+const newTab = (path, label) => React.createElement("a", { href: path, target: "_blank", rel: "noopener noreferrer" }, label);
+
 function LegalDoc({ doc, onBack, onOpenDoc }) {
   const blocks = toLegalBlocks(DOCS[doc] || DOCS.terms);
   const other = OTHER[doc] || OTHER.terms;
-  function openOther(e) {
-    if (!onOpenDoc || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
-    e.preventDefault();
-    onOpenDoc(other.route);
-  }
   return (
     React.createElement("div", { className: "legal-wrap" },
       React.createElement("div", { className: "backbar" },
@@ -107,38 +119,74 @@ function LegalDoc({ doc, onBack, onOpenDoc }) {
       ),
       React.createElement("p", { className: "legal-foot" },
         "Also read the ",
-        React.createElement("a", { href: other.path, onClick: openOther }, other.label),
+        docLink(other.route, other.path, other.label, onOpenDoc),
         "."
       )
     )
   );
 }
 
-// ---------- "seen" flag (per browser) ----------
-// Set when someone ticks the consent box at signup or dismisses the notice
-// below; holds the TERMS_VERSION they saw, so a bumped version asks again.
-function termsSeen() {
-  try { return localStorage.getItem(storageKeys.termsSeen) === TERMS_VERSION; } catch (e) { return true; }
-}
-function markTermsSeen() {
-  try { localStorage.setItem(storageKeys.termsSeen, TERMS_VERSION); } catch (e) {}
+// The required "I agree" box — student signup step 5 and org sign-up. New-tab
+// links: routing away would unmount the form and lose everything typed.
+function ConsentCheckbox({ checked, onChange }) {
+  return (
+    React.createElement("label", { className: "onb-consent" },
+      React.createElement("input", { type: "checkbox", checked, onChange: (e) => onChange(e.target.checked) }),
+      React.createElement("span", null,
+        "I agree to the ", newTab("/terms", "Terms of Service"), " and ", newTab("/privacy", "Privacy Policy"), "."
+      )
+    )
+  );
 }
 
-// One-time strip under the top bar for signed-in accounts that predate the
-// documents (new signups tick the checkbox instead and never see it).
+// ---------- acceptance cache (per browser, per account) ----------
+// The record of who agreed lives on the account (auth user metadata — see
+// authService.getTermsStatus); this is only a local shortcut so a known yes
+// costs no request. Keyed by version + user id: a bumped TERMS_VERSION asks
+// again, and a second account on the same browser is asked for itself.
+function termsCached(userId) {
+  try { return localStorage.getItem(storageKeys.termsSeen) === TERMS_VERSION + ":" + userId; } catch (e) { return false; }
+}
+function cacheTerms(userId) {
+  try { localStorage.setItem(storageKeys.termsSeen, TERMS_VERSION + ":" + userId); } catch (e) {}
+}
+
+// One-time strip under the top bar for signed-in accounts that have not
+// agreed yet — in practice the ones that predate the documents. Anyone who
+// ticked the signup checkbox, or pressed "Got it" on any device, is never
+// asked again: it renders nothing until the account's record says "not yet".
 function LegalNotice() {
-  const [seen, setSeen] = React.useState(termsSeen);
-  if (seen) return null;
+  const [userId, setUserId] = React.useState(null);   // set = show the strip
+  const [saving, setSaving] = React.useState(false);
+  React.useEffect(() => {
+    let cancelled = false;
+    authService.getTermsStatus(termsCached).then((s) => {
+      if (cancelled || !s.userId) return;
+      if (s.accepted) return cacheTerms(s.userId);
+      if (s.accepted === false) setUserId(s.userId);   // null = couldn't confirm; ask next time
+    });
+    return () => { cancelled = true; };
+  }, []);
+  if (!userId) return null;
+  // The strip only goes away once the yes is saved on the account — a failed
+  // save leaves it up (button live again) rather than pretending it worked.
+  function gotIt() {
+    if (saving) return;
+    setSaving(true);
+    authService.recordTermsAcceptance("notice").then((r) => {
+      setSaving(false);
+      if (r.error) return;
+      cacheTerms(userId);
+      setUserId(null);
+    });
+  }
   return (
     React.createElement("div", { className: "legal-notice", role: "status" },
       React.createElement("span", null,
-        "We've added ",
-        React.createElement("a", { href: "/terms", target: "_blank", rel: "noopener noreferrer" }, "Terms of Service"),
-        " and a ",
-        React.createElement("a", { href: "/privacy", target: "_blank", rel: "noopener noreferrer" }, "Privacy Policy"),
+        "We've added ", newTab("/terms", "Terms of Service"), " and a ", newTab("/privacy", "Privacy Policy"),
         ". By continuing to use Nested, you agree to them."
       ),
-      React.createElement("button", { className: "btn btn-ghost btn-sm", type: "button", onClick: () => { markTermsSeen(); setSeen(true); } }, "Got it")
+      React.createElement("button", { className: "btn btn-ghost btn-sm", type: "button", disabled: saving, onClick: gotIt }, saving ? "Saving…" : "Got it")
     )
   );
 }
@@ -146,20 +194,12 @@ function LegalNotice() {
 // Small-print links at the foot of the public pages, so the documents are
 // reachable from the site itself and not only from the auth screens.
 function LegalLinks({ onOpenDoc }) {
-  const link = (route, path, label) => React.createElement("a", {
-    href: path,
-    onClick: (e) => {
-      if (!onOpenDoc || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
-      e.preventDefault();
-      onOpenDoc(route);
-    },
-  }, label);
   return (
     React.createElement("p", { className: "legal-foot site-foot" },
-      link("terms", "/terms", "Terms"), " · ", link("privacy", "/privacy", "Privacy")
+      docLink("terms", "/terms", "Terms", onOpenDoc), " · ", docLink("privacy", "/privacy", "Privacy", onOpenDoc)
     )
   );
 }
 
-export { LegalDoc, LegalNotice, LegalLinks, markTermsSeen };
+export { LegalDoc, LegalNotice, LegalLinks, ConsentCheckbox };
 export default LegalDoc;

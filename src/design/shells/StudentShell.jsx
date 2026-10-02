@@ -247,8 +247,10 @@ export default function StudentShell({ api }) {
           )
         ),
 
-        // Accounts older than the Terms / Privacy pages: tell them once.
-        profile && React.createElement(LegalNotice),
+        // Accounts older than the Terms / Privacy pages: tell them once. Not on
+        // the DM split — it is a fixed viewport-height pane, and a strip above
+        // it would push the composer off the bottom of the screen.
+        profile && route !== "messages" && route !== "messageThread" && React.createElement(LegalNotice),
 
         route === "discover" && React.createElement(Discover, {
           projects: projectsList, profile, saved, joined, requested, query,

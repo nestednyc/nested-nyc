@@ -8,7 +8,7 @@ import Icon from './icons'
 import { UNIVERSITIES, UNI, MAJORS, INTERESTS, SKILLS, LINK_ICON, uniByEmailDomain } from './data'
 import { Stamp, Av, Polaroid, resizePhoto, LINK_KINDS } from './shared'
 import { authService, isSupabaseConfigured, getErrorMessage } from '../lib/supabase'
-import { markTermsSeen } from './legalDoc'
+import { ConsentCheckbox } from './legalDoc'
 import { lookupService } from '../services/lookupService'
 import { profileService } from '../services/profileService'
 import { storageService } from '../services/storageService'
@@ -281,9 +281,11 @@ import { toDbProfile, fromDbProfile, dataUrlToFile } from './profileAdapter'
       }
 
       // Try signup; if the account already exists, fall back to sign-in
+      let signedInExisting = false;
       let signupRes = await authService.signUpWithEmailPassword(email.trim(), password, returnTo ? { next: returnTo } : undefined);
       if (signupRes.error && /already|exists|registered/i.test(signupRes.error.message || "")) {
         signupRes = await authService.signInWithEmailPassword(email.trim(), password);
+        signedInExisting = !signupRes.error;
       }
       if (signupRes.error) {
         setSubmitError(getErrorMessage(signupRes.error));
@@ -311,6 +313,11 @@ import { toDbProfile, fromDbProfile, dataUrlToFile } from './profileAdapter'
       // The already-registered fallback above may have signed in an ORG
       // account — never write student fields onto its profile row.
       if (await blockOrgAccount()) return;
+
+      // signUp stamps the consent itself; the sign-in fallback has to save the
+      // tick from step 5 onto the existing account (best-effort, and a no-op
+      // if that account already carries a stamp).
+      if (signedInExisting) authService.recordTermsAcceptance("signup");
 
       // Core save holds onboarding_completed:false — the wizard's required
       // photo (finishEnrichment) is what completes the profile.
@@ -530,6 +537,10 @@ import { toDbProfile, fromDbProfile, dataUrlToFile } from './profileAdapter'
         setSubmitting(false);
         return;
       }
+      // A resumed signup ticks step 5's box on an account that already exists —
+      // no signUp call to stamp it, so save the consent here (best-effort; a
+      // no-op when the original signUp already stamped it).
+      authService.recordTermsAcceptance("signup");
       setCoreRecover(false);
       enterEnrichment(recoverUserId, fromDbProfile(row, email.trim()));
     }
@@ -1134,25 +1145,7 @@ import { toDbProfile, fromDbProfile, dataUrlToFile } from './profileAdapter'
             ),
             submitError && React.createElement("div", { className: "hint err", style: { marginTop: 16 } }, "// " + submitError)
           ),
-          React.createElement("label", { className: "onb-consent" },
-            React.createElement("input", {
-              type: "checkbox",
-              checked: agreedToTerms,
-              // Agreeing here also retires the one-time "we've added Terms"
-              // notice the shells show to accounts that predate the pages.
-              onChange: (e) => { setAgreedToTerms(e.target.checked); if (e.target.checked) markTermsSeen(); },
-            }),
-            React.createElement("span", null,
-              "I agree to the ",
-              // New tab, real href — a plain button + setRoute would unmount this
-              // multi-step form and wipe everything typed so far. This is opened
-              // right next to Submit, so that's not a rare edge case.
-              React.createElement("a", { href: "/terms", target: "_blank", rel: "noopener noreferrer" }, "Terms of Service"),
-              " and ",
-              React.createElement("a", { href: "/privacy", target: "_blank", rel: "noopener noreferrer" }, "Privacy Policy"),
-              "."
-            )
-          )
+          React.createElement(ConsentCheckbox, { checked: agreedToTerms, onChange: setAgreedToTerms })
         )
       );
     }

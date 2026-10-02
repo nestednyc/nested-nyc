@@ -11,7 +11,7 @@ import React from 'react'
 import Icon from './icons'
 import { CodeBoxes } from './shared'
 import { authService, isSupabaseConfigured, getErrorMessage } from '../lib/supabase'
-import { markTermsSeen } from './legalDoc'
+import { ConsentCheckbox } from './legalDoc'
 import { lookupService } from '../services/lookupService'
 
   const { useState, useEffect, useRef } = React;
@@ -303,22 +303,8 @@ import { lookupService } from '../services/lookupService'
                 )
               ),
 
-              // Same required consent as student signup step 5 (new tab links,
-              // so the typed form survives a read of either document).
-              mode === 'signup' && React.createElement("label", { className: "onb-consent" },
-                React.createElement("input", {
-                  type: "checkbox",
-                  checked: agreedToTerms,
-                  onChange: (e) => { setAgreedToTerms(e.target.checked); if (e.target.checked) markTermsSeen(); },
-                }),
-                React.createElement("span", null,
-                  "I agree to the ",
-                  React.createElement("a", { href: "/terms", target: "_blank", rel: "noopener noreferrer" }, "Terms of Service"),
-                  " and ",
-                  React.createElement("a", { href: "/privacy", target: "_blank", rel: "noopener noreferrer" }, "Privacy Policy"),
-                  "."
-                )
-              ),
+              // Same required consent as student signup step 5.
+              mode === 'signup' && React.createElement(ConsentCheckbox, { checked: agreedToTerms, onChange: setAgreedToTerms }),
 
               error && React.createElement("div", { className: "hint", style: { marginTop: 14, color: "var(--c-startup)" } }, "// " + error),
 

@@ -19,7 +19,8 @@
    A failed check skips that pair, loudly.
    ============================================================ */
 import { execFileSync, execSync } from 'node:child_process';
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 
 const PROD_REF = 'fkiyjxxiysbvmflbibsu';
@@ -35,6 +36,18 @@ const PLACEHOLDER_NAMES = new Set(['fnu', 'unknown', 'n/a', 'na', 'none', 'null'
 if (!LOCAL && !REF) { console.error('Usage: node scripts/send-intros.mjs (--local | --ref <project-ref>) [--send] [--yes-prod] [--file path]'); process.exit(2); }
 if (REF && !/^[a-z]{20}$/.test(REF)) { console.error('--ref must be a 20-letter project ref.'); process.exit(2); }
 if (REF === PROD_REF && !flag('--yes-prod')) { console.error('REFUSING: that is the PRODUCTION project. Re-run with --yes-prod only when Hamza has said go.'); process.exit(3); }
+
+const strip = (u) => String(u || '').replace(/^@/, '').trim().toLowerCase();
+// The opt-out the Terms (§6) and Privacy Policy (§5) promise: anyone who emails
+// hi@nested.social asking to be left out goes in this file (a JSON array of
+// usernames) and is never a sender or a recipient again. Resolved next to this
+// script, and a missing or malformed list stops the run — it must never fail open.
+const OPT_OUT_FILE = fileURLToPath(new URL('./intros/opt-out.json', import.meta.url));
+let optOutList;
+try { optOutList = JSON.parse(readFileSync(OPT_OUT_FILE, 'utf8')); } catch (e) { console.error(`Can't read the intros opt-out list (${OPT_OUT_FILE}): ${e.message}. Refusing to run without it.`); process.exit(2); }
+const badOptOut = Array.isArray(optOutList) ? optOutList.filter((u) => typeof u !== 'string' || !strip(u) || strip(u).includes('@') || /\s/.test(strip(u))) : null;
+if (!badOptOut || badOptOut.length) { console.error(`${OPT_OUT_FILE}: expected a JSON array of usernames (not emails)${badOptOut ? ' — bad entries: ' + JSON.stringify(badOptOut) : ''}.`); process.exit(2); }
+const OPTED_OUT = new Set(optOutList.map(strip));
 
 // ---- SQL runners: every query returns rows as JSON --------------------------
 let runRows;
@@ -98,12 +111,6 @@ const round = JSON.parse(readFileSync(FILE, 'utf8'));
 if (!Array.isArray(round) || !round.length) { console.error(`${FILE}: expected a non-empty array of { sender, recipient, body, note, batch }`); process.exit(2); }
 console.log(`${SEND ? 'SENDING' : 'DRY RUN'} — ${round.length} intro(s) from ${FILE} against ${LOCAL ? 'the LOCAL stack' : REF + (REF === PROD_REF ? ' (PRODUCTION)' : '')}\n`);
 
-const strip = (u) => String(u || '').replace(/^@/, '').trim().toLowerCase();
-// The opt-out the Terms (§6) and Privacy Policy (§5) promise: anyone who emails
-// hi@nested.social asking to be left out goes in this file (a JSON array of
-// usernames) and is never a sender or a recipient again.
-const OPT_OUT_FILE = 'scripts/intros/opt-out.json';
-const OPTED_OUT = new Set((existsSync(OPT_OUT_FILE) ? JSON.parse(readFileSync(OPT_OUT_FILE, 'utf8')) : []).map(strip));
 const problems = (p, who) => {
   const out = [];
   if (!p) return [`${who}: no such username`];
