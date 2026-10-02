@@ -11,6 +11,7 @@ import React from 'react'
 import Icon from './icons'
 import { CodeBoxes } from './shared'
 import { authService, isSupabaseConfigured, getErrorMessage } from '../lib/supabase'
+import { markTermsSeen } from './legalDoc'
 import { lookupService } from '../services/lookupService'
 
   const { useState, useEffect, useRef } = React;
@@ -21,6 +22,7 @@ import { lookupService } from '../services/lookupService'
     const [email, setEmail] = useState(initialEmail || '');
     const [password, setPassword] = useState('');
     const [confirm, setConfirm] = useState('');
+    const [agreedToTerms, setAgreedToTerms] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState('');
     const [code, setCode] = useState(["", "", "", "", "", ""]);
@@ -37,7 +39,9 @@ import { lookupService } from '../services/lookupService'
       ? password.length >= 6 && /[A-Z]/.test(password)
       : password.length > 0;
     const confirmValid = mode === 'signin' || (!!confirm && confirm === password);
-    const canSubmit = emailValid && passwordValid && confirmValid && !submitting;
+    // New org accounts must tick the Terms / Privacy box; sign-in doesn't ask.
+    const consentValid = mode === 'signin' || agreedToTerms;
+    const canSubmit = emailValid && passwordValid && confirmValid && consentValid && !submitting;
     const codeString = code.join('');
     const codeReady = codeString.length === 6;
 
@@ -296,6 +300,23 @@ import { lookupService } from '../services/lookupService'
                     onChange: (e) => setConfirm(e.target.value),
                     onKeyDown: (e) => { if (e.key === "Enter" && canSubmit) submit(); },
                   })
+                )
+              ),
+
+              // Same required consent as student signup step 5 (new tab links,
+              // so the typed form survives a read of either document).
+              mode === 'signup' && React.createElement("label", { className: "onb-consent" },
+                React.createElement("input", {
+                  type: "checkbox",
+                  checked: agreedToTerms,
+                  onChange: (e) => { setAgreedToTerms(e.target.checked); if (e.target.checked) markTermsSeen(); },
+                }),
+                React.createElement("span", null,
+                  "I agree to the ",
+                  React.createElement("a", { href: "/terms", target: "_blank", rel: "noopener noreferrer" }, "Terms of Service"),
+                  " and ",
+                  React.createElement("a", { href: "/privacy", target: "_blank", rel: "noopener noreferrer" }, "Privacy Policy"),
+                  "."
                 )
               ),
 

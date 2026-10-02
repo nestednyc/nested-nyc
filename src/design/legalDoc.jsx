@@ -12,6 +12,8 @@
    ============================================================ */
 import React from 'react'
 import Icon from './icons'
+import { TERMS_VERSION } from './data'
+import storageKeys from './storageKeys.json'
 import TERMS_RAW from '../../legal/terms-of-service.md?raw'
 import PRIVACY_RAW from '../../legal/privacy-policy.md?raw'
 
@@ -112,5 +114,52 @@ function LegalDoc({ doc, onBack, onOpenDoc }) {
   );
 }
 
-export { LegalDoc };
+// ---------- "seen" flag (per browser) ----------
+// Set when someone ticks the consent box at signup or dismisses the notice
+// below; holds the TERMS_VERSION they saw, so a bumped version asks again.
+function termsSeen() {
+  try { return localStorage.getItem(storageKeys.termsSeen) === TERMS_VERSION; } catch (e) { return true; }
+}
+function markTermsSeen() {
+  try { localStorage.setItem(storageKeys.termsSeen, TERMS_VERSION); } catch (e) {}
+}
+
+// One-time strip under the top bar for signed-in accounts that predate the
+// documents (new signups tick the checkbox instead and never see it).
+function LegalNotice() {
+  const [seen, setSeen] = React.useState(termsSeen);
+  if (seen) return null;
+  return (
+    React.createElement("div", { className: "legal-notice", role: "status" },
+      React.createElement("span", null,
+        "We've added ",
+        React.createElement("a", { href: "/terms", target: "_blank", rel: "noopener noreferrer" }, "Terms of Service"),
+        " and a ",
+        React.createElement("a", { href: "/privacy", target: "_blank", rel: "noopener noreferrer" }, "Privacy Policy"),
+        ". By continuing to use Nested, you agree to them."
+      ),
+      React.createElement("button", { className: "btn btn-ghost btn-sm", type: "button", onClick: () => { markTermsSeen(); setSeen(true); } }, "Got it")
+    )
+  );
+}
+
+// Small-print links at the foot of the public pages, so the documents are
+// reachable from the site itself and not only from the auth screens.
+function LegalLinks({ onOpenDoc }) {
+  const link = (route, path, label) => React.createElement("a", {
+    href: path,
+    onClick: (e) => {
+      if (!onOpenDoc || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+      e.preventDefault();
+      onOpenDoc(route);
+    },
+  }, label);
+  return (
+    React.createElement("p", { className: "legal-foot site-foot" },
+      link("terms", "/terms", "Terms"), " · ", link("privacy", "/privacy", "Privacy")
+    )
+  );
+}
+
+export { LegalDoc, LegalNotice, LegalLinks, markTermsSeen };
 export default LegalDoc;

@@ -79,7 +79,7 @@ src/
 │   ├── headerMenus.jsx  # desktop topbar popovers (bell + account chip); mobile uses the account sheet
 │   ├── userProfile.jsx  # /u/:username — self-fetching student profile page
 │   ├── onboarding.jsx forgot.jsx                              # student auth screens
-│   ├── legalDoc.jsx     # /terms + /privacy — renders legal/*.md (the source of truth; edit the markdown, not the component). Linked from every auth screen; signup step 5 requires the consent checkbox
+│   ├── legalDoc.jsx     # /terms + /privacy — renders legal/*.md (the source of truth; edit the markdown, not the component). Linked from every auth screen and under the public pages (`LegalLinks`); student signup step 5 and org sign-up require the consent checkbox, and `signUp` stamps `terms_accepted_at` / `terms_version` (`TERMS_VERSION` in data.js — bump it when the docs change) into auth user metadata; accounts that predate the pages get the one-time `LegalNotice` strip (seen flag in localStorage `nested.nyc.termsSeen.v1`). The intros opt-out the docs promise is `scripts/intros/opt-out.json` (the runner skips anyone listed)
 │   ├── org*.jsx                                               # org account screens (orgForm.jsx = the shared 4-step body)
 │   ├── clubFound.jsx    # /clubs/new — a student founding a club (OrgForm variant="student")
 │   ├── shared.jsx       # shared UI primitives

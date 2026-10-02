@@ -15,10 +15,11 @@
    Before each send the pair is re-checked against the live rows: both real,
    finished student accounts with a photo, seen in the last 30 days, a real
    first name (no "Fnu"/empty placeholder), not connected, no messages either
-   way, never introduced, not blocked. A failed check skips that pair, loudly.
+   way, never introduced, not blocked, neither one in scripts/intros/opt-out.json.
+   A failed check skips that pair, loudly.
    ============================================================ */
 import { execFileSync, execSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 
 const PROD_REF = 'fkiyjxxiysbvmflbibsu';
@@ -98,6 +99,11 @@ if (!Array.isArray(round) || !round.length) { console.error(`${FILE}: expected a
 console.log(`${SEND ? 'SENDING' : 'DRY RUN'} — ${round.length} intro(s) from ${FILE} against ${LOCAL ? 'the LOCAL stack' : REF + (REF === PROD_REF ? ' (PRODUCTION)' : '')}\n`);
 
 const strip = (u) => String(u || '').replace(/^@/, '').trim().toLowerCase();
+// The opt-out the Terms (§6) and Privacy Policy (§5) promise: anyone who emails
+// hi@nested.social asking to be left out goes in this file (a JSON array of
+// usernames) and is never a sender or a recipient again.
+const OPT_OUT_FILE = 'scripts/intros/opt-out.json';
+const OPTED_OUT = new Set((existsSync(OPT_OUT_FILE) ? JSON.parse(readFileSync(OPT_OUT_FILE, 'utf8')) : []).map(strip));
 const problems = (p, who) => {
   const out = [];
   if (!p) return [`${who}: no such username`];
@@ -122,6 +128,7 @@ for (const [i, item] of round.entries()) {
   if (body.length > 4000) issues.push('body over 4000 chars');
   if (note.length > 200) issues.push('note over 200 chars');
   if (s === r) issues.push('sender and recipient are the same');
+  for (const u of [s, r]) if (OPTED_OUT.has(u)) issues.push(`@${u} opted out of intros`);
 
   const people = runRows(`select p.id, p.username, p.first_name, p.account_type, p.onboarding_completed,
       coalesce(array_length(p.photos, 1), 0) as photos, u.last_sign_in_at as last_sign_in,

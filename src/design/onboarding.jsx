@@ -8,6 +8,7 @@ import Icon from './icons'
 import { UNIVERSITIES, UNI, MAJORS, INTERESTS, SKILLS, LINK_ICON, uniByEmailDomain } from './data'
 import { Stamp, Av, Polaroid, resizePhoto, LINK_KINDS } from './shared'
 import { authService, isSupabaseConfigured, getErrorMessage } from '../lib/supabase'
+import { markTermsSeen } from './legalDoc'
 import { lookupService } from '../services/lookupService'
 import { profileService } from '../services/profileService'
 import { storageService } from '../services/storageService'
@@ -1137,7 +1138,9 @@ import { toDbProfile, fromDbProfile, dataUrlToFile } from './profileAdapter'
             React.createElement("input", {
               type: "checkbox",
               checked: agreedToTerms,
-              onChange: (e) => setAgreedToTerms(e.target.checked),
+              // Agreeing here also retires the one-time "we've added Terms"
+              // notice the shells show to accounts that predate the pages.
+              onChange: (e) => { setAgreedToTerms(e.target.checked); if (e.target.checked) markTermsSeen(); },
             }),
             React.createElement("span", null,
               "I agree to the ",

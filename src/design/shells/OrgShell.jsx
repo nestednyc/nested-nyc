@@ -16,6 +16,7 @@ import EventDetail from '../eventDetail'
 import Community from '../community'
 import EventResponses from '../eventResponses'
 import OrgMembers from '../orgMembers'
+import { LegalNotice } from '../legalDoc'
 
 export default function OrgShell({ api }) {
   const {
@@ -96,6 +97,9 @@ export default function OrgShell({ api }) {
                   )
                 )
           ),
+
+          // Accounts older than the Terms / Privacy pages: tell them once.
+          React.createElement(LegalNotice),
 
           route === "orgDashboard" && React.createElement(OrgDashboard, {
             org: orgAccount,

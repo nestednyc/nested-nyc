@@ -58,6 +58,8 @@ We keep your information for as long as your account is active, or as needed to 
 
 **Blocking.** You can block another user to stop them from messaging you.
 
+**Nested AI intros.** If you don't want introductory messages drafted and sent from your account, email us at hi@nested.social and we'll leave you out.
+
 **Access and correction.** You can view and edit most of your profile information directly in the app.
 
 **Deletion.** Nested doesn't currently have a self-serve "delete my account" button. To request deletion of your account and associated data, email us at hi@nested.social and we'll process it within a reasonable period, subject to the retention exceptions above.

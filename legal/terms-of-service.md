@@ -4,6 +4,8 @@
 
 These Terms of Service ("**Terms**") govern your access to and use of Nested (the "**Service**," "**we**," "**us**"). By creating an account or otherwise using the Service, you agree to these Terms. If you don't agree, don't use the Service.
 
+Our Privacy Policy explains how we collect, use, and share your information when you use the Service.
+
 ## 1. Eligibility
 
 You must be at least 13 years old to use Nested.
@@ -51,7 +53,7 @@ We provide in-app reporting for posts, comments, and profiles. Content that draw
 
 Message bodies are encrypted at rest. Message content is designed to be accessible only to the sender and recipient through the app. We don't monitor messages routinely, but we may access message content when necessary to investigate a report, enforce these Terms, comply with the law, or maintain the security and operation of the Service.
 
-**Some of your messages may be written by Nested, not you.** From time to time, Nested uses an AI system to identify students who might want to know each other and draft a short introductory message, sent as a normal direct message from your account to theirs. By using Nested, you authorize us to send these on your behalf. This happens occasionally, in small batches we run by hand — not continuously or automatically.
+**Some of your messages may be written by Nested, not you.** From time to time, Nested uses an AI system to identify students who might want to know each other and draft a short introductory message, sent as a normal direct message from your account to theirs. By using Nested, you authorize us to send these on your behalf. This happens occasionally, in small batches we run by hand — not continuously or automatically. If you don't want introductions sent from your account, email hi@nested.social and we'll leave you out.
 
 ## 7. Organizations, clubs, and events
 
@@ -79,7 +81,7 @@ THE SERVICE IS PROVIDED "AS IS" AND "AS AVAILABLE," WITHOUT WARRANTIES OF ANY KI
 
 ## 13. Limitation of liability
 
-TO THE MAXIMUM EXTENT PERMITTED BY LAW, NESTED AND ITS OFFICERS, EMPLOYEES, AND AGENTS WILL NOT BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES, OR ANY LOSS OF DATA, USE, GOODWILL, OR PROFITS, ARISING FROM YOUR USE OF THE SERVICE. OUR TOTAL LIABILITY FOR ANY CLAIM ARISING FROM THESE TERMS OR THE SERVICE WILL NOT EXCEED $0.
+TO THE MAXIMUM EXTENT PERMITTED BY LAW, NESTED AND ITS OFFICERS, EMPLOYEES, AND AGENTS WILL NOT BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES, OR ANY LOSS OF DATA, USE, GOODWILL, OR PROFITS, ARISING FROM YOUR USE OF THE SERVICE. OUR TOTAL LIABILITY FOR ANY CLAIM ARISING FROM THESE TERMS OR THE SERVICE WILL NOT EXCEED THE GREATER OF (A) THE AMOUNT YOU PAID US TO USE THE SERVICE IN THE 12 MONTHS BEFORE THE CLAIM AROSE, OR (B) $100.
 
 Some jurisdictions don't allow the exclusion of certain warranties or limitation of liability, so some of the above may not apply to you.
 

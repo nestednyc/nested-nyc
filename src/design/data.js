@@ -370,3 +370,8 @@
 // How many student-run clubs one student may found (mirrors the
 // org_student_run_guard trigger cap in migration 20260903000000).
 export const MAX_STUDENT_CLUBS = 5;
+
+// Version (= effective date) of legal/terms-of-service.md + privacy-policy.md.
+// Stamped into auth user metadata at signup and into the "seen" flag behind
+// the one-time notice — bump it whenever the documents materially change.
+export const TERMS_VERSION = "2026-10-02";

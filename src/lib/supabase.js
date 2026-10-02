@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
-import { isSupportedEduEmail } from '../design/data'
+import { isSupportedEduEmail, TERMS_VERSION } from '../design/data'
 
 /**
  * Supabase Configuration
@@ -313,7 +313,11 @@ export const authService = {
         options: {
           emailRedirectTo: `${window.location.origin}/auth/confirm${opts?.next ? `?next=${encodeURIComponent(opts.next)}` : ''}`,
           data: {
-            email_domain: email.split('@')[1].toLowerCase()
+            email_domain: email.split('@')[1].toLowerCase(),
+            // The wizard only reaches this call after the Terms/Privacy
+            // checkbox — keep the record of when, and of which version.
+            terms_accepted_at: new Date().toISOString(),
+            terms_version: TERMS_VERSION
           }
         }
       })
@@ -376,7 +380,10 @@ export const authService = {
           emailRedirectTo: `${window.location.origin}/auth/confirm?next=/org/onboarding`,
           data: {
             account_type: 'org_admin',
-            email_domain: email.split('@')[1].toLowerCase()
+            email_domain: email.split('@')[1].toLowerCase(),
+            // Org sign-up gates this call behind the same consent checkbox.
+            terms_accepted_at: new Date().toISOString(),
+            terms_version: TERMS_VERSION
           }
         }
       })

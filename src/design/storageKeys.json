@@ -1,4 +1,5 @@
 {
   "identityCache": "nested.nyc.v1",
-  "activeOrg": "nested.nyc.activeOrg.v1"
+  "activeOrg": "nested.nyc.activeOrg.v1",
+  "termsSeen": "nested.nyc.termsSeen.v1"
 }

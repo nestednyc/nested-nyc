@@ -30,7 +30,8 @@ import ProjectDetail from '../detail'
 import Profile from '../profile'
 import OrgView from '../orgView'
 import EventDetail from '../eventDetail'
-import LegalDoc from '../legalDoc'
+import LegalDoc, { LegalNotice, LegalLinks } from '../legalDoc'
+import { accessOf } from '../router'
 
 const { useState } = React;
 
@@ -245,6 +246,9 @@ export default function StudentShell({ api }) {
             })
           )
         ),
+
+        // Accounts older than the Terms / Privacy pages: tell them once.
+        profile && React.createElement(LegalNotice),
 
         route === "discover" && React.createElement(Discover, {
           projects: projectsList, profile, saved, joined, requested, query,
@@ -644,6 +648,9 @@ export default function StudentShell({ api }) {
           onCancel: () => setConfirmDelete(null),
           onConfirm: deleteConversationNow,
         }),
+        // Terms · Privacy under the public pages (the legal pages link each other).
+        accessOf(route) === "public" && route !== "terms" && route !== "privacy" && route !== "soon" &&
+          React.createElement(LegalLinks, { onOpenDoc: (r) => { setRoute(r); window.scrollTo({ top: 0 }); } }),
         React.createElement(Toasts, { items: toasts }),
         React.createElement(StyleTweaks, { t, setTweak })
       )
