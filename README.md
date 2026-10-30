@@ -28,6 +28,15 @@ The app runs at `http://localhost:5173`.
 npm run build
 ```
 
+## Tests
+
+```bash
+npm test           # unit tests (node --test, every *.test.js)
+npm run test:db    # SQL acceptance proofs — needs the local Supabase stack (supabase start)
+```
+
+GitHub Actions runs the unit tests, the production build and a syntax check on every push (`.github/workflows/ci.yml`), and applies every migration to a fresh Postgres + runs the SQL proofs when `supabase/` changes (`db.yml`). Vercel runs `npm test` (the unit tests) before every build, so a red unit test never deploys; the Actions workflows are checks, not deploy gates.
+
 ## Tech stack
 
 - React 18 + Vite 5

@@ -1,0 +1,55 @@
+# CI — every push and pull request.
+# About a minute: unit tests, the production build, and a syntax check of
+# the serverless layer + the repo's node scripts. The database layer has
+# its own workflow (db.yml) because it needs a Postgres stack.
+#
+# This is a check, not the deploy gate. Production is gated by
+# vercel.json's buildCommand (`npm test && npm run build`): a red unit
+# test fails the Vercel build and the previous deployment stays live.
+name: CI
+
+on:
+  push:
+    paths-ignore:
+      - 'README.md'
+      - 'CLAUDE.md'
+      - 'EMAIL_NOTIFICATIONS.md'
+      - 'SEO-AUDIT.md'
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test, build, syntax
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24   # the Vercel project runs Node 24.x (engines: >= 20.19)
+          cache: npm
+
+      - run: npm ci
+
+      - name: Unit tests (node --test)
+        run: npm test
+
+      - name: Production build
+        run: npm run build
+
+      - name: Syntax-check api/, scripts/ and e2e/
+        run: |
+          set -euo pipefail
+          # node --check takes one file per process.
+          find api scripts e2e -type f \( -name '*.js' -o -name '*.mjs' -o -name '*.cjs' \) -print0 \
+            | xargs -0 -n1 -P "$(nproc)" node --check
+          echo "all files parse"

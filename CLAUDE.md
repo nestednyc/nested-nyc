@@ -236,16 +236,18 @@ npm install
 npm run dev        # localhost:5173
 npm run build      # production build → dist/
 npm run preview
-npm test           # node --test: router.test.js + messageAdapter.test.js + data.test.js + postAdapter.test.js + mosaic.test.js
+npm test           # node --test, auto-discovers every *.test.js (src/design/, api/_tests/)
+npm run test:db    # SQL acceptance proofs against the LOCAL stack (scripts/db-tests.mjs — needs `supabase start`)
 ```
 
 - Env (`.env`, see `.env.example`): `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`.
 - Local Supabase stack via the CLI/Docker (`supabase/config.toml`): API :54321, DB :54322, Studio :54323; email confirmations auto-pass locally.
-- **Tests cover only the pure modules** (`router.js`, `messageAdapter.js`, `postAdapter.js`, `mosaic.js`, and `data.js`'s `resolveOrgUniSlug`) via `node --test` — no framework. Everything else is verified manually in the browser (Playwright is a devDependency for ad-hoc verification scripts, not a checked-in suite).
+- **Tests are `node --test`, no framework.** `npm test` auto-discovers every `*.test.js` (a new colocated test runs with no registration). Unit tests cover the pure modules (`router.js`, `messageAdapter.js`, `postAdapter.js`, `mosaic.js`, `data.js`), the email template (`api/_tests/template.test.js`: escaping, the avatar trust rule, the unsubscribe footer, every builder renders), the api helpers (`_rate-limit`: fails open on backend errors, honours the backend's verdict; `/api/unsubscribe`: GET/HEAD are read-only and never reach the DB), and the **client ↔ SQL mirrors** (`src/design/mirrors.test.js`: the `is_supported_edu_email` allowlist + match rule vs `UNIVERSITIES[].domain` / `uniByEmailDomain`, `MAX_STUDENT_CLUBS` vs the `org_student_run_guard` cap, `TERMS_VERSION` vs the legal docs' effective date — it reads the *last* migration that creates each function, comments stripped, and fails loud on a redefinition it can't parse). **api tests live in `api/_tests/`** — any other `*.js` under `api/` is deployed by Vercel as a public function. They run inside the Vercel build too, where the real secrets are in the environment, so `npm test` preloads `scripts/test-env.mjs` (scrubs `SUPABASE_*`, `RESEND_*`, the webhook/cron secrets) and each api test sets its own fake env + stubs `fetch` **before** its dynamic import (api modules build their clients at import time). `supabase/tests/*.sql` are acceptance proofs for the DM RPCs; `scripts/db-tests.mjs` runs every file against a local stack (loopback `DB_URL` only; `dm_s1` is skipped — it proves the pre-`20260622000000` state) and fails on any `FAIL` NOTICE. Screens are still verified in the browser (Playwright is a devDependency for the ad-hoc scripts in `e2e/`, not a checked-in suite).
+- **CI** (`.github/workflows/`): `ci.yml` runs `npm ci` → `npm test` → `npm run build` → `node --check` over `api/`, `scripts/`, `e2e/` on every push and PR (Node 24, like Vercel). `db.yml` starts a fresh Postgres on the runner via `supabase db start` — every migration applied from scratch — and runs `scripts/db-tests.mjs`; it triggers on changes under `supabase/**` or by hand. Both are checks, not deploy gates (see Deployment).
 
 ## Deployment
 
-Vercel, auto-deploy from `main`. `public/robots.txt` is fully permissive (Google + AI crawlers welcome; profile privacy rests on the auth gate, not robots) and is served as a static file ahead of the SPA rewrite. `vercel.json` provides the SPA fallback rewrite plus security headers (HSTS, `X-Frame-Options: DENY`, nosniff, Referrer-Policy, Permissions-Policy; CSP is currently **report-only**). Env vars are set in the Vercel dashboard.
+Vercel, auto-deploy from `main`. `vercel.json` sets `buildCommand` to `npm test && npm run build`, so a red unit test fails the Vercel build (prod and previews alike) and the previous deployment stays live. `public/robots.txt` is fully permissive (Google + AI crawlers welcome; profile privacy rests on the auth gate, not robots) and is served as a static file ahead of the SPA rewrite. `vercel.json` provides the SPA fallback rewrite plus security headers (HSTS, `X-Frame-Options: DENY`, nosniff, Referrer-Policy, Permissions-Policy; CSP is currently **report-only**). Env vars are set in the Vercel dashboard.
 
 ### Serverless layer (`api/`)
 

@@ -1,0 +1,57 @@
+# Database — a fresh local Postgres applies every file in
+# supabase/migrations from scratch (the real "do the migrations still
+# apply?" check), then the SQL acceptance proofs in supabase/tests run
+# against it through scripts/db-tests.mjs.
+#
+# Runs when the database layer changes, and on demand. It is a check, not
+# a deploy gate — migrations reach prod by hand, never through Vercel —
+# and it never touches prod: the database is the CLI's local Docker
+# container on the runner.
+name: Database
+
+on:
+  push:
+    paths:
+      - 'supabase/**'
+      - 'scripts/db-tests.mjs'
+      - '.github/workflows/db.yml'
+  pull_request:
+    paths:
+      - 'supabase/**'
+      - 'scripts/db-tests.mjs'
+      - '.github/workflows/db.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: db-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  migrate:
+    name: Migrations from scratch + SQL proofs
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - uses: supabase/setup-cli@v3
+        with:
+          version: 2.101.0   # the repo-local ./supabase.exe shim the migrations are run with
+
+      # Postgres only (no auth/rest/storage/realtime/studio containers): the
+      # CLI still installs the auth/storage/realtime schemas and applies
+      # supabase/migrations in order, which is all the proofs need.
+      - name: Start Postgres and apply every migration
+        run: supabase db start
+
+      - name: SQL acceptance proofs
+        run: node scripts/db-tests.mjs
+        env:
+          DB_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres   # [db] port in supabase/config.toml
