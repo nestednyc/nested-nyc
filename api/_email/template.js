@@ -54,6 +54,9 @@ const FONT_MONO = "'Spline Sans Mono',ui-monospace,'SF Mono',Menlo,Consolas,mono
 const SITE = "https://www.nested.social";
 const FONT_LINK = "https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Hanken+Grotesk:wght@400;500;600;700;800&family=Spline+Sans+Mono:wght@400;500;600&display=swap";
 
+// The band logo's <img> leads with alt, not src: `<img src="http` is the
+// actor photo's signature, which api/_tests/template.test.js probes to prove
+// an untrusted avatar never became an <img>.
 const LOGO = process.env.EMAIL_LOGO_URL || (SITE + "/email/nested-mark-ivory.png");
 
 // User-supplied strings (names, titles, messages) are untrusted — escape them.
@@ -62,14 +65,31 @@ function esc(s) {
     .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
-/* Person-actor emails carry the actor's photo. Only our own storage's
-   public URLs are trusted into an <img> the recipient's client will fetch
-   (profiles.avatar is user-writable); anything else renders the inline
-   initials disc below — no network request, nothing leaves the email. */
-const AVATAR_URL_MARKER = "/storage/v1/object/public/";
+/* Person-actor emails carry the actor's photo. Only our own project's
+   public storage is trusted into an <img> the recipient's client will fetch
+   (profiles.avatar is user-writable — a foreign host would be a tracking
+   pixel); anything else renders the inline initials disc below — no
+   network request, nothing leaves the email. The host must be the
+   configured Supabase project (SUPABASE_URL, as in every api/ function),
+   or any *.supabase.co host when that is not set (local previews only —
+   notify.js / digest.js refuse to send without SUPABASE_URL).
+   The URL must already be in canonical form: the parser may not rewrite
+   anything (dot segments such as /x/../storage/…, %2e%2e, backslashes,
+   host case, default ports), so the prefix check holds for the literal
+   string the mail client will fetch. getPublicUrl() output always is. */
+const AVATAR_PATH_PREFIX = "/storage/v1/object/public/";
+const STORAGE_HOST = (() => {
+  try { return new URL(process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "").host; } catch { return ""; }
+})();
 function safeAvatarUrl(url) {
   const s = String(url || "");
-  return /^https:\/\//i.test(s) && s.includes(AVATAR_URL_MARKER) ? s : null;
+  let u;
+  try { u = new URL(s); } catch { return null; }
+  if (u.href !== s) return null;
+  if (u.protocol !== "https:" || u.username || u.password) return null;
+  if (!u.pathname.startsWith(AVATAR_PATH_PREFIX)) return null;
+  const hostOk = STORAGE_HOST ? u.host === STORAGE_HOST : /\.supabase\.co$/i.test(u.hostname);
+  return hostOk ? s : null;
 }
 function initialsOf(name) {
   const parts = String(name || "").replace(/^@/, "").trim().split(/[\s._-]+/).filter(Boolean);
@@ -164,7 +184,7 @@ export function renderEmail(o) {
             <td valign="middle">
               <table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
                 <tr>
-                  <td width="34" style="width:34px;" valign="middle"><img src="${esc(LOGO)}" width="34" height="34" alt="Nested" style="display:block;width:34px;height:34px;border-radius:9px;border:0;color:${T.bandInk};font-family:${FONT_BODY};font-size:11px;" /></td>
+                  <td width="34" style="width:34px;" valign="middle"><img alt="Nested" src="${esc(LOGO)}" width="34" height="34" style="display:block;width:34px;height:34px;border-radius:9px;border:0;color:${T.bandInk};font-family:${FONT_BODY};font-size:11px;" /></td>
                   <td width="11" style="width:11px;font-size:0;">&nbsp;</td>
                   <td valign="middle"><span style="font-family:${FONT_DISP};font-weight:800;font-size:19px;color:${T.bandInk};letter-spacing:-0.02em;">nested</span></td>
                 </tr>
