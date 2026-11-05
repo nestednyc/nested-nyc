@@ -1,0 +1,9 @@
+[
+  {
+    "sender": "example_sender",
+    "recipient": "example_recipient",
+    "body": "Hi Sam, you both listed React and you are both building tools for student clubs. Worth comparing notes?",
+    "note": "Both use React and are building for student clubs",
+    "batch": "round-N"
+  }
+]

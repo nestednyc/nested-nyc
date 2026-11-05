@@ -11,6 +11,9 @@
    Add --send to actually send. Production (fkiyjxxiysbvmflbibsu) is refused
    unless --yes-prod is also given. --file <path> picks the round
    (default scripts/intros/round-1.json).
+   Round files (scripts/intros/round-*.json) are git-ignored: they name real
+   accounts and hold the text each one receives, and this repo is public.
+   scripts/intros/round.example.json shows the shape.
 
    Before each send the pair is re-checked against the live rows: both real,
    finished student accounts with a photo, seen in the last 30 days, a real

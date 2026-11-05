@@ -65,3 +65,7 @@ email-preview/out/*.png
 
 # e2e screenshot output — regenerable by the e2e/*.mjs scripts
 e2e/shots/
+
+# Intro rounds name real accounts and carry the message each one receives.
+# They stay on the machine that sends them; round.example.json shows the shape.
+scripts/intros/round-*.json
