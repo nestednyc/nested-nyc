@@ -2,6 +2,10 @@
 
 Student-only project network for NYC universities — live at **[nested.social](https://nested.social)**.
 
+[![Nested launch film: the board, a project page and the sign-up gate](docs/launch.gif)](docs/nested-launch.mp4)
+
+*A 44-second launch film; click it for the full video. It uses sample projects so that no real student appears in it. The numbers at the end are real.*
+
 ![The Discover board: student projects pinned up as flyers](docs/discover.jpg)
 
 Students discover projects, post their own, find teammates, and follow student clubs. Signing up requires an email address from one of 18 supported NYC universities.
